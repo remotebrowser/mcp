@@ -4,10 +4,31 @@
   </head>
   <body>
     <div gg-match="div[data-testid='saved-items-list']"></div>
-    <div gg-stop gg-match-html="body"></div>
-    <script type="application/json" id="saved-list">
+    <div
+      gg-stop
+      gg-match-html="div[data-testid='saved-items-list'] div[data-testid='saved-items-list'] > div:nth-child(2)"
+    ></div>
+    <script type="application/json" id="saved_list">
       {
-        "api_endpoint": "https://www.traveloka.com/api/v2/ugc/bookmark/template/getList"
+        "rows": "div[data-testid^='card-']",
+        "columns": [
+          { "name": "item_type", "selector": "div.css-901oao.r-1ud240a" },
+          { "name": "item_name", "selector": "h3.css-901oao" },
+          {
+            "name": "rating",
+            "selector": "div.css-901oao.r-uh8wd5.r-b88u0q.r-fdjqy7[style*='color: rgb(1, 148, 243)']"
+          },
+          {
+            "name": "location",
+            "selector": "div.css-901oao.r-1ud240a.r-uh8wd5.r-1b43r93.r-majxgm"
+          },
+          {
+            "name": "price",
+            "selector": "div.css-901oao.r-uh8wd5.r-ubezar.r-majxgm.r-135wba7.r-fdjqy7[style*='color: rgb(255, 94, 31)']"
+          },
+          { "name": "image", "selector": "img.r-kdyh1x", "attribute": "src" },
+          { "name": "card_id", "selector": "div[data-testid^='card-']", "attribute": "data-testid" }
+        ]
       }
     </script>
   </body>
