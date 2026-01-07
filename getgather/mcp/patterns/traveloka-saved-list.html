@@ -12,21 +12,28 @@
       {
         "rows": "div[data-testid^='card-']",
         "columns": [
-          { "name": "item_type", "selector": "div.css-901oao.r-1ud240a" },
-          { "name": "item_name", "selector": "h3.css-901oao" },
+          {
+            "name": "item_type",
+            "selector": "div[style^='padding-top: 4px'] > div[dir^='auto'][style*='line-height: 20px']"
+          },
+          {
+            "name": "item_name",
+            "selector": "h3[aria-level^='3'][style*='color: rgb(3, 18, 26); line-height: 20px']"
+          },
           {
             "name": "rating",
-            "selector": "div.css-901oao.r-uh8wd5.r-b88u0q.r-fdjqy7[style*='color: rgb(1, 148, 243)']"
+            "selector": "div[dir^='auto'][style*='color: rgb(1, 148, 243)']"
           },
           {
             "name": "location",
-            "selector": "div.css-901oao.r-1ud240a.r-uh8wd5.r-1b43r93.r-majxgm"
+            "selector": "div:has(> img[src*='1537850816445']) > div[dir='auto'][style*='line-height: 20px']"
           },
+          { "name": "price", "selector": "div[dir^='auto'][style*='color: rgb(255, 94, 31)']" },
           {
-            "name": "price",
-            "selector": "div.css-901oao.r-uh8wd5.r-ubezar.r-majxgm.r-135wba7.r-fdjqy7[style*='color: rgb(255, 94, 31)']"
+            "name": "image",
+            "selector": "img[decoding='async'][height='112'][importance='low']",
+            "attribute": "data-src"
           },
-          { "name": "image", "selector": "img.r-kdyh1x", "attribute": "src" },
           { "name": "card_id", "selector": "div[data-testid^='card-']", "attribute": "data-testid" }
         ]
       }
