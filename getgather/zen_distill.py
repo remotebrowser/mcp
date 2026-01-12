@@ -898,20 +898,20 @@ async def run_distillation_loop(
 
     if page is None:
         page = await get_new_page(browser)
-    logger.info(f"Navigating to {location}")
-    try:
-        await zen_navigate_with_retry(page, location)
-    except Exception as error:
-        # Error already logged by retry wrapper, just report and re-raise
-        await zen_report_distill_error(
-            error=error,
-            page=page,
-            profile_id=browser.id,  # type: ignore[attr-defined]
-            location=location,
-            hostname=hostname,
-            iteration=0,
-        )
-        raise ValueError(f"Failed to navigate to {location}: {error}")
+        logger.info(f"Navigating to {location}")
+        try:
+            await zen_navigate_with_retry(page, location)
+        except Exception as error:
+            # Error already logged by retry wrapper, just report and re-raise
+            await zen_report_distill_error(
+                error=error,
+                page=page,
+                profile_id=browser.id,  # type: ignore[attr-defined]
+                location=location,
+                hostname=hostname,
+                iteration=0,
+            )
+            raise ValueError(f"Failed to navigate to {location}: {error}")
 
     TICK = 1  # seconds
     max = timeout // TICK
