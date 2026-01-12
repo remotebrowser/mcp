@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import random
 import re
@@ -455,46 +456,39 @@ class Element:
         return self.element.text
 
     async def is_visible(self) -> bool:
-        if self.xpath_selector:
-            escaped_selector = self.xpath_selector.replace("\\", "\\\\").replace('"', '\\"')
-            js_code = f"""
-                (() => {{
-                    const element = document
-                        .evaluate("{escaped_selector}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
-                        .singleNodeValue;
-                    if (!element) return false;
-                    const style = window.getComputedStyle(element);
-                    if (style.visibility === "hidden" || style.display === "none") return false;
-                    const rect = element.getBoundingClientRect();
-                    return rect.width > 0 && rect.height > 0;
-                }})()
-                """
-            try:
-                return bool(await self.page.evaluate(js_code))
-            except Exception as e:
-                logger.error(f"JavaScript XPath is_visible failed: {e}")
+        try:
+            selector = self.xpath_selector or self.css_selector
+            if not selector:
                 return False
 
-        if self.css_selector:
-            escaped_selector = self.css_selector.replace("\\", "\\\\").replace('"', '\\"')
-            js_code = f"""
-                (() => {{
-                    const element = document.querySelector("{escaped_selector}");
-                    if (!element) return false;
-                    const style = window.getComputedStyle(element);
-                    if (style.visibility === "hidden" || style.display === "none") return false;
-                    const rect = element.getBoundingClientRect();
-                    return rect.width > 0 && rect.height > 0;
-                }})()
-                """
-            try:
-                return bool(await self.page.evaluate(js_code))
-            except Exception as e:
-                logger.error(f"JavaScript CSS is_visible failed: {e}")
-                return False
+            # Optimized: Single JavaScript evaluation with minimal operations
+            escaped_selector = selector.replace("\\", "\\\\").replace('"', '\\"')
 
-        logger.error(f"No selector available for is_visible")
-        return False
+            if self.xpath_selector:
+                # Use a more efficient check - combine all checks in one expression
+                js_code = f"""
+                    (() => {{
+                        const el = document.evaluate("{escaped_selector}", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                        if (!el) return false;
+                        const s = window.getComputedStyle(el);
+                        return s.visibility !== "hidden" && s.display !== "none" && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+                    }})()
+                """
+            else:
+                # Optimized: Single expression, no intermediate variables
+                js_code = f"""
+                    (() => {{
+                        const el = document.querySelector("{escaped_selector}");
+                        if (!el) return false;
+                        const s = window.getComputedStyle(el);
+                        return s.visibility !== "hidden" && s.display !== "none" && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+                    }})()
+                """
+
+            return bool(await self.page.evaluate(js_code))
+        except Exception as e:
+            logger.debug(f"is_visible check failed: {e}")
+            return False
 
     async def click(self) -> None:
         if self.css_selector:
@@ -637,30 +631,35 @@ class Element:
             logger.error(f"JavaScript XPath click failed: {js_error}")
 
 
-async def page_query_selector(page: zd.Tab, selector: str, timeout: float = 0) -> Element | None:
+async def page_query_selector(
+    page: zd.Tab,
+    selector: str,
+    timeout: float = 0,
+    iframe_selector: str | None = None,
+    skip_visibility_check: bool = False,
+) -> Element | None:
     try:
         if selector.startswith("//"):
             elements = await page.xpath(selector, timeout)
             if elements and len(elements) > 0:
                 element = Element(elements[0], xpath_selector=selector)
-                if await element.is_visible():
+                if skip_visibility_check or await element.is_visible():
                     return element
             return None
 
-        try:
-            element = await page.select(selector, timeout=timeout)
-            if element:
-                element = Element(element, css_selector=selector)
-                if await element.is_visible():
-                    return element
-            return None
-        except (asyncio.TimeoutError, Exception):
+        if iframe_selector is not None:
             element = await page.select_all(selector, timeout=timeout, include_frames=True)
             if element and len(element) > 0:
                 element = Element(element[0], css_selector=selector)
-                if await element.is_visible():
+                if skip_visibility_check or await element.is_visible():
                     return element
-            return None
+        else:
+            element = await page.select(selector, timeout=timeout)
+            if element:
+                element = Element(element, css_selector=selector)
+                if skip_visibility_check or await element.is_visible():
+                    return element
+        return None
     except (asyncio.TimeoutError, Exception):
         return None
 
@@ -697,23 +696,107 @@ async def distill(
             attrs={"gg-match-html": True}
         )
 
+        # Collect all selectors for batch processing
+        selector_info: list[dict[str, Any]] = []
         for target in targets:
             if not isinstance(target, Tag):
                 continue
+            html = target.get("gg-match-html")
+            selector, iframe_selector = get_selector(str(html if html else target.get("gg-match")))
+            if selector:
+                selector_info.append({
+                    "target": target,
+                    "selector": selector,
+                    "iframe_selector": iframe_selector,
+                    "is_html": bool(html),
+                    "optional": target.get("gg-optional") is not None,
+                })
 
+        if not selector_info:
+            continue
+
+        # Batch check visibility for all selectors in one evaluate() call
+        selectors_list = [info["selector"] for info in selector_info]
+        is_xpath_list = [info["selector"].startswith("//") for info in selector_info]
+
+        # Escape selectors for JavaScript (double escape for JSON string)
+        escaped_selectors = [
+            s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") for s in selectors_list
+        ]
+
+        # Batch visibility check - ONE page.evaluate() call for all selectors!
+        # Returns array of booleans indicating visibility
+        visibility_results_raw = await page.evaluate(f"""
+            (() => {{
+                const selectors = {json.dumps(escaped_selectors)};
+                const isXpath = {json.dumps(is_xpath_list)};
+                const results = [];
+                
+                for (let i = 0; i < selectors.length; i++) {{
+                    let el = null;
+                    try {{
+                        if (isXpath[i]) {{
+                            el = document.evaluate(selectors[i], document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                        }} else {{
+                            el = document.querySelector(selectors[i]);
+                        }}
+                    }} catch (e) {{
+                        results.push(false);
+                        continue;
+                    }}
+                    
+                    if (!el) {{
+                        results.push(false);
+                        continue;
+                    }}
+                    
+                    const s = window.getComputedStyle(el);
+                    const visible = s.visibility !== "hidden" && s.display !== "none" && 
+                                   el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+                    
+                    results.push(visible);
+                }}
+                
+                return results;
+            }})()
+        """)
+
+        # Handle potential None or invalid results
+        visibility_results: list[bool] = []
+        if isinstance(visibility_results_raw, list):
+            try:
+                raw_list = cast(list[Any], visibility_results_raw)
+                visibility_results = [bool(r) if r is not None else False for r in raw_list]
+            except (TypeError, ValueError):
+                visibility_results = [False] * len(selector_info)
+        else:
+            # Fallback: all false if evaluation failed
+            visibility_results = [False] * len(selector_info)
+
+        # Process results and extract data for visible elements
+        for idx, info in enumerate(selector_info):
             if not found:
                 break
 
-            html = target.get("gg-match-html")
-            selector, _ = get_selector(str(html if html else target.get("gg-match")))
+            is_visible = visibility_results[idx] if idx < len(visibility_results) else False
 
-            if not selector:
+            if not is_visible:
+                if not info["optional"]:
+                    found = False
                 continue
 
-            source = await page_query_selector(page, selector)
+            # Element is visible - now query it to get the Element object for data extraction
+            # Skip visibility check since we already verified it in the batch check
+            source = await page_query_selector(
+                page,
+                info["selector"],
+                iframe_selector=info["iframe_selector"],
+                skip_visibility_check=True,
+            )
             if source:
                 match_count += 1
-                if html:
+                target = info["target"]
+                if info["is_html"]:
                     target.clear()
                     fragment = BeautifulSoup(
                         "<div>" + await source.inner_html() + "</div>", "html.parser"
@@ -730,9 +813,7 @@ async def distill(
                         target["value"] = source.element.get("value") or ""
                 match_count += 1
             else:
-                optional = target.get("gg-optional") is not None
-                logger.debug(f"Optional {selector} has no match")
-                if not optional:
+                if not info["optional"]:
                     found = False
 
         if found and match_count > 0:
@@ -773,9 +854,9 @@ async def autoclick(page: zd.Tab, distilled: str, expr: str):
     document = BeautifulSoup(distilled, "html.parser")
     elements = document.select(expr)
     for el in elements:
-        selector, _ = get_selector(str(el.get("gg-match")))
+        selector, iframe_selector = get_selector(str(el.get("gg-match")))
         if selector:
-            target = await page_query_selector(page, selector)
+            target = await page_query_selector(page, selector, iframe_selector=iframe_selector)
             if target:
                 logger.debug(f"Clicking {selector}")
                 await target.click()
