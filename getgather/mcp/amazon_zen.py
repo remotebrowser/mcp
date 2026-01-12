@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import time
 from datetime import datetime
 from typing import Any, cast
 
@@ -239,11 +240,45 @@ async def get_browsing_history() -> dict[str, Any]:
     )
 
 
+# Track if timing log file has been setup
+_timing_log_setup = False
+
+
+def setup_timing_log_file(log_filename: str = "amazon_zen_timing.log"):
+    """Setup a file handler specifically for timing logs."""
+    global _timing_log_setup
+
+    if _timing_log_setup:
+        return
+
+    from pathlib import Path
+
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    log_path = logs_dir / log_filename
+
+    # Add a file sink for timing logs only
+    logger.add(
+        log_path,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {message}",
+        filter=lambda record: "TIMING" in record["message"],
+        rotation="10 MB",
+        retention="7 days",
+        enqueue=True,
+    )
+    _timing_log_setup = True
+    logger.info(f"[ZEN_TIMING] Timing logs will be saved to: {log_path.absolute()}")
+    return log_path
+
+
 @amazon_zen_mcp.tool
 async def get_purchase_history_with_details(
     year: str | int | None = None, start_index: int = 0, timeFilter: str | None = None
 ) -> dict[str, Any]:
     """Get purchase/order history of a amazon with dpage."""
+
+    # Setup timing log file on first call
+    setup_timing_log_file()
 
     if year is None:
         target_year = datetime.now().year
@@ -263,15 +298,25 @@ async def get_purchase_history_with_details(
         raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     async def get_order_details_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
+        action_start_time = time.time()
+        logger.info(
+            f"[ZEN_TIMING] ===== Starting get_purchase_history_with_details (timeFilter={timeFilter}, startIndex={start_index}) ====="
+        )
+
         current_url = page.url
         if current_url is None or "signin" in current_url:
             raise Exception("User is not signed in")
 
         path = os.path.join(os.path.dirname(__file__), "patterns", "**/amazon-*.html")
 
-        logger.info(f"Loading patterns from {path}")
+        patterns_start = time.time()
+        logger.info(f"[ZEN_TIMING] Loading patterns from {path}")
         patterns = load_distillation_patterns(path)
-        logger.info(f"Loaded {len(patterns)} patterns")
+        patterns_time = time.time() - patterns_start
+        logger.info(f"[ZEN_TIMING] Loaded {len(patterns)} patterns in {patterns_time:.3f}s")
+
+        distillation_start = time.time()
+        logger.info(f"[ZEN_TIMING] Starting distillation loop")
         _, _, orders = await run_distillation_loop(
             f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
             patterns,
@@ -281,19 +326,38 @@ async def get_purchase_history_with_details(
             page=page,
             close_page=False,
         )
+        distillation_time = time.time() - distillation_start
+        logger.info(f"[ZEN_TIMING] Distillation loop completed in {distillation_time:.3f}s")
+
         if orders is None:
+            total_time = time.time() - action_start_time
+            logger.info(f"[ZEN_TIMING] No orders found, total time: {total_time:.3f}s")
             return {"amazon_purchase_history": []}
 
+        normalize_start = time.time()
+        logger.info(f"[ZEN_TIMING] Normalizing {len(orders)} order IDs")
         for order in orders:
             order["order_id"] = normalize_order_id(order.get("order_id")) or ""
+        normalize_time = time.time() - normalize_start
+        logger.info(f"[ZEN_TIMING] Order ID normalization completed in {normalize_time:.3f}s")
+
+        # Initialize timing variables in case of exceptions
+        gather_time = 0.0
+        processing_time = 0.0
 
         async def get_order_details(order: dict[str, Any]):
+            order_start = time.time()
             order_id = order["order_id"]
             store_logo = order.get("store_logo")
+            logger.info(f"[ZEN_TIMING] Fetching details for order: {order_id}")
 
             # If we already have product prices, return early
             product_prices = order.get("product_prices")
             if isinstance(product_prices, list):
+                elapsed = time.time() - order_start
+                logger.info(
+                    f"[ZEN_TIMING] Order {order_id} already has prices, skipped in {elapsed:.3f}s"
+                )
                 return {"order_id": order_id}
 
             # Determine order type based on brand logo alt text
@@ -498,18 +562,37 @@ async def get_purchase_history_with_details(
                     """
 
             result = await page.evaluate(js_code, True)
+            elapsed = time.time() - order_start
+            logger.info(
+                f"[ZEN_TIMING] Order {order_id} ({order_type}) details fetched in {elapsed:.3f}s"
+            )
             return {"order_id": order_id, **cast(dict[str, Any], result)}
 
         try:
+            gather_start = time.time()
+            logger.info(f"[ZEN_TIMING] Starting parallel fetch of {len(orders)} order details")
             order_details_list = await asyncio.gather(
                 *[get_order_details(order) for order in orders], return_exceptions=True
             )
+            gather_time = time.time() - gather_start
+            logger.info(f"[ZEN_TIMING] All order details fetched in {gather_time:.3f}s (parallel)")
 
+            error_count = 0
             for i, item in enumerate(order_details_list):
                 if isinstance(item, BaseException):
+                    error_count += 1
                     order_id = orders[i]["order_id"]
-                    logger.warning(f"Error getting order details for order: {order_id}: {item}")
+                    logger.warning(
+                        f"[ZEN_TIMING] Error getting order details for order: {order_id}: {item}"
+                    )
 
+            if error_count > 0:
+                logger.warning(
+                    f"[ZEN_TIMING] {error_count}/{len(orders)} orders failed to fetch details"
+                )
+
+            processing_start = time.time()
+            logger.info(f"[ZEN_TIMING] Processing and merging order details")
             order_details = {
                 item["order_id"]: item
                 for item in order_details_list
@@ -530,9 +613,19 @@ async def get_purchase_history_with_details(
                 order["payment_info_detail"] = details.get("paymentInfoDetail") or ""
                 order["payment_method"] = details.get("paymentMethod") or ""
                 order["payment_gift_card_amount"] = details.get("paymentGiftCardAmount") or ""
+            processing_time = time.time() - processing_start
+            logger.info(
+                f"[ZEN_TIMING] Order details processing completed in {processing_time:.3f}s"
+            )
         except Exception as e:
             logger.error(f"Error getting order details for order: {e}")
             pass
+
+        total_time = time.time() - action_start_time
+        logger.info(f"[ZEN_TIMING] ===== TOTAL TIME: {total_time:.3f}s =====")
+        logger.info(
+            f"[ZEN_TIMING] BREAKDOWN: patterns={patterns_time:.3f}s | distillation={distillation_time:.3f}s | normalize={normalize_time:.3f}s | fetch={gather_time:.3f}s | processing={processing_time:.3f}s"
+        )
         return {"amazon_purchase_history": orders}
 
     return await zen_dpage_with_action(

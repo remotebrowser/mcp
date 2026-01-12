@@ -638,28 +638,23 @@ class Element:
 
 
 async def page_query_selector(page: zd.Tab, selector: str, timeout: float = 0) -> Element | None:
+    """
+    Query selector optimized for speed.
+    - Single query attempt (no fallback frame search)
+    - No visibility checks during distillation for faster performance
+    """
     try:
         if selector.startswith("//"):
+            # XPath selector
             elements = await page.xpath(selector, timeout)
             if elements and len(elements) > 0:
-                element = Element(elements[0], xpath_selector=selector)
-                if await element.is_visible():
-                    return element
+                return Element(elements[0], xpath_selector=selector)
             return None
-
-        try:
+        else:
+            # CSS selector - single attempt, no frame search
             element = await page.select(selector, timeout=timeout)
             if element:
-                element = Element(element, css_selector=selector)
-                if await element.is_visible():
-                    return element
-            return None
-        except (asyncio.TimeoutError, Exception):
-            element = await page.select_all(selector, timeout=timeout, include_frames=True)
-            if element and len(element) > 0:
-                element = Element(element[0], css_selector=selector)
-                if await element.is_visible():
-                    return element
+                return Element(element, css_selector=selector)
             return None
     except (asyncio.TimeoutError, Exception):
         return None
