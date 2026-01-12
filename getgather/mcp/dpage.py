@@ -575,8 +575,11 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         for input in inputs:
             if isinstance(input, Tag):
                 gg_match = input.get("gg-match")
+                selector, frame_selector = get_selector(
+                    str(gg_match) if gg_match is not None else ""
+                )
                 element = await page_query_selector(
-                    page, selector=str(gg_match) if gg_match is not None else ""
+                    page, selector if selector is not None else "", iframe_selector=frame_selector
                 )
                 name = input.get("name")
                 input_type = input.get("type")
@@ -609,8 +612,12 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                                 continue
                             logger.info(f"Handling radio button group {name}")
                             logger.info(f"Using form data {name}={value}")
+                            radio_gg_match = str(radio.get("gg-match"))
+                            selector, frame_selector = get_selector(radio_gg_match)
                             radio_element = await page_query_selector(
-                                page, selector=str(radio.get("gg-match"))
+                                page,
+                                selector if selector is not None else "",
+                                iframe_selector=frame_selector,
                             )
                             if radio_element:
                                 await radio_element.click()

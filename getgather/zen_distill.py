@@ -637,7 +637,9 @@ class Element:
             logger.error(f"JavaScript XPath click failed: {js_error}")
 
 
-async def page_query_selector(page: zd.Tab, selector: str, timeout: float = 0) -> Element | None:
+async def page_query_selector(
+    page: zd.Tab, selector: str, timeout: float = 0, iframe_selector: str | None = None
+) -> Element | None:
     try:
         if selector.startswith("//"):
             elements = await page.xpath(selector, timeout)
@@ -647,20 +649,19 @@ async def page_query_selector(page: zd.Tab, selector: str, timeout: float = 0) -
                     return element
             return None
 
-        try:
-            element = await page.select(selector, timeout=timeout)
-            if element:
-                element = Element(element, css_selector=selector)
-                if await element.is_visible():
-                    return element
-            return None
-        except (asyncio.TimeoutError, Exception):
+        if iframe_selector is not None:
             element = await page.select_all(selector, timeout=timeout, include_frames=True)
             if element and len(element) > 0:
                 element = Element(element[0], css_selector=selector)
                 if await element.is_visible():
                     return element
-            return None
+        else:
+            element = await page.select(selector, timeout=timeout)
+            if element:
+                element = Element(element, css_selector=selector)
+                if await element.is_visible():
+                    return element
+        return None
     except (asyncio.TimeoutError, Exception):
         return None
 
@@ -705,12 +706,12 @@ async def distill(
                 break
 
             html = target.get("gg-match-html")
-            selector, _ = get_selector(str(html if html else target.get("gg-match")))
+            selector, iframe_selector = get_selector(str(html if html else target.get("gg-match")))
 
             if not selector:
                 continue
 
-            source = await page_query_selector(page, selector)
+            source = await page_query_selector(page, selector, iframe_selector=iframe_selector)
             if source:
                 match_count += 1
                 if html:
@@ -773,9 +774,9 @@ async def autoclick(page: zd.Tab, distilled: str, expr: str):
     document = BeautifulSoup(distilled, "html.parser")
     elements = document.select(expr)
     for el in elements:
-        selector, _ = get_selector(str(el.get("gg-match")))
+        selector, iframe_selector = get_selector(str(el.get("gg-match")))
         if selector:
-            target = await page_query_selector(page, selector)
+            target = await page_query_selector(page, selector, iframe_selector=iframe_selector)
             if target:
                 logger.debug(f"Clicking {selector}")
                 await target.click()
