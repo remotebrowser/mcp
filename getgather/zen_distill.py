@@ -719,16 +719,11 @@ async def distill(
         selectors_list = [info["selector"] for info in selector_info]
         is_xpath_list = [info["selector"].startswith("//") for info in selector_info]
 
-        # Escape selectors for JavaScript (double escape for JSON string)
-        escaped_selectors = [
-            s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") for s in selectors_list
-        ]
-
         # Batch visibility check - ONE page.evaluate() call for all selectors!
         # Returns array of booleans indicating visibility
         visibility_results_raw = await page.evaluate(f"""
             (() => {{
-                const selectors = {json.dumps(escaped_selectors)};
+                const selectors = {json.dumps(selectors_list)};
                 const isXpath = {json.dumps(is_xpath_list)};
                 const results = [];
                 
