@@ -396,6 +396,12 @@ async def check_error(distilled: str) -> bool:
     return False
 
 
+async def check_captcha(distilled: str) -> bool:
+    document = BeautifulSoup(distilled, "html.parser")
+    captchas = document.find_all(attrs={"gg-captcha": True})
+    return len(captchas) > 0
+
+
 def load_distillation_patterns(path: str) -> list[Pattern]:
     patterns: list[Pattern] = []
     for name in glob(path, recursive=True):

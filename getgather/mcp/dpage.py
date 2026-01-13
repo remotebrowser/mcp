@@ -19,6 +19,7 @@ from getgather.distill import (
     Match,
     autoclick,
     capture_page_artifacts,
+    check_captcha,
     check_error,
     convert,
     distill,
@@ -270,6 +271,9 @@ async def post_dpage(id: str, request: Request) -> HTMLResponse:
                 return HTMLResponse(render(FINISHED_MSG, options))
 
             converted = await convert(distilled)
+            if await check_captcha(distilled):
+                logger.info("Captcha detected, keeping browser alive...")
+                return HTMLResponse(render("CAPTCHA DETECTED", options))
             await dpage_close(id)
             if converted is not None:
                 print(converted)
@@ -554,6 +558,9 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 return HTMLResponse(render(FINISHED_MSG, options))
 
             converted = await convert(distilled)
+            if await check_captcha(distilled):
+                logger.info("Captcha detected, keeping browser alive...")
+                return HTMLResponse(render("CAPTCHA DETECTED", options))
             await dpage_close(id)
             if converted is not None:
                 print(converted)
