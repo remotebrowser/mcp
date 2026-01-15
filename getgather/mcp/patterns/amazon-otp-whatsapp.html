@@ -5,7 +5,9 @@
   <body>
     <span gg-optional gg-match="div#verifyAlerts"></span>
     <span gg-optional gg-match="div#verifyFailureAlerts"></span>
-    <h2 gg-match="span:has-text('Verify with WhatsApp')">Verify with WhatsApp</h2>
+    <h2 gg-match="//span[contains(normalize-space(.), 'Verify with WhatsApp')]">
+      Verify with WhatsApp
+    </h2>
     <span gg-match="div#channelDetailsForOtp"></span>
     <input autofocus name="otp" type="tel" placeholder="OTP" gg-match="input#input-box-otp" />
     <button type="submit" gg-match="span#cvf-submit-otp-button input[type=submit]">Verify</button>

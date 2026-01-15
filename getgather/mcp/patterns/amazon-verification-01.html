@@ -3,8 +3,13 @@
     <title>Amazon Verification</title>
   </head>
   <body>
-    <h1 gg-match="h1:has-text('Verify mobile number')">Verify mobile number</h1>
-    <span gg-optional gg-match="div#instruction_text span:has-text('your mobile number')"></span>
+    <h1 gg-match="//h1[contains(normalize-space(.), 'Verify mobile number')]">
+      Verify mobile number
+    </h1>
+    <span
+      gg-optional
+      gg-match="//div[@id='instruction_text']//span[contains(normalize-space(.), 'your mobile number')]"
+    ></span>
     <input
       autofocus
       name="otpCode"

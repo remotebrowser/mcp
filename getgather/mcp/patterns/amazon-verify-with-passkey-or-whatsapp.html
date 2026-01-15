@@ -4,11 +4,11 @@
   </head>
   <body>
     <div
-      gg-match="div.a-alert-content div.cvf-alert-section:has-text('unable to send an SMS')"
+      gg-match="//div[contains(@class, 'a-alert-content')]//div[contains(@class, 'cvf-alert-section')][contains(normalize-space(.), 'unable to send an SMS')]"
     ></div>
     <div
       gg-autoclick
-      gg-match="span#secondary_channel_button span#secondary_channel_button-announce:has-text('Verify using WhatsApp')"
+      gg-match="//span[@id='secondary_channel_button']//span[@id='secondary_channel_button-announce'][contains(normalize-space(.), 'Verify using WhatsApp')]"
     >
       Verify using WhatsApp
     </div>
