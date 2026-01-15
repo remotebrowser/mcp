@@ -4,11 +4,11 @@
   </head>
   <body>
     <div
-      gg-match="h2#cvf-filtered-account-switcher-header-text:has-text('Which account do you want to use?')"
+      gg-match="//h2[@id='cvf-filtered-account-switcher-header-text'][contains(normalize-space(.), 'Which account do you want to use?')]"
     ></div>
     <div
       gg-autoclick
-      gg-match="div[data-test-id='switchableAccounts'] span[data-test-id='accountType']:has-text('Personal account')"
+      gg-match="//div[@data-test-id='switchableAccounts']//span[@data-test-id='accountType'][contains(normalize-space(.), 'Personal account')]"
     >
       Personal account
     </div>
