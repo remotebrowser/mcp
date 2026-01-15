@@ -393,6 +393,8 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             else:
                 raise
 
+    # Enable fetch domain to intercept requests. Will be overridden if proxy auth is set up.
+    await page.send(zd.cdp.fetch.enable())
     page.add_handler(zd.cdp.fetch.RequestPaused, handle_request)  # type: ignore[reportUnknownMemberType]
 
     id = cast(str, browser.id)  # type: ignore[attr-defined]
