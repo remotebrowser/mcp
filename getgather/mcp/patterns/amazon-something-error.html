@@ -3,7 +3,11 @@
     <title>Amazon Something Error</title>
   </head>
   <body>
-    <h1 gg-stop gg-error="something_error" gg-match-html="div#g a[href='/ref=cs_503_link']">
+    <h1
+      gg-stop
+      gg-error="something_error"
+      gg-match-html="//div[@id='g']//a[contains(@href, 'cs_503_link')]"
+    >
       Sorry! Something went wrong on our end. Please go back and try again or go to Amazon's home
       page.
     </h1>
