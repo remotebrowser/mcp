@@ -40,6 +40,7 @@ from getgather.zen_distill import (
     init_zendriver_browser,
     page_query_selector,
     run_distillation_loop as zen_run_distillation_loop,
+    safe_close_page,
     zen_navigate_with_retry,
     zen_report_distill_error,
 )
@@ -109,7 +110,13 @@ async def zen_dpage_add(page: zd.Tab, location: str, profile_id: str | None = No
 
 async def dpage_close(id: str) -> None:
     if id in active_pages:
-        await active_pages[id].close()
+        page = active_pages[id]
+        if isinstance(page, zd.Tab):
+            # For Zendriver tabs, properly disable fetch domain first to prevent orphaned tasks
+            await safe_close_page(page)
+        else:
+            # Patchright pages can be closed normally
+            await page.close()
         del active_pages[id]
 
 
@@ -889,7 +896,7 @@ async def zen_dpage_with_action(
             page = await get_new_page(browser)
             await zen_navigate_with_retry(page, initial_url)
             result = await action(page, browser)
-            await page.close()
+            await safe_close_page(page)
             logger.info("Action succeeded with existing session!")
             return result
         except Exception as e:
