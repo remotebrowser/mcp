@@ -1,3 +1,4 @@
+import logging
 import sys
 from typing import TYPE_CHECKING
 
@@ -6,7 +7,26 @@ import yaml
 from loguru import logger
 
 if TYPE_CHECKING:
+    from logging import LogRecord
+
     from loguru import Record
+
+
+class InterceptHandler(logging.Handler):
+    """Route stdlib logging records through Loguru."""
+
+    def emit(self, record: "LogRecord") -> None:  # pragma: no cover - thin adapter
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        frame, depth = logging.currentframe(), 2
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
 def _format_record(record: "Record") -> str:
@@ -31,6 +51,12 @@ def setup_logging(level: str = "INFO"):
     from getgather.config import settings
 
     log_level = (level or settings.LOG_LEVEL).upper()
+
+    logging.basicConfig(handlers=[InterceptHandler()], level=log_level, force=True)
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastmcp"):
+        std_logger = logging.getLogger(name)
+        std_logger.handlers = []
+        std_logger.propagate = True
 
     logger.remove()
     handlers = [
