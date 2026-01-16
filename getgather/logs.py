@@ -11,18 +11,15 @@ if TYPE_CHECKING:
 
 def _format_record(record: "Record") -> str:
     """Format log record with nice extra field formatting."""
-    # Base format
     base = (
         "<green><level>{level: <8}</level></green>  | "
         "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
         "{message}\n"
     )
 
-    # Get extra fields, excluding loguru internals
     extra = {k: v for k, v in record["extra"].items() if not k.startswith("_")}
 
     if extra:
-        # Format extra fields as YAML
         extra_yaml = yaml.dump(extra, sort_keys=False, default_flow_style=False).rstrip()
         return base + extra_yaml + "\n"
 
@@ -35,9 +32,7 @@ def setup_logging(level: str = "INFO"):
 
     log_level = (level or settings.LOG_LEVEL).upper()
 
-    # Remove default handler
     logger.remove()
-    # Build handler configurations
     handlers = [
         {
             "sink": sys.stderr,
@@ -49,7 +44,6 @@ def setup_logging(level: str = "INFO"):
         }
     ]
 
-    # Add logfire handler if token is available
     if settings.LOGFIRE_TOKEN:
         logfire.configure(
             service_name="mcp-getgather",
@@ -65,5 +59,4 @@ def setup_logging(level: str = "INFO"):
         )
         handlers.append(logfire.loguru_handler())
 
-    # Configure all handlers
-    logger.configure(handlers=handlers)
+    logger.configure(handlers=handlers)  # type: ignore[arg-type]
