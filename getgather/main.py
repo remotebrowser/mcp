@@ -25,7 +25,7 @@ from getgather.config import settings
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager
 from getgather.mcp.dpage import router as dpage_router
-from getgather.mcp.main import create_mcp_apps
+from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
 from getgather.startup import startup
 
 # Create MCP apps once and reuse for lifespan and mounting
@@ -282,6 +282,11 @@ app.include_router(dpage_router)
 
 for mcp_app in mcp_apps:
     app.mount(mcp_app.route, mcp_app.app)
+
+
+@app.get("/docs-mcp")
+async def mcp_docs() -> list[MCPDoc]:
+    return await asyncio.gather(*[mcp_app_docs(mcp_app) for mcp_app in create_mcp_apps()])
 
 
 # Serve static homepage
