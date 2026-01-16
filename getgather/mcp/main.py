@@ -9,12 +9,12 @@ from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from pydantic import BaseModel
 
-from getgather.api.types import RequestInfo, request_info
 from getgather.logs import logger
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
 from getgather.mcp.dpage import dpage_check, dpage_finalize, dpage_mcp_tool, zen_dpage_mcp_tool
 from getgather.mcp.registry import GatherMCP
+from getgather.request_info import RequestInfo, request_info
 
 # Ensure calendar MCP is registered by importing its module
 try:

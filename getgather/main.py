@@ -18,7 +18,6 @@ from fastapi.responses import (
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
-from getgather.api.api import api_app
 from getgather.browser.profile import BrowserProfile
 from getgather.browser.session import BrowserSession
 from getgather.browser.session_cleanup import cleanup_old_sessions
@@ -280,7 +279,6 @@ async def mcp_slash_middleware(
 
 # Mount routers and apps AFTER middleware
 app.include_router(dpage_router)
-app.mount("/api", api_app)
 
 for mcp_app in mcp_apps:
     app.mount(mcp_app.route, mcp_app.app)
