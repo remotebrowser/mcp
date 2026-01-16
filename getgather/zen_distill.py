@@ -224,10 +224,8 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
             raise
     for attempt in range(1, MAX_START_ATTEMPTS + 1):
         try:
-            browser = await zd.start(
-                user_data_dir=str(user_data_dir),
-                sandbox=False,  # Required when running as root; safer than --no-sandbox arg
-                browser_args=browser_args,
+            browser = await zd.Browser.create(
+                host="localhost", port=9222, sandbox=False, browser_args=browser_args
             )
             browser.id = id  # type: ignore[attr-defined]
             return browser
