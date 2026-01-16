@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any, Mapping
 import logfire
 import yaml
 from loguru import logger
+from rich.console import Console
+from rich.logging import RichHandler
 
 if TYPE_CHECKING:
     from loguru import Record
