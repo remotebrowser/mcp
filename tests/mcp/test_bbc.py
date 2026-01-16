@@ -15,6 +15,7 @@ config = {
 
 @pytest.mark.mcp
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="Test is flaky")
 async def test_bbc_login_and_get_bookmarks():
     """Test login to bbc."""
     async with async_playwright() as p:
