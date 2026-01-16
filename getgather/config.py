@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # Max session age, in minutes
     BROWSER_SESSION_AGE: int = 60
 
+    # ChromeFleet Configuration
+    CHROMEFLEET_URL: str = ""  # e.g., "http://localhost:8300"
+    PROXY_URL_TEMPLATE: str = (
+        ""  # e.g., "http://user-{session_id}-cc-{country}:pass@proxy.com:7777"
+    )
+
     @property
     def data_dir(self) -> Path:
         path = Path(self.DATA_DIR).resolve() if self.DATA_DIR else PROJECT_DIR / "data"
