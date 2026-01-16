@@ -69,6 +69,7 @@ RUN apt-get update && apt-get install -y \
     jwm \
     xterm \
     x11-apps \
+    x11-utils \
     dbus \
     dbus-x11 \
     iproute2 \
