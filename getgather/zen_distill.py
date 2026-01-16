@@ -201,7 +201,10 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
         extra={"profile_id": id},
     )
 
-    browser_args = ["--start-maximized"]
+    browser_args = [
+        "--start-maximized",
+        "--no-dbus",  # avoids chromium probing real DBus sockets inside the container which are not needed
+    ]
 
     proxy = await setup_proxy(id, request_info.get())
     if proxy:
