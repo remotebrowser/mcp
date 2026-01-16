@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import platform
 import random
 import re
 import urllib.parse
@@ -21,6 +22,7 @@ from getgather.api.types import request_info
 from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
+from getgather.container_utils import check_x_server_available
 from getgather.distill import (
     NETWORK_ERROR_PATTERNS,
     ConversionResult,
@@ -201,7 +203,10 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
         extra={"profile_id": id},
     )
 
-    browser_args = ["--start-maximized"]
+    browser_args = [
+        "--start-maximized",
+        "--no-dbus",  # avoids chromium probing real DBus sockets inside the container which are not needed
+    ]
 
     proxy = await setup_proxy(id, request_info.get())
     if proxy:
@@ -211,6 +216,12 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
     MAX_START_ATTEMPTS = 3
     BASE_RETRY_DELAY = 0.5
     last_error: Exception | None = None
+    if platform.system() == "Linux":
+        try:
+            await check_x_server_available()
+        except Exception as e:
+            logger.error(f"X server not available: {e}", extra={"profile_id": id})
+            raise
     for attempt in range(1, MAX_START_ATTEMPTS + 1):
         try:
             browser = await zd.start(

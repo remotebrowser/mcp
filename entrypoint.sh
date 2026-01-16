@@ -9,7 +9,20 @@ export USER=getgather
 
 echo "Starting TigerVNC server on DISPLAY=$DISPLAY..."
 Xvnc -alwaysshared ${DISPLAY} -geometry 1920x1080 -depth 24 -rfbport 5900 -SecurityTypes None &
-sleep 2
+
+echo "Waiting for X server at $DISPLAY..."
+for i in $(seq 1 20); do
+if xdpyinfo -display $DISPLAY >/dev/null 2>&1; then
+    echo "SUCCESS: X server ready!"
+    break
+fi
+if [ $i -eq 20 ]; then
+    echo "ERROR: X server not ready after 10s"
+    exit 1
+fi
+sleep 0.5
+done
+
 echo "TigerVNC server running on DISPLAY=$DISPLAY"
 
 echo "Starting DBus session"
