@@ -22,6 +22,7 @@ from getgather.api.types import request_info
 from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
+from getgather.container_utils import check_x_server_available
 from getgather.distill import (
     NETWORK_ERROR_PATTERNS,
     ConversionResult,
@@ -40,72 +41,6 @@ def _safe_fragment(value: str) -> str:
     """Convert a value to a safe filename fragment."""
     fragment = re.sub(r"[^a-zA-Z0-9_-]+", "-", value).strip("-")
     return fragment or "distill"
-
-
-async def _run_command(*args: str, timeout: float | None = None) -> tuple[int | None, str, str]:
-    """Run a shell command and return (returncode, stdout, stderr)."""
-    proc = await asyncio.create_subprocess_exec(
-        *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()
-        raise
-
-    return proc.returncode, stdout.decode().strip(), stderr.decode().strip()
-
-
-async def _check_x_server_available():
-    """Ensure DISPLAY is set and the X server responds. Raises on failure."""
-    if not (display := os.environ.get("DISPLAY")):
-        raise RuntimeError("DISPLAY environment variable is not set")
-
-    async def _gather_diagnostics(display: str, xdpyinfo_error: str) -> str:
-        """Gather diagnostic info when X server check fails."""
-        info = [f"xdpyinfo error: {xdpyinfo_error[:200]}"]
-
-        try:
-            rc, stdout, _ = await _run_command("pgrep", "-a", "Xvnc")
-            if rc == 0 and stdout:
-                info.append(f"GOOD Xvnc: {stdout}")
-            else:
-                info.append("ERROR Xvnc process not found")
-        except Exception as exc:
-            info.append(f"ERROR Xvnc check failed: {exc}")
-
-        try:
-            with open("/proc/uptime") as f:
-                uptime = float(f.read().split()[0])
-                info.append(f"Uptime: {uptime:.0f}s")
-        except Exception:
-            info.append("Uptime: unknown")
-
-        try:
-            rc, stdout, _ = await _run_command("pgrep", "-c", "chromium")
-            if rc == 0 and stdout:
-                info.append(f"Chrome processes: {stdout}")
-            else:
-                info.append("Chrome processes: 0")
-        except Exception:
-            info.append("Chrome processes: unknown")
-
-        return "\n".join(info)
-
-    try:
-        rc, _, stderr = await _run_command("xdpyinfo", "-display", display, timeout=5)
-    except asyncio.TimeoutError:
-        diagnostics = await _gather_diagnostics(display, "xdpyinfo timed out")
-        raise RuntimeError(f"X server check timed out:\n{diagnostics}")
-
-    if rc == 0:
-        return
-
-    diagnostics = await _gather_diagnostics(display, stderr)
-    raise RuntimeError(f"X server check failed:\n{diagnostics}")
 
 
 async def wait_for_ready_state(
@@ -283,7 +218,7 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
     last_error: Exception | None = None
     if platform.system() == "Linux":
         try:
-            await _check_x_server_available()
+            await check_x_server_available()
         except Exception as e:
             logger.error(f"X server not available: {e}", extra={"profile_id": id})
             raise
