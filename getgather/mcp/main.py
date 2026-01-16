@@ -13,7 +13,7 @@ from getgather.api.types import RequestInfo, request_info
 from getgather.logs import logger
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
-from getgather.mcp.dpage import dpage_check, dpage_finalize, dpage_mcp_tool
+from getgather.mcp.dpage import dpage_check, dpage_finalize, dpage_mcp_tool, zen_dpage_mcp_tool
 from getgather.mcp.registry import GatherMCP
 
 # Ensure calendar MCP is registered by importing its module
@@ -169,6 +169,12 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
     @mcp.tool(tags={"general_tool"})
     async def get_browser_ip_address() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
         return await dpage_mcp_tool(initial_url="https://ip.fly.dev/ip", result_key="ip_address")
+
+    @mcp.tool(tags={"general_tool"})
+    async def get_zen_browser_ip_address() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
+        return await zen_dpage_mcp_tool(
+            initial_url="https://ip.fly.dev/ip", result_key="ip_address"
+        )
 
     for brand_id in brand_ids:
         brand_id_str = brand_id
