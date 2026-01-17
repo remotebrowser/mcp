@@ -8,8 +8,9 @@ import urllib.parse
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
-from urllib.parse import urlunparse
+from urllib.parse import ParseResult, urlunparse
 
+import httpx
 import nanoid
 import sentry_sdk
 import websockets
@@ -193,7 +194,50 @@ async def install_proxy_handler(username: str, password: str, page: zd.Tab):
 FRIENDLY_CHARS = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
-async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
+async def _create_zendriver_browser_chromefleet(vd_id: str | None = None) -> zd.Browser:
+    """Connect to remote Chrome via ChromeFleet over CDP."""
+    base_url = settings.CHROMEFLEET_URL.rstrip("/")
+
+    if vd_id is None:
+        vd_id = "VDID" + nanoid.generate(FRIENDLY_CHARS, 6)
+        url = f"{base_url}/api/v1/start/{vd_id}"
+        logger.info(f"Starting new ChromeFleet container: {vd_id}")
+    else:
+        url = f"{base_url}/api/v1/query/{vd_id}"
+        logger.info(f"Querying existing ChromeFleet container: {vd_id}")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+    cdp_url = data["cdp_url"]
+    ip_address = data.get("ip_address")
+
+    parsed = cast(ParseResult, urllib.parse.urlparse(cdp_url))
+    host: str = str(parsed.hostname) if parsed.hostname else "localhost"
+    port: int = int(parsed.port) if parsed.port else 9222
+
+    logger.info(
+        f"Connecting to ChromeFleet container {vd_id} at {host}:{port}",
+        extra={"profile_id": vd_id, "ip_address": ip_address},
+    )
+
+    browser_args = [
+        "--start-maximized",
+        "--no-dbus",  # avoids chromium probing real DBus sockets inside the container which are not needed
+        "--proxy-server=http://127.0.0.1:8119",
+    ]
+
+    browser = await zd.Browser.create(
+        host=host, port=port, sandbox=False, browser_args=browser_args
+    )
+    browser.id = vd_id  # type: ignore[attr-defined]
+
+    return browser
+
+
+async def _create_zendriver_browser_local(id: str | None = None) -> zd.Browser:
     if id is None:
         id = nanoid.generate(FRIENDLY_CHARS, 6)
 
@@ -250,6 +294,13 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
         extra={"profile_id": id},
     )
     raise last_error or RuntimeError("Failed to start browser")
+
+
+async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
+    if settings.CHROMEFLEET_URL:
+        return await _create_zendriver_browser_chromefleet(vd_id=id)
+    else:
+        return await _create_zendriver_browser_local(id)
 
 
 async def init_zendriver_browser(id: str | None = None) -> zd.Browser:
