@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Max session age, in minutes
     BROWSER_SESSION_AGE: int = 60
 
+    CHROMEFLEET_URL: str = "http://0.0.0.0:8300"
+
     @property
     def data_dir(self) -> Path:
         path = Path(self.DATA_DIR).resolve() if self.DATA_DIR else PROJECT_DIR / "data"
