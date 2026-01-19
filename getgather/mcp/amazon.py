@@ -12,7 +12,7 @@ from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_distill import page_query_selector, run_distillation_loop
 
-amazon_zen_mcp = GatherMCP(brand_id="amazon_zen", name="Amazon Zen MCP")
+amazon_mcp = GatherMCP(brand_id="amazon", name="Amazon MCP")
 
 
 def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:
@@ -26,7 +26,7 @@ def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | No
     return order_id
 
 
-@amazon_zen_mcp.tool
+@amazon_mcp.tool
 async def search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
     """Search purchase history from amazon."""
     return await zen_dpage_mcp_tool(
@@ -35,7 +35,7 @@ async def search_purchase_history(keyword: str, page_number: int = 1) -> dict[st
     )
 
 
-@amazon_zen_mcp.tool
+@amazon_mcp.tool
 async def get_purchase_history(
     year: str | int | None = None, start_index: int = 0
 ) -> dict[str, Any]:
@@ -61,7 +61,7 @@ async def get_purchase_history(
     )
 
 
-@amazon_zen_mcp.tool
+@amazon_mcp.tool
 async def search_product(keyword: str) -> dict[str, Any]:
     """Search product on amazon."""
     return await zen_dpage_mcp_tool(
@@ -70,7 +70,7 @@ async def search_product(keyword: str) -> dict[str, Any]:
     )
 
 
-@amazon_zen_mcp.tool
+@amazon_mcp.tool
 async def get_browsing_history() -> dict[str, Any]:
     """Get browsing history from amazon."""
 
@@ -239,7 +239,7 @@ async def get_browsing_history() -> dict[str, Any]:
     )
 
 
-@amazon_zen_mcp.tool
+@amazon_mcp.tool
 async def get_purchase_history_with_details(
     year: str | int | None = None, start_index: int = 0, timeFilter: str | None = None
 ) -> dict[str, Any]:
