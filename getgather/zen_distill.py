@@ -229,6 +229,24 @@ async def _create_zendriver_browser_chromefleet(vd_id: str | None = None) -> zd.
         "--proxy-server=http://127.0.0.1:8119",
     ]
 
+    async def wait_for_cdp(host: str, port: int, timeout_s: float = 30.0) -> None:
+        url = f"http://{host}:{port}/json/list"
+        deadline = asyncio.get_event_loop().time() + timeout_s
+        async with httpx.AsyncClient() as client:
+            while asyncio.get_event_loop().time() < deadline:
+                try:
+                    r = await client.get(url, timeout=2.0)
+                    if r.status_code == 200:
+                        logger.debug("CDP is ready")
+                        return
+                    logger.debug(f"CDP not ready, status code: {r.status_code}")
+                except Exception as r:
+                    logger.warning(f"CDP not ready, exception occurred: {r}")
+                    pass
+                await asyncio.sleep(0.25)
+        raise TimeoutError(f"CDP not ready at {url} after {timeout_s}s")
+
+    await wait_for_cdp(host=host, port=port)
     browser = await zd.Browser.create(
         host=host, port=port, sandbox=False, browser_args=browser_args
     )
