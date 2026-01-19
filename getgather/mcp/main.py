@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from getgather.logs import logger
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
-from getgather.mcp.dpage import dpage_check, dpage_finalize, dpage_mcp_tool, zen_dpage_mcp_tool
+from getgather.mcp.dpage import dpage_check, dpage_finalize, zen_dpage_mcp_tool
 from getgather.mcp.registry import GatherMCP
 from getgather.request_info import RequestInfo, request_info
 
@@ -168,10 +168,13 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     @mcp.tool(tags={"general_tool"})
     async def get_browser_ip_address() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
-        return await dpage_mcp_tool(initial_url="https://ip.fly.dev/ip", result_key="ip_address")
+        return await _get_browser_ip_address()
 
     @mcp.tool(tags={"general_tool"})
     async def get_zen_browser_ip_address() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
+        return await _get_browser_ip_address()
+
+    async def _get_browser_ip_address() -> dict[str, Any]:
         return await zen_dpage_mcp_tool(
             initial_url="https://ip.fly.dev/ip", result_key="ip_address"
         )
