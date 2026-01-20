@@ -6,11 +6,15 @@ from typing import Any, cast
 
 import zendriver as zd
 
-from getgather.distill import convert, load_distillation_patterns
 from getgather.logs import logger
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
-from getgather.zen_distill import page_query_selector, run_distillation_loop
+from getgather.zen_distill import (
+    convert,
+    load_distillation_patterns,
+    page_query_selector,
+    run_distillation_loop,
+)
 
 amazon_mcp = GatherMCP(brand_id="amazon", name="Amazon MCP")
 
