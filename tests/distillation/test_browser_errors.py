@@ -20,12 +20,6 @@ load_dotenv()
 from getgather.browser.profile import BrowserProfile
 from getgather.browser.session import browser_session
 from getgather.distill import distill as playwright_distill, load_distillation_patterns
-from getgather.zen_distill import (
-    distill as zen_distill,
-    get_new_page,
-    init_zendriver_browser,
-    terminate_zendriver_browser,
-)
 
 # Map error endpoints to expected pattern names (production patterns)
 BROWSER_ERROR_ENDPOINTS = {
@@ -63,28 +57,3 @@ async def test_browser_error_patterns_playwright(location: str):
         assert match.name.endswith(BROWSER_ERROR_ENDPOINTS[location]), (
             f"Expected pattern {BROWSER_ERROR_ENDPOINTS[location]}, got {match.name}"
         )
-
-
-@pytest.mark.asyncio
-@pytest.mark.distill
-@pytest.mark.parametrize("location", list(BROWSER_ERROR_ENDPOINTS.keys()))
-async def test_browser_error_patterns_zendriver(location: str):
-    """Test browser error patterns with zendriver."""
-    patterns = get_patterns()
-    assert patterns, "No patterns found"
-
-    browser = await init_zendriver_browser()
-    try:
-        page = await get_new_page(browser)
-        hostname = urllib.parse.urlparse(location).hostname
-
-        await page.get(location)
-        await page.wait(1)  # Wait for page to load
-
-        match = await zen_distill(hostname, page, patterns, reload_on_error=False)
-        assert match, f"No match found for {location}"
-        assert match.name.endswith(BROWSER_ERROR_ENDPOINTS[location]), (
-            f"Expected pattern {BROWSER_ERROR_ENDPOINTS[location]}, got {match.name}"
-        )
-    finally:
-        await terminate_zendriver_browser(browser)
