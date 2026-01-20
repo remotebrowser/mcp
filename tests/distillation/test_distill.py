@@ -49,7 +49,7 @@ async def test_distill(location: str):
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    browser = await init_zendriver_browser()
+    browser = await init_zendriver_browser(headless=True)
     try:
         page = await get_new_page(browser)
         hostname = urllib.parse.urlparse(location).hostname
@@ -77,7 +77,7 @@ async def test_distillation_loop(location: str):
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    browser = await init_zendriver_browser()
+    browser = await init_zendriver_browser(headless=True)
     try:
         _terminated, distilled, converted = await run_distillation_loop(
             location=location,
@@ -108,7 +108,7 @@ async def test_distillation_captures_screenshot_without_pattern(
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    browser = await init_zendriver_browser()
+    browser = await init_zendriver_browser(headless=True)
     try:
         terminated, _distilled, _converted = await run_distillation_loop(
             location="http://localhost:5001/random-info-page",
