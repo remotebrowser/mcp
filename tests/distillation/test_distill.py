@@ -5,16 +5,20 @@ from typing import Any, cast
 
 import pytest
 from dotenv import load_dotenv
+from pytest import MonkeyPatch
 
 # Load environment variables from .env file
 load_dotenv()
 
-from pytest import MonkeyPatch
-
-from getgather.browser.profile import BrowserProfile
-from getgather.browser.session import browser_session
 from getgather.config import settings
-from getgather.distill import distill, load_distillation_patterns, run_distillation_loop
+from getgather.distill import load_distillation_patterns
+from getgather.zen_distill import (
+    distill,
+    get_new_page,
+    init_zendriver_browser,
+    run_distillation_loop,
+    zen_navigate_with_retry,
+)
 
 DISTILL_PATTERN_LOCATIONS = {
     "http://localhost:5001": "acme_home_page.html",
@@ -41,20 +45,24 @@ SIGN_IN_PATTERN_ENDPOINTS = [
 )
 async def test_distill(location: str):
     """Tests the distill function's most basic ability to match a simple pattern."""
-    profile = BrowserProfile()
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
-    async with browser_session(profile) as session:
-        page = await session.page()
+
+    browser = await init_zendriver_browser()
+    try:
+        page = await get_new_page(browser)
         hostname = urllib.parse.urlparse(location).hostname
-        await page.goto(location)
+
+        await zen_navigate_with_retry(page, location)
 
         match = await distill(hostname, page, patterns)
         assert match, "No match found when one was expected."
         assert match.name.endswith(DISTILL_PATTERN_LOCATIONS[location]), (
             "Incorrect match name found."
         )
+    finally:
+        await browser.stop()
 
 
 @pytest.mark.asyncio
@@ -65,20 +73,23 @@ async def test_distill(location: str):
 )
 async def test_distillation_loop(location: str):
     """Tests the distillation loop with email and password autofill."""
-    profile = BrowserProfile()
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    _terminated, distilled, converted = await run_distillation_loop(
-        location=location,
-        patterns=patterns,
-        browser_profile=profile,
-        timeout=30,
-        interactive=True,
-    )
-    result = converted if converted else distilled
-    assert result, "No result found when one was expected."
+    browser = await init_zendriver_browser()
+    try:
+        _terminated, distilled, converted = await run_distillation_loop(
+            location=location,
+            patterns=patterns,
+            browser=browser,
+            timeout=30,
+            interactive=True,
+        )
+        result = converted if converted else distilled
+        assert result, "No result found when one was expected."
+    finally:
+        await browser.stop()
 
 
 @pytest.mark.asyncio
@@ -97,19 +108,21 @@ async def test_distillation_captures_screenshot_without_pattern(
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    profile = BrowserProfile()
+    browser = await init_zendriver_browser()
+    try:
+        terminated, _distilled, _converted = await run_distillation_loop(
+            location="http://localhost:5001/random-info-page",
+            patterns=patterns,
+            browser=browser,
+            timeout=2,
+            interactive=False,
+        )
 
-    terminated, _distilled, _converted = await run_distillation_loop(
-        location="http://localhost:5001/random-info-page",
-        patterns=patterns,
-        browser_profile=profile,
-        timeout=2,
-        interactive=False,
-    )
+        assert not terminated, "Expected not to terminate when no pattern matches."
 
-    assert not terminated, "Expected not to terminate when no pattern matches."
-
-    after = set(screenshot_dir.glob("*.png"))
-    new_files = [item for item in after if item not in before]
-    assert new_files, "Expected a distillation screenshot to be captured."
-    assert all(file.stat().st_size > 0 for file in new_files)
+        after = set(screenshot_dir.glob("*.png"))
+        new_files = [item for item in after if item not in before]
+        assert new_files, "Expected a distillation screenshot to be captured."
+        assert all(file.stat().st_size > 0 for file in new_files)
+    finally:
+        await browser.stop()
