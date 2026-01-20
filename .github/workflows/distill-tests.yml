@@ -14,10 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup xvfb and export DISPLAY
-        run: |
-          Xvfb :1 -screen 0 1920x1080x24 &
-          echo "DISPLAY=:1" >> $GITHUB_ENV
+      - name: Install xdpyinfo
+        run: sudo apt update -y && sudo apt install -y x11-utils
 
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
@@ -25,11 +23,24 @@ jobs:
       - name: Install Patchright and Chromium
         run: uv run patchright install chromium
 
-      - name: Prepare front-end environment
-        uses: ./.github/actions/prepare-frontend
+      - name: Find and symlink Patchright Chromium for Zendriver
+        run: |
+          # Use Patchright's chromium installation
+          chromium_path=$(ls ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)
 
-      - name: Install Chromium for distillation tests
-        run: uv run playwright install chromium
+          if [ -z "$chromium_path" ] || [ ! -f "$chromium_path" ]; then
+            echo "Chromium not found. Listing ms-playwright cache:"
+            ls -la ~/.cache/ms-playwright/ || echo "Cache directory not found"
+            exit 1
+          fi
+
+          echo "Found Chromium at: $chromium_path"
+          # Create symlinks for both expected paths
+          sudo ln -sf "$chromium_path" /bin/chromium
+          sudo ln -sf "$chromium_path" /usr/bin/chromium-browser
+          ls -la /bin/chromium
+          ls -la /usr/bin/chromium-browser
+          "$chromium_path" --version
 
       - name: Run the ACME Corp test server
         run: uv run -m uvicorn tests.acme_corp.acme_corp:app --host 127.0.0.1 --port 5001 > >(tee /dev/stdout) 2> >(tee /dev/stderr
@@ -40,7 +51,7 @@ jobs:
         timeout-minutes: 3
 
       - name: Run the distillation tests
-        run: uv run pytest -n 7 -m "distill" tests/distillation/test_distill.py
+        run: xvfb-run -a uv run pytest -n 7 -m "distill" tests/distillation/test_distill.py
         env:
           ACME_EMAIL: joe@example.com
           ACME_PASSWORD: trustno1
