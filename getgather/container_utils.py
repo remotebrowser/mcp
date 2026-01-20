@@ -57,6 +57,9 @@ async def check_x_server_available():
 
     try:
         rc, _, stderr = await _run_command("xdpyinfo", "-display", display, timeout=5)
+    except FileNotFoundError:
+        # xdpyinfo not installed - skip X server check (common in CI/test environments)
+        return
     except asyncio.TimeoutError:
         diagnostics = await _gather_diagnostics(display, "xdpyinfo timed out")
         raise RuntimeError(f"X server check timed out:\n{diagnostics}")
