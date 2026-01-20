@@ -22,14 +22,13 @@ jobs:
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
 
-      - name: Install Patchright and Chromium
-        run: uv run patchright install chromium
+      - name: Install Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
 
       - name: Prepare front-end environment
         uses: ./.github/actions/prepare-frontend
-
-      - name: Install Chromium for distillation tests
-        run: uv run playwright install chromium
 
       - name: Run the ACME Corp test server
         run: uv run -m uvicorn tests.acme_corp.acme_corp:app --host 127.0.0.1 --port 5001 > >(tee /dev/stdout) 2> >(tee /dev/stderr
