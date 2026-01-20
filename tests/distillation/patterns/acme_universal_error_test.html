@@ -4,7 +4,7 @@
   </head>
 
   <body>
-    <p gg-match="p:has-text('Click \'Sign in\' to continue')">Click 'Sign in' to continue</p>
+    <p gg-match="//p[contains(text(), 'Sign')]">Click 'Sign in' to continue</p>
     <button gg-autoclick gg-match="button[type=submit]">Sign in</button>
   </body>
 </html>
