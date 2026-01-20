@@ -28,7 +28,7 @@ async def test_bbc_login_and_get_bookmarks():
         assert mcp_call_signin_result.get("signin_id")
         print(mcp_call_signin_result.get("url"))
 
-        browser = await zd.start(headless=False)
+        browser = await zd.start(headless=True)
         try:
             page = await browser.get(mcp_call_signin_result.get("url"))
 

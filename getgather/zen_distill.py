@@ -193,7 +193,9 @@ async def install_proxy_handler(username: str, password: str, page: zd.Tab):
 FRIENDLY_CHARS = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
-async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
+async def _create_zendriver_browser(
+    id: str | None = None, headless: bool | None = None
+) -> zd.Browser:
     if id is None:
         id = nanoid.generate(FRIENDLY_CHARS, 6)
 
@@ -208,25 +210,32 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
         "--no-dbus",  # avoids chromium probing real DBus sockets inside the container which are not needed
     ]
 
+    # Add headless-specific args (useful for CI/container environments)
+    if headless:
+        browser_args.append("--disable-dev-shm-usage")  # Overcome limited /dev/shm in containers
+
     proxy = await setup_proxy(id, request_info.get())
     if proxy:
         proxy_server = proxy["server"]
         browser_args.append(f"--proxy-server={proxy_server}")
 
-    MAX_START_ATTEMPTS = 3
-    BASE_RETRY_DELAY = 0.5
-    last_error: Exception | None = None
-    if platform.system() == "Linux":
+    # Verify X server is available when running non-headless on Linux
+    if not headless and platform.system() == "Linux":
         try:
             await check_x_server_available()
         except Exception as e:
             logger.error(f"X server not available: {e}", extra={"profile_id": id})
             raise
+
+    MAX_START_ATTEMPTS = 3
+    BASE_RETRY_DELAY = 0.5
+    last_error: Exception | None = None
     for attempt in range(1, MAX_START_ATTEMPTS + 1):
         try:
             browser = await zd.start(
                 user_data_dir=str(user_data_dir),
                 sandbox=False,  # Required when running as root; safer than --no-sandbox arg
+                headless=headless or False,
                 browser_args=browser_args,
             )
             browser.id = id  # type: ignore[attr-defined]
@@ -252,7 +261,7 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
     raise last_error or RuntimeError("Failed to start browser")
 
 
-async def init_zendriver_browser(id: str | None = None) -> zd.Browser:
+async def init_zendriver_browser(id: str | None = None, headless: bool | None = None) -> zd.Browser:
     if id is not None:
         if browser := browser_manager.get_incognito_browser(id):
             return browser
@@ -263,7 +272,7 @@ async def init_zendriver_browser(id: str | None = None) -> zd.Browser:
     IP_CHECK_URL = "https://ip.fly.dev/ip"
     for attempt in range(1, MAX_ATTEMPTS + 1):
         logger.info(f"Creating a new Zendriver browser (attempt {attempt}/{MAX_ATTEMPTS})...")
-        browser = await _create_zendriver_browser(id)
+        browser = await _create_zendriver_browser(id, headless=headless)
 
         try:
             logger.info(f"Validating browser at {IP_CHECK_URL}...")
