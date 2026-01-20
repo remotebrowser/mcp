@@ -41,6 +41,7 @@ from getgather.zen_distill import (
     page_query_selector,
     run_distillation_loop as zen_run_distillation_loop,
     safe_close_page,
+    wait_for_ready_state,
     zen_navigate_with_retry,
     zen_report_distill_error,
 )
@@ -506,12 +507,20 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     if settings.LOG_LEVEL == "DEBUG":
         await zen_capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
 
+    # Force browser to complete rendering by evaluating document state
+    try:
+        await wait_for_ready_state(page, timeout=5)
+        # Additional wait for any dynamic content/JavaScript to settle
+        await page.sleep(1)
+        logger.debug("Page ready state is complete")
+    except Exception as e:
+        logger.warning(f"Error waiting for page ready state: {e}")
+
     for iteration in range(max):
         logger.debug(f"Iteration {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
         hostname = str(urllib.parse.urlparse(page.url).hostname) if page.url else None
-
         match = await zen_distill(hostname, page, patterns)
         if not match:
             logger.info("No matched pattern found")
