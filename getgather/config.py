@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Max session age, in minutes
     BROWSER_SESSION_AGE: int = 60
 
-    CHROMEFLEET_URL: str = "http://0.0.0.0:8300"
+    CHROMEFLEET_URL: str = ""
 
     @property
     def data_dir(self) -> Path:
