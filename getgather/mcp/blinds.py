@@ -10,6 +10,5 @@ blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
 async def get_favorites() -> dict[str, Any]:
     """Get favorites of blinds."""
     return await zen_dpage_mcp_tool(
-        f"https://www.blinds.com/myaccount/favorites",
-        "blinds_favorites",
+        f"https://www.blinds.com/myaccount/favorites", "blinds_favorites", timeout=60
     )
