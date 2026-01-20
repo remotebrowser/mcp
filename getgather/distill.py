@@ -17,7 +17,7 @@ from nanoid import generate
 from patchright.async_api import Locator, Page
 
 from getgather.browser.profile import BrowserProfile
-from getgather.browser.session import BrowserSession, browser_session
+from getgather.browser.session import browser_session
 from getgather.config import settings
 from getgather.logs import logger
 
@@ -625,41 +625,3 @@ async def run_distillation_loop(
         )
         await page.close()
         return (False, current.distilled, None)
-
-
-async def get_incognito_browser_profile(signin_id: str | None) -> BrowserProfile:
-    """Get or create an incognito browser profile."""
-    from getgather.mcp.dpage import incognito_browser_profiles
-
-    if signin_id is not None:
-        if signin_id in incognito_browser_profiles:
-            return incognito_browser_profiles[signin_id]
-        else:
-            raise ValueError(f"Browser profile for signin {signin_id} not found")
-
-    MAX_ATTEMPTS = 3
-    CHECK_URL = "https://ip.fly.dev/all"
-    CHECK_TIMEOUT = 10  # seconds
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        logger.info(f"Creating incognito browser profile (attempt {attempt}/{MAX_ATTEMPTS})...")
-        fresh_profile = BrowserProfile()
-        fresh_session = BrowserSession.get(fresh_profile)
-
-        try:
-            await fresh_session.start(debug_url=None)
-            check_page = await fresh_session.new_page()
-            logger.info(f"Validating incognito browser profile at {CHECK_URL}...")
-            await check_page.goto(CHECK_URL, timeout=CHECK_TIMEOUT * 1000)
-            logger.info(f"Incognito browser profile validated on attempt {attempt}")
-            return fresh_profile
-
-        except Exception as e:
-            logger.warning(f"Incognito browser profile validation failed on attempt {attempt}: {e}")
-            if attempt < MAX_ATTEMPTS:
-                try:
-                    await fresh_session.stop()
-                except Exception:
-                    pass
-
-    logger.error(f"Failed to get browser profile after {MAX_ATTEMPTS} attempts!")
-    raise RuntimeError(f"Failed to get browser profile after {MAX_ATTEMPTS} attempts!")

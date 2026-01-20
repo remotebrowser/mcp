@@ -1,3 +1,4 @@
+import ast
 import asyncio
 import json
 import socket
@@ -18,15 +19,12 @@ from fastapi.responses import (
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
-from getgather.api.api import api_app
-from getgather.browser.profile import BrowserProfile
-from getgather.browser.session import BrowserSession
 from getgather.browser.session_cleanup import cleanup_old_sessions
 from getgather.config import settings
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager
-from getgather.mcp.dpage import router as dpage_router
-from getgather.mcp.main import create_mcp_apps
+from getgather.mcp.dpage import router as dpage_router, zen_dpage_mcp_tool
+from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
 from getgather.startup import startup
 
 # Create MCP apps once and reuse for lifespan and mounting
@@ -203,17 +201,17 @@ IP_CHECK_URL: Final[str] = "https://ip.fly.dev/ip"
 
 @app.get("/extended-health")
 async def extended_health():
-    session = BrowserSession.get(BrowserProfile())
     try:
-        session = await session.start()
-        page = await session.page()
-        await page.goto(IP_CHECK_URL, timeout=3000)
-        ip_text: str = await page.evaluate("() => document.body.innerText.trim()")
+        result = await zen_dpage_mcp_tool(
+            initial_url="https://ip.fly.dev/ip", result_key="ip_address", timeout=3
+        )
+        ip_text = str(result.get("ip_address", "Unknown"))[:100]
+        ip_list = ast.literal_eval(ip_text)
+        ip_address = ip_list[0]["ip_address"]
+        logger.debug(f"IP address: {ip_address}")
+        return PlainTextResponse(content=f"OK IP: {ip_address}")
     except Exception as e:
         return PlainTextResponse(content=f"Error: {e}")
-    finally:
-        await session.stop()
-    return PlainTextResponse(content=f"OK IP: {ip_text}")
 
 
 @app.middleware("http")
@@ -280,10 +278,14 @@ async def mcp_slash_middleware(
 
 # Mount routers and apps AFTER middleware
 app.include_router(dpage_router)
-app.mount("/api", api_app)
 
 for mcp_app in mcp_apps:
     app.mount(mcp_app.route, mcp_app.app)
+
+
+@app.get("/docs-mcp")
+async def mcp_docs() -> list[MCPDoc]:
+    return await asyncio.gather(*[mcp_app_docs(mcp_app) for mcp_app in create_mcp_apps()])
 
 
 # Serve static homepage

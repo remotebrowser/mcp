@@ -10,11 +10,11 @@ from nanoid import generate
 from patchright.async_api import BrowserType, ViewportSize
 from pydantic import ConfigDict, Field, model_validator
 
-from getgather.api.types import request_info
 from getgather.browser.freezable_model import FreezableModel
 from getgather.browser.proxy import setup_proxy
 from getgather.config import settings
 from getgather.logs import logger
+from getgather.request_info import request_info
 
 # avoid similar looking characters: number 0 and letter O, number 1 and letter L
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"

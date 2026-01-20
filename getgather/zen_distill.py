@@ -19,7 +19,6 @@ from bs4 import BeautifulSoup, Tag
 from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
-from getgather.api.types import request_info
 from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
@@ -36,6 +35,7 @@ from getgather.distill import (
 )
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
+from getgather.request_info import request_info
 
 
 def _safe_fragment(value: str) -> str:

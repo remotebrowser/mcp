@@ -1,0 +1,28 @@
+<html gg-domain="blinds" gg-priority="2">
+  <head>
+    <title>Blinds Sign In</title>
+  </head>
+  <body>
+    <p gg-optional gg-match="div#sign-in-sign-up-content-wrapper span[style='color: red;']"></p>
+    <input
+      autofocus
+      name="email"
+      type="email"
+      gg-match="div#sign-in-sign-up-content-wrapper input#login-email"
+      placeholder="Email Address"
+    />
+    <input
+      password
+      name="password"
+      type="password"
+      gg-match="div#sign-in-sign-up-content-wrapper input#login-password"
+      placeholder="Password"
+    />
+    <button
+      type="submit"
+      gg-match="div#sign-in-sign-up-content-wrapper button[data-test-id='my-account-login-button']:not([disabled])"
+    >
+      Login to My Account
+    </button>
+  </body>
+</html>
