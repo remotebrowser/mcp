@@ -69,20 +69,7 @@ def _load_converter_from_file(json_path: Path) -> dict[str, Any] | None:
 
 
 async def convert(distilled: str, pattern_path: str | None = None):
-    """Convert distilled HTML to structured data using converter configuration.
-
-    The function tries to load the converter in this order (first match wins):
-    1. Embedded JSON in script tag content (backward compatible with old pattern files)
-    2. External JSON file specified by script tag's src attribute (if pattern_path provided)
-
-    Args:
-        distilled: The distilled HTML string
-        pattern_path: Optional path to the pattern HTML file. If provided, will look for
-                      external JSON file from script src attribute after checking embedded JSON.
-
-    Returns:
-        ConversionResult: List of dictionaries containing converted data, or None if conversion fails
-    """
+    """Convert distilled HTML to structured data"""
     document = BeautifulSoup(distilled, "html.parser")
     converter = None
     snippet = document.find("script", {"type": "application/json"})
