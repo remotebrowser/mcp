@@ -237,7 +237,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 await dpage_close(id)
                 return HTMLResponse(render(FINISHED_MSG, options))
 
-            converted = await convert(distilled)
+            converted = await convert(distilled, pattern_path=match.name)
             await dpage_close(id)
             if converted is not None:
                 print(converted)

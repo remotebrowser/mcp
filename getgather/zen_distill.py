@@ -1032,7 +1032,7 @@ async def run_distillation_loop(
                 current = match
 
                 if await terminate(distilled):
-                    converted = await convert(distilled)
+                    converted = await convert(distilled, pattern_path=match.name)
                     if close_page:
                         await safe_close_page(page)
                     return (True, distilled, converted)
