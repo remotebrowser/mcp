@@ -12,26 +12,24 @@ from fastmcp.server.dependencies import get_http_headers
 from nanoid import generate
 
 from getgather.config import settings
-from getgather.distill import (
-    Match,
-    check_error,
-    convert,
-    get_selector,
-    terminate,
-)
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
+    Match,
     autoclick as zen_autoclick,
     capture_page_artifacts as zen_capture_page_artifacts,
+    check_error,
+    convert,
     distill as zen_distill,
     get_new_page,
+    get_selector,
     init_zendriver_browser,
     load_distillation_patterns,
     page_query_selector,
     run_distillation_loop as zen_run_distillation_loop,
     safe_close_page,
+    terminate,
     wait_for_ready_state,
     zen_navigate_with_retry,
     zen_report_distill_error,
