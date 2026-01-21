@@ -28,12 +28,6 @@ COPY pyproject.toml uv.lock* ./
 # Install dependencies without workspace members
 RUN uv sync --no-dev --no-install-workspace
 
-# Install Playwright browsers only for full deployment
-# so it can be copied to the final stage easily.
-ENV PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
-RUN $VENV_PATH/bin/patchright install --with-deps chromium
-
 # Now copy the actual source code
 COPY getgather /app/getgather
 COPY tests /app/tests
@@ -77,6 +71,8 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
+RUN ln -s /usr/bin/chromium /usr/bin/chromium-browser
+
 WORKDIR /app
 
 COPY --from=builder /app/.venv /opt/venv
@@ -84,16 +80,12 @@ COPY --from=builder /app/getgather /app/getgather
 COPY --from=builder /app/tests /app/tests
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /app/.jwmrc /app/.jwmrc
-COPY --from=builder /opt/ms-playwright /opt/ms-playwright
 COPY --from=builder /app/blocklists-*.txt /app/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PATH="/opt/venv/bin:$PATH"
 
-# Set Playwright-specific environment variables only for full deployment
-ENV PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ENV DISPLAY=:99
 
 ARG PORT=23456
