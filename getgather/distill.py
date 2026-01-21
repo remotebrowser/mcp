@@ -59,7 +59,7 @@ def _load_converter_from_file(json_path: Path) -> dict[str, Any] | None:
     """Load converter configuration from a JSON file."""
     if not json_path.exists():
         return None
-    
+
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             return cast(dict[str, Any], json.load(f))
@@ -70,23 +70,23 @@ def _load_converter_from_file(json_path: Path) -> dict[str, Any] | None:
 
 async def convert(distilled: str, pattern_path: str | None = None):
     """Convert distilled HTML to structured data using converter configuration.
-    
+
     The function tries to load the converter in this order (first match wins):
     1. Embedded JSON in script tag content (backward compatible with old pattern files)
     2. External JSON file specified by script tag's src attribute (if pattern_path provided)
-    
+
     Args:
         distilled: The distilled HTML string
         pattern_path: Optional path to the pattern HTML file. If provided, will look for
                       external JSON file from script src attribute after checking embedded JSON.
-    
+
     Returns:
         ConversionResult: List of dictionaries containing converted data, or None if conversion fails
     """
     document = BeautifulSoup(distilled, "html.parser")
     converter = None
     snippet = document.find("script", {"type": "application/json"})
-    
+
     # First, try extracting from HTML script tag content (old method, backward compatible)
     if snippet:
         script_content = snippet.get_text().strip()
@@ -97,7 +97,7 @@ async def convert(distilled: str, pattern_path: str | None = None):
             except Exception as error:
                 logger.error(f"Failed to parse converter from HTML: {error}")
                 return None
-    
+
     # Fall back to loading converter from external JSON file if src attribute is specified
     if converter is None and pattern_path and snippet and isinstance(snippet, Tag):
         src_attr = snippet.get("src")
@@ -108,11 +108,11 @@ async def convert(distilled: str, pattern_path: str | None = None):
             converter = _load_converter_from_file(json_path)
             if converter:
                 logger.info(f"Loaded converter from {json_path}")
-    
+
     if converter is None:
         logger.debug("No converter found")
         return None
-    
+
     # Perform conversion
     try:
         rows_selector = converter.get("rows", "")
@@ -125,11 +125,11 @@ async def convert(distilled: str, pattern_path: str | None = None):
             logger.warning("Converter 'columns' must be a list")
             return None
         columns = cast(list[dict[str, Any]], raw_columns)
-        
+
         logger.info(f"Converting using converter with {len(columns)} columns")
         rows = document.select(str(rows_selector))
         logger.info(f"Found {len(rows)} rows")
-        
+
         converted: ConversionResult = []
         for el in rows:
             kv: dict[str, str | list[str]] = {}
@@ -138,10 +138,10 @@ async def convert(distilled: str, pattern_path: str | None = None):
                 selector = col_dict.get("selector")
                 if not name or not selector:
                     continue
-                
+
                 attribute = col_dict.get("attribute")
                 kind = col_dict.get("kind")
-                
+
                 if kind == "list":
                     items = el.select(str(selector))
                     kv[name] = [extract_value(item, attribute) for item in items]
@@ -149,10 +149,10 @@ async def convert(distilled: str, pattern_path: str | None = None):
                     item = el.select_one(str(selector))
                     if item:
                         kv[name] = extract_value(item, attribute)
-            
+
             if kv:
                 converted.append(kv)
-        
+
         logger.info(f"Conversion done: {len(converted)} entries")
         return converted
     except Exception as error:
