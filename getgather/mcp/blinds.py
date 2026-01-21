@@ -71,4 +71,5 @@ async def get_orders() -> dict[str, Any]:
     return await zen_dpage_with_action(
         f"https://www.blinds.com/myaccount/orders",
         action=get_orders_action,
+        dpage_timeout=60,
     )
