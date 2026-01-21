@@ -19,7 +19,6 @@ from fastapi.responses import (
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
-from getgather.browser.session_cleanup import cleanup_old_sessions
 from getgather.config import settings
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager
@@ -44,10 +43,6 @@ async def lifespan(app: FastAPI):
 
     async def timer_loop():
         while not stop_event.is_set():
-            try:
-                await cleanup_old_sessions()
-            except Exception as e:
-                logger.error(f"Error in cleanup_old_sessions: {e}", exc_info=True)
             try:
                 await browser_manager.cleanup_incognito_browsers()
             except Exception as e:
