@@ -4,10 +4,10 @@ import json
 import os
 
 import pytest
+import zendriver as zd
 from dotenv import load_dotenv
 from fastmcp import Client
 from mcp.types import TextContent
-from patchright.async_api import async_playwright
 
 load_dotenv()
 
@@ -21,34 +21,36 @@ config = {
 @pytest.mark.xfail(reason="flaky")
 async def test_wayfair_login_and_get_order_history():
     """Test login to wayfair and get order history."""
-    async with async_playwright() as p:
-        client = Client(config)
-        async with client:
-            mcp_call_tool = await client.call_tool("wayfair_get_order_history")
-            assert isinstance(mcp_call_tool.content[0], TextContent), (
-                f"Expected TextContent, got {type(mcp_call_tool.content[0])}"
-            )
-            mcp_call_signin_result = json.loads(mcp_call_tool.content[0].text)
-            assert mcp_call_signin_result.get("url")
-            assert mcp_call_signin_result.get("signin_id")
-            print(mcp_call_signin_result.get("url"))
+    client = Client(config)
+    async with client:
+        mcp_call_tool = await client.call_tool("wayfair_get_order_history")
+        assert isinstance(mcp_call_tool.content[0], TextContent), (
+            f"Expected TextContent, got {type(mcp_call_tool.content[0])}"
+        )
+        mcp_call_signin_result = json.loads(mcp_call_tool.content[0].text)
+        assert mcp_call_signin_result.get("url")
+        assert mcp_call_signin_result.get("signin_id")
+        print(mcp_call_signin_result.get("url"))
 
-            browser = await p.chromium.launch(headless=False)
-            page = await browser.new_page()
-            await page.goto(url=mcp_call_signin_result.get("url"), wait_until="domcontentloaded")
+        browser = await zd.start(headless=False)
+        try:
+            page = await browser.get(mcp_call_signin_result.get("url"))
 
-            await page.wait_for_selector("input[type=email]")
-            await page.type("input[type=email]", os.environ.get("WAYFAIR_EMAIL", ""))
-            await page.click("button[type='submit']")
+            email_input = await page.wait_for("input[type=email]")
+            await email_input.send_keys(os.environ.get("WAYFAIR_EMAIL", ""))
+            submit_btn = await page.select("button[type='submit']")
+            await submit_btn.click()
 
-            await page.wait_for_selector(":has-text('Sign In With Your Password')")
-            await page.click("button:has-text('Sign In With Your Password')")
+            # Wait for password option and click it
+            password_option = await page.wait_for("text=Sign In With Your Password")
+            await password_option.click()
 
-            await page.wait_for_selector("input[type=password]")
-            await page.type("input[type=password]", os.environ.get("WAYFAIR_PASSWORD", ""))
-            await page.click("button[type='submit']")
+            password_input = await page.wait_for("input[type=password]")
+            await password_input.send_keys(os.environ.get("WAYFAIR_PASSWORD", ""))
+            submit_btn = await page.select("button[type='submit']")
+            await submit_btn.click()
 
-            await page.wait_for_selector(":has-text('Finished! You can close this window now.')")
+            await page.wait_for(text="Finished!", timeout=30)
 
             mcp_call_check_signin = await client.call_tool(
                 "check_signin", {"signin_id": mcp_call_signin_result.get("signin_id")}
@@ -68,6 +70,8 @@ async def test_wayfair_login_and_get_order_history():
             print(order_history)
             assert order_history, "Expected 'order_history' to be non-empty"
             assert isinstance(order_history, list), f"Expected list, got {type(order_history)}"
+        finally:
+            await browser.stop()
 
 
 @pytest.mark.mcp
