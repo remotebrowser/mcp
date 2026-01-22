@@ -20,20 +20,17 @@ jobs:
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
 
-      - name: Install Patchright and Chromium
-        run: uv run patchright install chromium
+      - name: Install Chromium via Playwright
+        run: npx playwright install chromium
 
-      - name: Find and symlink Patchright Chromium for Zendriver
+      - name: Find and symlink Chromium for Zendriver
         run: |
-          # Use Patchright's chromium installation
-          chromium_path=$(ls ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | head -1)
-
+          chromium_path=$(ls ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome 2>/dev/null | head -1)
           if [ -z "$chromium_path" ] || [ ! -f "$chromium_path" ]; then
             echo "Chromium not found. Listing ms-playwright cache:"
             ls -la ~/.cache/ms-playwright/ || echo "Cache directory not found"
             exit 1
           fi
-
           echo "Found Chromium at: $chromium_path"
           # Create symlinks for both expected paths
           sudo ln -sf "$chromium_path" /bin/chromium
