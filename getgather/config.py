@@ -47,12 +47,6 @@ class Settings(BaseSettings):
         return path
 
     @property
-    def persistent_store_dir(self) -> Path:
-        path = self.data_dir / "store"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @property
     def proxy_configs(self) -> dict[str, ProxyConfig]:
         """Load proxy configurations from YAML file or environment variable (cached).
 
