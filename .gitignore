@@ -153,6 +153,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.secrets
 
 # Spyder project settings
 .spyderproject
@@ -515,3 +516,5 @@ frontend/__generated__/
 # Additional blocklists
 blocklists-*.txt
 !blocklists-basic.txt
+
+*.conf
