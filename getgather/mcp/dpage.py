@@ -47,8 +47,6 @@ FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
 async def dpage_add(page: zd.Tab, location: str, profile_id: str | None = None):
     id = generate(FRIENDLY_CHARS, 8)
-    if settings.HOSTNAME:
-        id = f"{settings.HOSTNAME}-{id}"
 
     try:
         if not location.startswith("http"):
