@@ -7,19 +7,19 @@ import pytest
 from dotenv import load_dotenv
 from pytest import MonkeyPatch
 
-from getgather.browser.page import (
+load_dotenv()
+
+from getgather.browser.page import (  # noqa: E402
     get_new_page,
 )
-from getgather.config import settings
-from getgather.zen_distill import (
+from getgather.config import settings  # noqa: E402
+from getgather.zen_distill import (  # noqa: E402
     distill,
     init_zendriver_browser,
     load_distillation_patterns,
     run_distillation_loop,
     terminate_zendriver_browser,
 )
-
-load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

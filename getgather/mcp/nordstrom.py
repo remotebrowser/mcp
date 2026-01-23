@@ -2,11 +2,12 @@ from typing import Any
 
 import zendriver as zd
 
+from getgather.browser.page import zen_navigate_with_retry
 from getgather.logs import logger
 from getgather.mcp.dpage import zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_actions import parse_response_json
-from getgather.zen_distill import page_query_selector, zen_navigate_with_retry
+from getgather.zen_distill import page_query_selector
 
 nordstrom_mcp = GatherMCP(brand_id="nordstrom", name="Nordstrom MCP")
 
