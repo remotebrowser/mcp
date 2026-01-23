@@ -2,10 +2,10 @@ from datetime import datetime, timedelta
 from typing import TypedDict, cast
 
 import zendriver as zd
+from loguru import logger
 from zendriver.core.browser import shutil
 
 from getgather.config import settings
-from getgather.logs import logger
 
 
 async def terminate_zendriver_browser(browser: zd.Browser):

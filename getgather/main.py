@@ -18,13 +18,13 @@ from fastapi.responses import (
 )
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 
 from getgather.config import settings
-from getgather.logs import logger
+from getgather.logs import instrument_fastapi
 from getgather.mcp.browser import browser_manager
 from getgather.mcp.dpage import router as dpage_router, zen_dpage_mcp_tool
 from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
-from getgather.startup import startup
 
 # Create MCP apps once and reuse for lifespan and mounting
 mcp_apps = create_mcp_apps()
@@ -37,8 +37,6 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await startup(app)
-
     stop_event = asyncio.Event()
 
     async def timer_loop():
@@ -71,6 +69,7 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
 )
+instrument_fastapi(app)
 
 STATIC_DIR = Path(__file__).parent / "static"
 STATIC_ASSETS_DIR = STATIC_DIR / "assets"
