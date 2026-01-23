@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 from pytest import MonkeyPatch
 
 from getgather.config import settings
+from getgather.mcp.browser import terminate_zendriver_browser
 from getgather.zen_distill import (
     distill,
     get_new_page,

@@ -1,5 +1,4 @@
 import asyncio
-import urllib.parse
 
 import httpx
 import zendriver as zd
@@ -24,45 +23,17 @@ def _strip_brackets(host: str) -> str:
 
 def _parse_cdp_endpoint(cdp_url: str) -> tuple[str, int]:
     """Parse host/port from a CDP URL, handling IPv6."""
-    parsed: httpx.URL | None = None
-    parse_error: Exception | None = None
     try:
         parsed = httpx.URL(cdp_url)
+        host = parsed.host
+        port = parsed.port or 9222
+
+        if not host:
+            raise ValueError(f"No host found in CDP URL: {cdp_url}")
+
+        return _format_host_for_cdp(host), port
     except Exception as e:
-        parse_error = e
-
-    split = urllib.parse.urlsplit(cdp_url)
-
-    host = parsed.host if parsed else None
-    port: int | None = parsed.port if parsed else None
-
-    # Fallback to stdlib parsing when httpx fails or host is blank
-    if not host:
-        host = split.hostname or split.netloc
-    if port is None:
-        try:
-            port = split.port
-        except ValueError:
-            port = None
-
-    # Handle IPv6 without brackets that confuses parsers (netloc has many colons).
-    if split.netloc and ":" in split.netloc:
-        host_part, _, port_part = split.netloc.rpartition(":")
-        if host_part:
-            try:
-                int_port = int(port_part)
-                port = port or int_port
-            except ValueError:
-                pass
-            if ":" in host_part or not host:
-                host = host_part
-
-    host = host or ""
-    if not host.strip("[] ") or host.startswith(":"):
-        detail = f"; parse_error={parse_error}" if parse_error else ""
-        raise ValueError(f"Invalid CDP URL returned from ChromeFleet: {cdp_url}{detail}")
-
-    return _format_host_for_cdp(host), port or 9222
+        raise ValueError(f"Failed to parse CDP URL '{cdp_url}': {e}") from e
 
 
 async def _validated_cdp_url(
@@ -138,7 +109,10 @@ async def _wait_for_cdp(host: str, port: int, timeout_s: float = 60.0) -> None:
 
 
 async def _connect_over_cdp(
-    browser_id: str, cdp_url: str, host_override: str | None = None, port_override: int | None = None
+    browser_id: str,
+    cdp_url: str,
+    host_override: str | None = None,
+    port_override: int | None = None,
 ) -> zd.Browser:
     """
     Connect to an existing Chrome instance over CDP.
@@ -148,7 +122,7 @@ async def _connect_over_cdp(
         host = host_override
     if port_override:
         port = port_override
-    wait_timeout = 60.0
+    wait_timeout = 120.0
 
     logger.info(
         f"Connecting to ChromeFleet browser {browser_id} at {host}:{port} (cdp_url={cdp_url})",
@@ -258,9 +232,7 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     logger.info(f"Starting new ChromeFleet browser: {browser_id}")
     cdp_url, host, port = await _validated_cdp_url(browser_id, endpoint="start")
 
-    browser = await _connect_over_cdp(
-        browser_id, cdp_url, host_override=host, port_override=port
-    )
+    browser = await _connect_over_cdp(browser_id, cdp_url, host_override=host, port_override=port)
     await _check_browser(browser)
     return browser
 
@@ -273,9 +245,7 @@ async def get_remote_browser(browser_id: str) -> zd.Browser:
     logger.info(f"Getting existing ChromeFleet browser: {browser_id}")
     cdp_url, host, port = await _validated_cdp_url(browser_id, endpoint="query")
 
-    browser = await _connect_over_cdp(
-        browser_id, cdp_url, host_override=host, port_override=port
-    )
+    browser = await _connect_over_cdp(browser_id, cdp_url, host_override=host, port_override=port)
     await _check_browser(browser)
     return browser
 
