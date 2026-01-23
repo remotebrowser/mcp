@@ -35,7 +35,7 @@ jobs:
             -e ENVIRONMENT=test \
             -e DEFAULT_PROXY_TYPE=proxy-0 \
             -e PROXIES_CONFIG="${{ secrets.PROXIES_CONFIG }}" \
-            -e CHROMEFLEET_URL="${{ env.APP_URL }}" \
+            -e CHROMEFLEET_URL="${{ env.CHROMEFLEET_URL }}" \
             getgather
         timeout-minutes: 3
 
