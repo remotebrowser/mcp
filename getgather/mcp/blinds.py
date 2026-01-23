@@ -3,11 +3,11 @@ from typing import Any, cast
 
 import zendriver as zd
 
+from getgather.browser.page import zen_navigate_with_retry
 from getgather.logs import logger
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_actions import parse_response_json
-from getgather.zen_distill import zen_navigate_with_retry
 
 blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
 

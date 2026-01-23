@@ -5,22 +5,24 @@ from typing import Any, cast
 
 import pytest
 from dotenv import load_dotenv
-
-load_dotenv()
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
 from pytest import MonkeyPatch
 
+from getgather.browser.page import (
+    get_new_page,
+)
 from getgather.config import settings
 from getgather.zen_distill import (
     distill,
-    get_new_page,
     init_zendriver_browser,
     load_distillation_patterns,
     run_distillation_loop,
     terminate_zendriver_browser,
 )
+
+load_dotenv()
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 DISTILL_PATTERN_LOCATIONS = {
     "http://localhost:5001": "acme_home_page.html",
