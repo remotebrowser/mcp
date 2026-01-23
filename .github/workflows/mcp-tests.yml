@@ -36,8 +36,24 @@ jobs:
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
 
-      - name: Install Patchright and Chromium
-        run: uv run patchright install chromium
+      - name: Install Chromium via Playwright
+        run: npx playwright install chromium
+
+      - name: Find and symlink Chromium for Zendriver
+        run: |
+          chromium_path=$(ls ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome 2>/dev/null | head -1)
+          if [ -z "$chromium_path" ] || [ ! -f "$chromium_path" ]; then
+            echo "Chromium not found. Listing ms-playwright cache:"
+            ls -la ~/.cache/ms-playwright/ || echo "Cache directory not found"
+            exit 1
+          fi
+          echo "Found Chromium at: $chromium_path"
+          # Create symlinks for both expected paths
+          sudo ln -sf "$chromium_path" /bin/chromium
+          sudo ln -sf "$chromium_path" /usr/bin/chromium-browser
+          ls -la /bin/chromium
+          ls -la /usr/bin/chromium-browser
+          "$chromium_path" --version
 
       - name: Run the tests
         run: xvfb-run -a uv run pytest -m "mcp" -s

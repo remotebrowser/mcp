@@ -13,12 +13,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 from pytest import MonkeyPatch
 
 from getgather.config import settings
-from getgather.distill import load_distillation_patterns
-from getgather.mcp.browser import terminate_zendriver_browser
 from getgather.zen_distill import (
     distill,
     get_new_page,
     init_zendriver_browser,
+    load_distillation_patterns,
     run_distillation_loop,
 )
 
@@ -27,7 +26,7 @@ DISTILL_PATTERN_LOCATIONS = {
     "http://localhost:5001/auth/email-and-password": "acme_email_and_password.html",
     "http://localhost:5001/auth/email-then-password": "acme_email_only.html",
     "http://localhost:5001/auth/email-and-password-checkbox": "acme_email_and_password_checkbox.html",
-    # "http://localhost:5001/universal-error-test": "acme_universal_error_test.html",
+    "http://localhost:5001/universal-error-test": "acme_universal_error_test.html",
 }
 
 SIGN_IN_PATTERN_ENDPOINTS = [

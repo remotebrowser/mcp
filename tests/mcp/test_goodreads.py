@@ -4,9 +4,9 @@ import json
 import os
 
 import pytest
+import zendriver as zd
 from fastmcp import Client
 from mcp.types import TextContent
-from patchright.async_api import async_playwright
 
 config = {
     "mcpServers": {"getgather": {"url": f"{os.environ.get('HOST', 'http://localhost:23456')}/mcp"}}
@@ -18,29 +18,29 @@ config = {
 @pytest.mark.xfail(reason="flaky")
 async def test_goodreads_login_and_get_book_list():
     """Test login to goodreads."""
-    async with async_playwright() as p:
-        client = Client(config)
-        async with client:
-            mcp_call_tool = await client.call_tool("goodreads_get_book_list")
-            assert isinstance(mcp_call_tool.content[0], TextContent), (
-                f"Expected TextContent, got {type(mcp_call_tool.content[0])}"
-            )
-            mcp_call_signin_result = json.loads(mcp_call_tool.content[0].text)
-            assert mcp_call_signin_result.get("url")
-            assert mcp_call_signin_result.get("signin_id")
-            print(mcp_call_signin_result.get("url"))
+    client = Client(config)
+    async with client:
+        mcp_call_tool = await client.call_tool("goodreads_get_book_list")
+        assert isinstance(mcp_call_tool.content[0], TextContent), (
+            f"Expected TextContent, got {type(mcp_call_tool.content[0])}"
+        )
+        mcp_call_signin_result = json.loads(mcp_call_tool.content[0].text)
+        assert mcp_call_signin_result.get("url")
+        assert mcp_call_signin_result.get("signin_id")
+        print(mcp_call_signin_result.get("url"))
 
-            browser = await p.chromium.launch(headless=False)
-            page = await browser.new_page()
-            await page.goto(url=mcp_call_signin_result.get("url"), wait_until="domcontentloaded")
+        browser = await zd.start(no_sandbox=True, headless=True)
+        try:
+            page = await browser.get(mcp_call_signin_result.get("url"))
 
-            await page.wait_for_selector("input[type=email]")
-            await page.wait_for_selector("input[type=password]")
-            await page.type("input[type=email]", os.environ.get("GOODREADS_EMAIL", ""))
-            await page.type("input[type=password]", os.environ.get("GOODREADS_PASSWORD", ""))
-            await page.click("button[type='submit']")
+            email_input = await page.wait_for("input[type=email]")
+            await email_input.send_keys(os.environ.get("GOODREADS_EMAIL", ""))
+            password_input = await page.wait_for("input[type=password]")
+            await password_input.send_keys(os.environ.get("GOODREADS_PASSWORD", ""))
+            submit_btn = await page.select("button[type='submit']")
+            await submit_btn.click()
 
-            await page.wait_for_selector(":has-text('Finished!')")
+            await page.wait_for(text="Finished!", timeout=30)
 
             mcp_call_check_signin = await client.call_tool(
                 "check_signin", {"signin_id": mcp_call_signin_result.get("signin_id")}
@@ -60,3 +60,5 @@ async def test_goodreads_login_and_get_book_list():
             print(book_list)
             assert book_list, "Expected 'book_list' to be non-empty"
             assert isinstance(book_list, list), f"Expected list, got {type(book_list)}"
+        finally:
+            await browser.stop()
