@@ -37,7 +37,7 @@ from getgather.distill import (
     terminate,
 )
 from getgather.logs import logger
-from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
+from getgather.mcp.browser import browser_manager
 from getgather.request_info import request_info
 
 

@@ -14,12 +14,12 @@ from pytest import MonkeyPatch
 
 from getgather.config import settings
 from getgather.distill import load_distillation_patterns
+from getgather.mcp.browser import terminate_zendriver_browser
 from getgather.zen_distill import (
     distill,
     get_new_page,
     init_zendriver_browser,
     run_distillation_loop,
-    terminate_zendriver_browser,
 )
 
 DISTILL_PATTERN_LOCATIONS = {

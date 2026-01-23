@@ -1,4 +1,3 @@
-import httpx
 import logfire
 import sentry_sdk
 from fastapi import FastAPI
