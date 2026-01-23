@@ -40,7 +40,7 @@ runs:
 
     - name: Verify WireGuard connection
       shell: bash
-      run: |
+      run: |-
         GATEWAY_IP=$(grep '^DNS' /etc/wireguard/wg0.conf | cut -d'=' -f2 | tr -d '[:space:]')
         echo "Checking WireGuard connection to ChromeFleet: $GATEWAY_IP"
         ping6 -c 4 $GATEWAY_IP

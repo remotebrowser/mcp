@@ -18,7 +18,7 @@ runs:
   steps:
     - name: Load the environment variables from Doppler
       shell: bash
-      run: |
+      run: |-
         curl -H "authorization: Bearer ${{ inputs.doppler-token }}" \
           "https://api.doppler.com/v3/configs/config/secrets/download?project=${{ inputs.project }}&config=${{ inputs.config }}&format=json" \
           -o .doppler-secrets.json
@@ -42,7 +42,6 @@ runs:
           echo "$value" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
         done
-
 
         echo "✅ Successfully loaded the following environment variables from Doppler for project ${{ inputs.project }} in config ${{ inputs.config }}:"
         cat .doppler-secrets.json | jq -r 'to_entries[] | .key'
