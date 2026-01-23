@@ -14,6 +14,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Load environment variables from Doppler
+        uses: ./.github/actions/download-env
+        with:
+          doppler-token: ${{ secrets.FLYFLEET_DEV_DOPPLER_TOKEN }}
+          project: flyfleet
+          config: dev
+
+      - name: Setup ChromeFleet via WireGuard
+        uses: ./.github/actions/setup-chromefleet
+        with:
+          fly-api-token: ${{ env.FLY_API_TOKEN }}
+          fly-org-slug: ${{ env.FLY_ORG_SLUG }}
+
       - run: docker build -t getgather .
 
       - run: |
@@ -22,6 +35,7 @@ jobs:
             -e ENVIRONMENT=test \
             -e DEFAULT_PROXY_TYPE=proxy-0 \
             -e PROXIES_CONFIG="${{ secrets.PROXIES_CONFIG }}" \
+            -e CHROMEFLEET_URL="${{ env.CHROMEFLEET_URL }}" \
             getgather
         timeout-minutes: 3
 
@@ -65,3 +79,10 @@ jobs:
           GOODREADS_PASSWORD: ${{ secrets.GOODREADS_PASSWORD }}
           WAYFAIR_EMAIL: ${{ secrets.WAYFAIR_EMAIL }}
           WAYFAIR_PASSWORD: ${{ secrets.WAYFAIR_PASSWORD }}
+
+      - name: Cleanup WireGuard
+        uses: ./.github/actions/wireguard-teardown
+        if: always()
+        with:
+          fly-api-token: ${{ env.FLY_API_TOKEN }}
+          fly-org-slug: ${{ env.FLY_ORG_SLUG }}

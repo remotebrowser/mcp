@@ -1,0 +1,52 @@
+name: Setup ChromeFleet via WireGuard
+description: Install and configure WireGuard to connect to ChromeFleet on Fly.io
+
+inputs:
+  fly-api-token:
+    description: Fly.io API token for authentication
+    required: true
+  fly-org-slug:
+    description: Fly.io organization slug
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup flyctl
+      uses: superfly/flyctl-actions/setup-flyctl@master
+      with:
+        version: latest
+      env:
+        FLY_API_TOKEN: ${{ inputs.fly-api-token }}
+
+    - name: Install WireGuard
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y iproute2 wireguard-tools openresolv iputils-ping
+
+    - name: Configure WireGuard
+      shell: bash
+      env:
+        FLY_API_TOKEN: ${{ inputs.fly-api-token }}
+      run: |
+        REPO_NAME=$(echo "${{ github.repository }}" | tr '/' '-')
+        WG_NAME="${REPO_NAME}-github-action-wireguard"
+        echo "WG_NAME=${WG_NAME}" >> $GITHUB_ENV
+        echo "Connecting to WireGuard network for Fly organization ${{ inputs.fly-org-slug }} with peer name: $WG_NAME"
+        flyctl wireguard remove "${{ inputs.fly-org-slug }}" "$WG_NAME" 2>/dev/null || true
+        flyctl wireguard create "${{ inputs.fly-org-slug }}" sjc "$WG_NAME" wireguard.conf
+        cat wireguard.conf | sudo tee /etc/wireguard/wg0.conf > /dev/null
+        sudo wg-quick up wg0
+
+    - name: Verify WireGuard connection
+      shell: bash
+      run: |-
+        GATEWAY_IP=$(grep '^DNS' /etc/wireguard/wg0.conf | cut -d'=' -f2 | tr -d '[:space:]')
+        echo "Checking WireGuard connection to ChromeFleet: $GATEWAY_IP"
+        ping6 -c 4 $GATEWAY_IP
+        if [ $? -ne 0 ]; then
+          echo "WireGuard connection failed"
+          exit 1
+        fi
+        echo "WireGuard connection successful"
