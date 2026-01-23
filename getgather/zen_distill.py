@@ -65,6 +65,7 @@ def get_selector(input_selector: str | None) -> tuple[str | None, str | None]:
 
 
 def extract_value(item: Tag, attribute: str | None = None) -> str:
+    """Extract text or attribute value from a BeautifulSoup Tag."""
     if attribute:
         value = item.get(attribute)
         if isinstance(value, list):
@@ -73,43 +74,96 @@ def extract_value(item: Tag, attribute: str | None = None) -> str:
     return item.get_text(strip=True)
 
 
-async def convert(distilled: str):
+def _load_converter_from_file(json_path: Path) -> dict[str, Any] | None:
+    """Load converter configuration from a JSON file."""
+    if not json_path.exists():
+        return None
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return cast(dict[str, Any], json.load(f))
+    except Exception as error:
+        logger.warning(f"Failed to load converter from {json_path}: {error}")
+        return None
+
+
+async def convert(distilled: str, pattern_path: str | None = None):
+    """Convert distilled HTML to structured data"""
     document = BeautifulSoup(distilled, "html.parser")
+    converter = None
     snippet = document.find("script", {"type": "application/json"})
+
+    # First, try extracting from HTML script tag content (old method, backward compatible)
     if snippet:
-        logger.info(f"Found a data converter.")
-        logger.info(snippet.get_text())
-        try:
-            converter = json.loads(snippet.get_text())
-            logger.info(f"Start converting using {converter}")
+        script_content = snippet.get_text().strip()
+        if script_content:
+            logger.info("Found converter in HTML script tag")
+            try:
+                converter = json.loads(script_content)
+            except Exception as error:
+                logger.error(f"Failed to parse converter from HTML: {error}")
+                return None
 
-            rows = document.select(str(converter.get("rows", "")))
-            logger.info(f"Found {len(rows)} rows")
-            converted: ConversionResult = []
-            for _, el in enumerate(rows):
-                kv: dict[str, str | list[str]] = {}
-                for col in converter.get("columns", []):
-                    name = col.get("name")
-                    selector = col.get("selector")
-                    attribute = col.get("attribute")
-                    kind = col.get("kind")
-                    if not name or not selector:
-                        continue
+    # Fall back to loading converter from external JSON file if src attribute is specified
+    if converter is None and pattern_path and snippet and isinstance(snippet, Tag):
+        src_attr = snippet.get("src")
+        if isinstance(src_attr, str) and src_attr:
+            pattern_dir = Path(pattern_path).parent
+            json_path = pattern_dir / src_attr
+            logger.info(f"Loading converter from explicit src: {json_path}")
+            converter = _load_converter_from_file(json_path)
+            if converter:
+                logger.info(f"Loaded converter from {json_path}")
 
-                    if kind == "list":
-                        items = el.select(str(selector))
-                        kv[name] = [extract_value(item, attribute) for item in items]
-                        continue
+    if converter is None:
+        logger.debug("No converter found")
+        return None
 
+    # Perform conversion
+    try:
+        rows_selector = converter.get("rows", "")
+        if not isinstance(rows_selector, str) or not rows_selector:
+            logger.warning("Converter missing 'rows' selector")
+            return None
+
+        raw_columns = converter.get("columns", [])
+        if not isinstance(raw_columns, list):
+            logger.warning("Converter 'columns' must be a list")
+            return None
+        columns = cast(list[dict[str, Any]], raw_columns)
+
+        logger.info(f"Converting using converter with {len(columns)} columns")
+        rows = document.select(str(rows_selector))
+        logger.info(f"Found {len(rows)} rows")
+
+        converted: ConversionResult = []
+        for el in rows:
+            kv: dict[str, str | list[str]] = {}
+            for col_dict in columns:
+                name = col_dict.get("name")
+                selector = col_dict.get("selector")
+                if not name or not selector:
+                    continue
+
+                attribute = col_dict.get("attribute")
+                kind = col_dict.get("kind")
+
+                if kind == "list":
+                    items = el.select(str(selector))
+                    kv[name] = [extract_value(item, attribute) for item in items]
+                else:
                     item = el.select_one(str(selector))
                     if item:
                         kv[name] = extract_value(item, attribute)
-                if len(kv.keys()) > 0:
-                    converted.append(kv)
-            logger.info(f"Conversion done for {len(converted)} entries.")
-            return converted
-        except Exception as error:
-            logger.error(f"Conversion error: {str(error)}")
+
+            if kv:
+                converted.append(kv)
+
+        logger.info(f"Conversion done: {len(converted)} entries")
+        return converted
+    except Exception as error:
+        logger.error(f"Conversion error: {error}")
+        return None
 
 
 async def terminate(distilled: str) -> bool:
@@ -1032,7 +1086,7 @@ async def run_distillation_loop(
                 current = match
 
                 if await terminate(distilled):
-                    converted = await convert(distilled)
+                    converted = await convert(distilled, pattern_path=match.name)
                     if close_page:
                         await safe_close_page(page)
                     return (True, distilled, converted)
