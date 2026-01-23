@@ -517,7 +517,4 @@ blocklists-*.txt
 !blocklists-basic.txt
 
 # local dev configuration files
-*.conf
-
-# secrets files
-.secrets
+/tmp/*
