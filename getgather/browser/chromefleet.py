@@ -4,9 +4,9 @@ from urllib.parse import urlparse
 
 import httpx
 import zendriver as zd
+from loguru import logger
 
 from getgather.config import settings
-from getgather.logs import logger
 
 
 async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
