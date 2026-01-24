@@ -1,0 +1,26 @@
+# fly.toml app configuration file generated for flyfleet on 2026-01-21T11:35:45-08:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+primary_region = 'sjc'
+
+[build]
+
+[http_service]
+internal_port = 23456
+auto_stop_machines = 'suspend'
+auto_start_machines = true
+min_machines_running = 0
+
+[[http_service.checks]]
+grace_period = "10s"
+interval = "30s"
+method = "GET"
+timeout = "5s"
+path = "/health"
+
+[[vm]]
+memory = '2gb'
+cpus = 4
+memory_mb = 2048
