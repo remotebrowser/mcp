@@ -27,10 +27,13 @@ jobs:
           fly-api-token: ${{ env.FLY_API_TOKEN }}
           fly-org-slug: ${{ env.FLY_ORG_SLUG }}
 
+      - name: check the health of chromefleet connection
+        run: curl -s "${{ env.CHROMEFLEET_URL }}/health"
+
       - run: docker build -t getgather .
 
       - run: |
-          docker run -p 23456:23456 --name getgather -d \
+          docker run --network host --name getgather -d \
             -e SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
             -e ENVIRONMENT=test \
             -e DEFAULT_PROXY_TYPE=proxy-0 \
@@ -86,3 +89,9 @@ jobs:
         with:
           fly-api-token: ${{ env.FLY_API_TOKEN }}
           fly-org-slug: ${{ env.FLY_ORG_SLUG }}
+
+      - name: Dump getgather container logs on failure
+        if: failure() || cancelled()
+        run: |-
+          echo "=============== CONTAINER LOGS ===================="
+          docker logs getgather || true
