@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     DATA_DIR: str = ""
 
     CHROMEFLEET_URL: str = ""
+    CHROMEFLEET_PROXY_URL: str = ""
 
     # Logging
     LOG_LEVEL: str = "INFO"

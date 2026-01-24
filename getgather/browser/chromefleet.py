@@ -63,6 +63,19 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     logger.info(f"Starting new ChromeFleet browser: {browser_id}")
     response = await _call_chromefleet_api("start", browser_id)
     data = response.json()
+    # setup proxy if configured
+    if settings.CHROMEFLEET_PROXY_URL:
+        proxy_url = settings.CHROMEFLEET_PROXY_URL.replace(
+            "{session_id}", browser_id
+        )  # for now 1:1 is fine
+        configure_url = (
+            settings.CHROMEFLEET_URL.rstrip("/")
+            + f"/api/v1/configure/{browser_id}?proxy_url={proxy_url}"
+        )
+        logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(configure_url)
+            resp.raise_for_status()
     cdp_url = data.get("cdp_url")
     await _wait_for_cdp(cdp_url)
 
