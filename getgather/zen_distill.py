@@ -716,8 +716,10 @@ class Element:
         await asyncio.sleep(0.25)
 
     async def type_text(self, text: str) -> None:
+        await self.element.clear_input_by_deleting()
+        await asyncio.sleep(0.5)
         await self.element.clear_input()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.5)
         for char in text:
             await self.element.send_keys(char)
             await asyncio.sleep(random.uniform(0.01, 0.05))
