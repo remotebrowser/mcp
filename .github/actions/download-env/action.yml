@@ -22,6 +22,10 @@ runs:
         curl -H "authorization: Bearer ${{ inputs.doppler-token }}" \
           "https://api.doppler.com/v3/configs/config/secrets/download?project=${{ inputs.project }}&config=${{ inputs.config }}&format=json" \
           -o .doppler-secrets.json
+
+        # Clear .env file if it exists
+        > .env
+
         cat .doppler-secrets.json | jq -r 'to_entries[] | @json' | while read -r entry; do
           key=$(echo "$entry" | jq -r '.key')
           value=$(echo "$entry" | jq -r '.value')
@@ -33,11 +37,15 @@ runs:
               echo "::add-mask::${line}"
             fi
           done <<< "$value"
-          # Use heredoc format for multiline values to support SSH keys
+          # Use heredoc format for multiline values to support SSH keys (for GITHUB_ENV)
           echo "${key}<<EOF" >> $GITHUB_ENV
           echo "$value" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+          # For .env file, write as KEY=VALUE for Fly compatibility
+          # Use printf to properly escape the value and replace newlines with literal \n
+          printf '%s=%s\n' "$key" "$(printf '%s' "$value" | sed ':a;N;$!ba;s/\n/\\n/g')" >> .env
         done
         echo "✅ Successfully loaded the following environment variables from Doppler for project ${{ inputs.project }} in config ${{ inputs.config }}:"
         cat .doppler-secrets.json | jq -r 'to_entries[] | .key'
+        echo "✅ Created .env file with environment variables"
         rm .doppler-secrets.json

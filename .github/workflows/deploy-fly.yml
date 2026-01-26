@@ -1,0 +1,85 @@
+# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
+
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to ${{ matrix.org.name }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        org:
+          - name: production
+            config: prd
+            app_name: remotebrowser-prod
+            doppler_token_secret: DOPPLER_TOKEN_PRD
+
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show 5 most recent commits
+        run: git log --oneline -n 5
+
+      - name: Download environment variables for ${{ matrix.org.config }} config
+        uses: ./.github/actions/download-env
+        with:
+          doppler-token: ${{ secrets[matrix.org.doppler_token_secret] }}
+          project: remotebrowser
+          config: ${{ matrix.org.config }}
+
+      - name: Add GIT_REV to .env file
+        run: |
+          echo "GIT_REV=${{ github.sha }}" >> .env
+          echo "✅ Added GIT_REV to .env file"
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Import secrets to ${{ matrix.org.app_name }} app
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          cat .env | flyctl secrets import --app ${{ matrix.org.app_name }}
+
+      - name: Deploy ${{ matrix.org.app_name }} app
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl deploy --remote-only --app ${{ matrix.org.app_name }}
+
+      - name: Start machines for ${{ matrix.org.app_name }} app
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl machines start $(flyctl machines list --app ${{ matrix.org.app_name }} --json | jq -r '.[].id') || true
+
+      - name: Run health check validation for ${{ matrix.org.app_name }} app
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |-
+          echo "Checking machine states..."
+          STATES=$(flyctl status -a ${{ matrix.org.app_name }} --json | jq -r '.Machines[].state' | sort -u)
+          echo "Machine states: $STATES"
+
+          if echo "$STATES" | grep -q "started"; then
+            echo "✅ ${{ matrix.org.app_name }} machines are deployed successfully with git revision ${{ github.sha }}"
+            exit 0
+          else
+            echo "⚠️  Warning: ${{ matrix.org.app_name }} machines may not be fully started"
+            echo "This may be expected if using auto-suspend. Check manually if needed."
+            exit 0
+          fi
