@@ -402,8 +402,8 @@ async def zen_dpage_mcp_tool(
     id = await dpage_add(
         page,
         initial_url,
-        browser.id,
-        config=config,  # type: ignore[attr-defined]
+        browser.id,  # type: ignore[attr-defined]
+        config=config,
     )
 
     if incognito:
@@ -511,8 +511,8 @@ async def zen_dpage_with_action(
     id = await dpage_add(
         page,
         initial_url,
-        browser_instance.id,
-        config=config,  # type: ignore
+        browser_instance.id,  # type: ignore[attr-defined]
+        config=config,
     )
 
     # Store action for auto-resumption after signin
