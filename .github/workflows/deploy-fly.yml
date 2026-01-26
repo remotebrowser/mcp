@@ -41,24 +41,12 @@ jobs:
           project: remotebrowser
           config: ${{ matrix.org.config }}
 
-      - name: Create .env file from GitHub environment
+      - name: Add GIT_REV to .env file
         run: |
-          # Export all environment variables to .env file
-          printenv \
-            | grep -v '^_' \
-            | grep -v '^HOME' \
-            | grep -v '^PATH' \
-            | grep -v '^PWD' \
-            | grep -v '^SHELL' \
-            | grep -v '^TERM' \
-            | grep -v '^USER' \
-            | grep -v '^GITHUB_' \
-            | grep -v '^RUNNER_' \
-            | grep -v '^CI$' \
-            > .env
-          # Add GIT_REV
-          echo "GIT_REV=${{ github.sha }}" >> .env
-          echo "✅ Created .env file with $(wc -l < .env) variables"
+          echo "GIT_REV<<EOF" >> .env
+          echo "${{ github.sha }}" >> .env
+          echo "EOF" >> .env
+          echo "✅ Added GIT_REV to .env file"
 
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master

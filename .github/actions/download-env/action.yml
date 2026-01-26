@@ -22,6 +22,10 @@ runs:
         curl -H "authorization: Bearer ${{ inputs.doppler-token }}" \
           "https://api.doppler.com/v3/configs/config/secrets/download?project=${{ inputs.project }}&config=${{ inputs.config }}&format=json" \
           -o .doppler-secrets.json
+
+        # Clear .env file if it exists
+        > .env
+
         cat .doppler-secrets.json | jq -r 'to_entries[] | @json' | while read -r entry; do
           key=$(echo "$entry" | jq -r '.key')
           value=$(echo "$entry" | jq -r '.value')
@@ -37,7 +41,12 @@ runs:
           echo "${key}<<EOF" >> $GITHUB_ENV
           echo "$value" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+          # Also write to .env file with proper multiline support
+          echo "${key}<<EOF" >> .env
+          echo "$value" >> .env
+          echo "EOF" >> .env
         done
         echo "✅ Successfully loaded the following environment variables from Doppler for project ${{ inputs.project }} in config ${{ inputs.config }}:"
         cat .doppler-secrets.json | jq -r 'to_entries[] | .key'
+        echo "✅ Created .env file with environment variables"
         rm .doppler-secrets.json
