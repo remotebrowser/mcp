@@ -12,7 +12,7 @@ from getgather.zen_distill import ElementConfig, zen_navigate_with_retry
 blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
 
 # Element configuration for typing delays
-blinds_config = ElementConfig(clear_delay=0.5)
+blinds_config = ElementConfig(typing_clear_delay=0.5)
 
 
 @blinds_mcp.tool

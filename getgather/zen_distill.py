@@ -48,9 +48,9 @@ class ElementConfig:
     """Configuration for element typing operations."""
 
     # Typing configuration
-    clear_delay: float = 0.1
-    char_delay_min: float = 0.01
-    char_delay_max: float = 0.05
+    typing_clear_delay: float = 0.1
+    typing_char_delay_min: float = 0.01
+    typing_char_delay_max: float = 0.05
 
 
 ConversionResult = list[dict[str, str | list[str]]]
@@ -729,13 +729,13 @@ class Element:
 
     async def type_text(self, text: str) -> None:
         await self.element.clear_input_by_deleting()
-        await asyncio.sleep(self.config.clear_delay)
+        await asyncio.sleep(self.config.typing_clear_delay)
         await self.element.clear_input()
-        await asyncio.sleep(self.config.clear_delay)
+        await asyncio.sleep(self.config.typing_clear_delay)
         for char in text:
             await self.element.send_keys(char)
             await asyncio.sleep(
-                random.uniform(self.config.char_delay_min, self.config.char_delay_max)
+                random.uniform(self.config.typing_char_delay_min, self.config.typing_char_delay_max)
             )
 
     async def css_click(self) -> None:
