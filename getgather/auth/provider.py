@@ -56,7 +56,9 @@ class CustomTokenVerifier(GoogleTokenVerifier):
     """Custom TokenVerifier to verify first party OAuth tokens before delegating to GoogleTokenVerifier."""
 
     async def verify_token(self, token: str) -> AccessToken | None:
-        if token.startswith(settings.FIRST_PARTY_OAUTH_PROVIDER_NAME):
+        if settings.FIRST_PARTY_OAUTH_PROVIDER_NAME and token.startswith(
+            settings.FIRST_PARTY_OAUTH_PROVIDER_NAME
+        ):
             return verify_first_party_oauth_token(token)
         else:
             access_token = await super().verify_token(token)
@@ -80,7 +82,9 @@ class CustomOAuthProvider(GoogleProvider):
         self._token_validator = CustomTokenVerifier(required_scopes=GOOGLE_OAUTH_SCOPES)
 
     async def load_access_token(self, token: str) -> MCPAccessToken | None:
-        if token.startswith(settings.FIRST_PARTY_OAUTH_PROVIDER_NAME):
+        if settings.FIRST_PARTY_OAUTH_PROVIDER_NAME and token.startswith(
+            settings.FIRST_PARTY_OAUTH_PROVIDER_NAME
+        ):
             return verify_first_party_oauth_token(token)
         else:
             return await super().load_access_token(token)
