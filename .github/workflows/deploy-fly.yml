@@ -4,7 +4,7 @@ name: Deploy to Fly.io
 
 on:
   push:
-    branches: [main]
+    branches: [main, fly-deploy]
   workflow_dispatch:
 
 concurrency:
