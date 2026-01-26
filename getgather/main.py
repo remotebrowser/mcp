@@ -20,6 +20,7 @@ from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+from getgather.auth.auth import setup_mcp_auth
 from getgather.config import settings
 from getgather.logs import instrument_fastapi
 from getgather.mcp.browser import browser_manager
@@ -54,7 +55,6 @@ async def lifespan(app: FastAPI):
 
     async with AsyncExitStack() as stack:
         for mcp_app in mcp_apps:
-            # type: ignore
             await stack.enter_async_context(mcp_app.app.lifespan(app))
         yield
 
@@ -275,6 +275,8 @@ app.include_router(dpage_router)
 
 for mcp_app in mcp_apps:
     app.mount(mcp_app.route, mcp_app.app)
+
+setup_mcp_auth(app, [mcp_app.route for mcp_app in mcp_apps])
 
 
 @app.get("/docs-mcp")
