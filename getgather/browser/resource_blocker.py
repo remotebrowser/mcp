@@ -2,9 +2,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import aiofiles
+from loguru import logger
 
 from getgather.config import PROJECT_DIR
-from getgather.logs import logger
 
 blocked_domains: frozenset[str] | None = None
 allowed_domains: frozenset[str] = frozenset(["amazon.ca", "wayfair.com"])

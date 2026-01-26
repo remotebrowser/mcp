@@ -3,8 +3,9 @@
 import re
 from typing import Any
 
+from loguru import logger
+
 from getgather.browser.proxy_types import ProxyConfig
-from getgather.logs import logger
 from getgather.request_info import RequestInfo
 
 

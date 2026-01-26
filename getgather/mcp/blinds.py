@@ -2,21 +2,27 @@ import asyncio
 from typing import Any, cast
 
 import zendriver as zd
+from loguru import logger
 
-from getgather.logs import logger
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_actions import parse_response_json
-from getgather.zen_distill import zen_navigate_with_retry
+from getgather.zen_distill import ElementConfig, zen_navigate_with_retry
 
 blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
+
+# Element configuration for typing delays
+blinds_config = ElementConfig(typing_clear_delay=0.75)
 
 
 @blinds_mcp.tool
 async def get_favorites() -> dict[str, Any]:
     """Get favorites of blinds."""
     return await zen_dpage_mcp_tool(
-        f"https://www.blinds.com/myaccount/favorites", "blinds_favorites", timeout=60
+        f"https://www.blinds.com/myaccount/favorites",
+        "blinds_favorites",
+        timeout=60,
+        config=blinds_config,
     )
 
 
@@ -72,4 +78,5 @@ async def get_orders() -> dict[str, Any]:
         f"https://www.blinds.com/myaccount/orders",
         action=get_orders_action,
         dpage_timeout=60,
+        config=blinds_config,
     )

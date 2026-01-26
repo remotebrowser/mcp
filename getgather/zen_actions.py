@@ -1,7 +1,7 @@
 import json
 from typing import Any, TypeVar
 
-from getgather.logs import logger
+from loguru import logger
 
 T = TypeVar("T", list[dict[str, Any]], dict[str, Any])
 
