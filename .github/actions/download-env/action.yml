@@ -37,14 +37,13 @@ runs:
               echo "::add-mask::${line}"
             fi
           done <<< "$value"
-          # Use heredoc format for multiline values to support SSH keys
+          # Use heredoc format for multiline values to support SSH keys (for GITHUB_ENV)
           echo "${key}<<EOF" >> $GITHUB_ENV
           echo "$value" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          # Also write to .env file with proper multiline support
-          echo "${key}<<EOF" >> .env
-          echo "$value" >> .env
-          echo "EOF" >> .env
+          # For .env file, write as KEY=VALUE for Fly compatibility
+          # Use printf to properly escape the value and replace newlines with literal \n
+          printf '%s=%s\n' "$key" "$(printf '%s' "$value" | sed ':a;N;$!ba;s/\n/\\n/g')" >> .env
         done
         echo "✅ Successfully loaded the following environment variables from Doppler for project ${{ inputs.project }} in config ${{ inputs.config }}:"
         cat .doppler-secrets.json | jq -r 'to_entries[] | .key'
