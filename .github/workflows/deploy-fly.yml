@@ -43,9 +43,7 @@ jobs:
 
       - name: Add GIT_REV to .env file
         run: |
-          echo "GIT_REV<<EOF" >> .env
-          echo "${{ github.sha }}" >> .env
-          echo "EOF" >> .env
+          echo "GIT_REV=${{ github.sha }}" >> .env
           echo "✅ Added GIT_REV to .env file"
 
       - name: Setup flyctl
