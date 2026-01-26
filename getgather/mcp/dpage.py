@@ -16,6 +16,7 @@ from getgather.logs import logger
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
+    ElementConfig,
     Match,
     autoclick as zen_autoclick,
     capture_page_artifacts as zen_capture_page_artifacts,
@@ -41,11 +42,17 @@ router = APIRouter(prefix="/dpage", tags=["dpage"])
 active_pages: dict[str, zd.Tab] = {}
 distillation_results: dict[str, str | list[dict[str, str | list[str]]] | dict[str, Any]] = {}
 pending_actions: dict[str, dict[str, Any]] = {}
+element_configs: dict[str, ElementConfig] = {}
 
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
-async def dpage_add(page: zd.Tab, location: str, profile_id: str | None = None):
+async def dpage_add(
+    page: zd.Tab,
+    location: str,
+    profile_id: str | None = None,
+    config: ElementConfig | None = None,
+):
     id = generate(FRIENDLY_CHARS, 8)
 
     try:
@@ -63,6 +70,8 @@ async def dpage_add(page: zd.Tab, location: str, profile_id: str | None = None):
             iteration=0,
         )
     active_pages[id] = page
+    if config:
+        element_configs[id] = config
     return id
 
 
@@ -71,6 +80,8 @@ async def dpage_close(id: str) -> None:
         page = active_pages[id]
         await safe_close_page(page)
         del active_pages[id]
+    if id in element_configs:
+        del element_configs[id]
 
 
 async def dpage_check(id: str):
@@ -262,8 +273,12 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 selector, frame_selector = get_selector(
                     str(gg_match) if gg_match is not None else ""
                 )
+                config = element_configs.get(id)
                 element = await page_query_selector(
-                    page, selector if selector is not None else "", iframe_selector=frame_selector
+                    page,
+                    selector if selector is not None else "",
+                    iframe_selector=frame_selector,
+                    config=config,
                 )
                 name = input.get("name")
                 input_type = input.get("type")
@@ -298,10 +313,12 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                             logger.info(f"Using form data {name}={value}")
                             radio_gg_match = str(radio.get("gg-match"))
                             selector, frame_selector = get_selector(radio_gg_match)
+                            config = element_configs.get(id)
                             radio_element = await page_query_selector(
                                 page,
                                 selector if selector is not None else "",
                                 iframe_selector=frame_selector,
+                                config=config,
                             )
                             if radio_element:
                                 await radio_element.click()
@@ -345,7 +362,12 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     raise HTTPException(status_code=503, detail="Timeout reached")
 
 
-async def zen_dpage_mcp_tool(initial_url: str, result_key: str, timeout: int = 2) -> dict[str, Any]:
+async def zen_dpage_mcp_tool(
+    initial_url: str,
+    result_key: str,
+    timeout: int = 2,
+    config: ElementConfig | None = None,
+) -> dict[str, Any]:
     """Generic MCP tool based on distillation with Zendriver"""
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
@@ -377,7 +399,12 @@ async def zen_dpage_mcp_tool(initial_url: str, result_key: str, timeout: int = 2
     page = await get_new_page(browser)
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
-    id = await dpage_add(page, initial_url, browser.id)  # type: ignore[attr-defined]
+    id = await dpage_add(
+        page,
+        initial_url,
+        browser.id,  # type: ignore[attr-defined]
+        config=config,
+    )
 
     if incognito:
         browser_manager.set_incognito_browser(id, browser)
@@ -413,6 +440,7 @@ async def zen_dpage_with_action(
     dpage_timeout: int = 15,
     _signin_completed: bool = False,
     _page_id: str | None = None,
+    config: ElementConfig | None = None,
 ) -> dict[str, Any]:
     """Execute an action after signin completion with Zendriver.
 
@@ -480,7 +508,12 @@ async def zen_dpage_with_action(
     page = await get_new_page(browser_instance)
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore
 
-    id = await dpage_add(page, initial_url, browser_instance.id)  # type: ignore
+    id = await dpage_add(
+        page,
+        initial_url,
+        browser_instance.id,  # type: ignore[attr-defined]
+        config=config,
+    )
 
     # Store action for auto-resumption after signin
     pending_actions[id] = {
