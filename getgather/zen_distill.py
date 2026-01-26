@@ -104,7 +104,6 @@ async def convert(distilled: str, pattern_path: str | None = None):
     document = BeautifulSoup(distilled, "html.parser")
     converter = None
 
-    # First, try loading converter from gg-convert attribute on gg-stop elements
     if pattern_path:
         stops = document.find_all(attrs={"gg-stop": True})
         for stop in stops:
@@ -119,11 +118,8 @@ async def convert(distilled: str, pattern_path: str | None = None):
                         logger.info(f"Loaded converter from {json_path}")
                         break
 
-    # Fall back to script tag approach (backward compatible)
     if converter is None:
         snippet = document.find("script", {"type": "application/json"})
-
-        # Try extracting from HTML script tag content (old method, backward compatible)
         if snippet:
             script_content = snippet.get_text().strip()
             if script_content:
@@ -133,17 +129,6 @@ async def convert(distilled: str, pattern_path: str | None = None):
                 except Exception as error:
                     logger.error(f"Failed to parse converter from HTML: {error}")
                     return None
-
-        # Fall back to loading converter from external JSON file if src attribute is specified
-        if converter is None and pattern_path and snippet and isinstance(snippet, Tag):
-            src_attr = snippet.get("src")
-            if isinstance(src_attr, str) and src_attr:
-                pattern_dir = Path(pattern_path).parent
-                json_path = pattern_dir / src_attr
-                logger.info(f"Loading converter from explicit src: {json_path}")
-                converter = _load_converter_from_file(json_path)
-                if converter:
-                    logger.info(f"Loaded converter from {json_path}")
 
     if converter is None:
         logger.debug("No converter found")
