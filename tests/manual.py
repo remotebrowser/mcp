@@ -5,7 +5,7 @@ from cyclopts import App, Parameter
 from fastmcp import Client
 from rich import print
 
-app = App(help="Manual end-to-end of the mcp-gateway server.")
+app = App(help="Manual end-to-end test of the mcp server.")
 
 
 @app.command(
@@ -17,9 +17,7 @@ app = App(help="Manual end-to-end of the mcp-gateway server.")
     """
 )
 async def call_tool(
-    server_url: Annotated[
-        str, Parameter(help="URL of the mcp-gateway server")
-    ] = "http://localhost:23456",
+    server_url: Annotated[str, Parameter(help="URL of the mcp server")] = "http://localhost:23456",
     mcp: Annotated[str, Parameter(help="name of the mcp server")] = "media",
     tool: Annotated[str, Parameter(help="name of the tool")] = "get_user_info",
     token: Annotated[str, Parameter(help="OAuth token to skip full auth flow")] | None = None,
