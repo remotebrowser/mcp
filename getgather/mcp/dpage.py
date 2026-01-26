@@ -400,7 +400,10 @@ async def zen_dpage_mcp_tool(
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
     id = await dpage_add(
-        page, initial_url, browser.id, config=config  # type: ignore[attr-defined]
+        page,
+        initial_url,
+        browser.id,
+        config=config,  # type: ignore[attr-defined]
     )
 
     if incognito:
@@ -506,7 +509,10 @@ async def zen_dpage_with_action(
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore
 
     id = await dpage_add(
-        page, initial_url, browser_instance.id, config=config  # type: ignore
+        page,
+        initial_url,
+        browser_instance.id,
+        config=config,  # type: ignore
     )
 
     # Store action for auto-resumption after signin
