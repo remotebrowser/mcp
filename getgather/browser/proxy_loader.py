@@ -2,10 +2,10 @@ import os
 from typing import Any
 
 import yaml
+from loguru import logger
 
 from getgather.browser.proxy_types import ProxyConfig
 from getgather.config import settings
-from getgather.logs import logger
 
 
 def load_proxy_configs() -> dict[str, ProxyConfig]:

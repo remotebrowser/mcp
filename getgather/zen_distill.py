@@ -18,6 +18,7 @@ import websockets
 import zendriver as zd
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from loguru import logger
 from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
@@ -25,7 +26,6 @@ from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
 from getgather.container_utils import check_x_server_available
-from getgather.logs import logger
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.request_info import request_info
 
@@ -550,7 +550,7 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             return
 
         kind = "URL" if deny_url else "resource"
-        logger.debug(f" DENY {kind}: {request_url}")
+        logger.trace(f" DENY {kind}: {request_url}")
 
         try:
             await page.send(
@@ -870,7 +870,7 @@ async def distill(
         if domain and hostname:
             local = "localhost" in hostname or "127.0.0.1" in hostname
             if isinstance(domain, str) and not local and domain.lower() not in hostname.lower():
-                logger.debug(f"Skipping {name} due to mismatched domain {domain}")
+                logger.trace(f"Skipping {name} due to mismatched domain {domain}")
                 continue
 
         logger.debug(f"Checking {name} with priority {priority}")

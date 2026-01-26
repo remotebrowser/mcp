@@ -4,9 +4,10 @@ This module provides proxy configuration for external proxy service integration
 with hierarchical location support (city, state, country) and multiple proxy types.
 """
 
+from loguru import logger
+
 from getgather.browser.proxy_builder import build_proxy_config
 from getgather.config import settings
-from getgather.logs import logger
 from getgather.request_info import RequestInfo
 
 

@@ -7,7 +7,7 @@ from business logic to avoid circular dependencies.
 import re
 from urllib.parse import urlparse
 
-from getgather.logs import logger
+from loguru import logger
 
 
 class ProxyConfig:

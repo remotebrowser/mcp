@@ -7,9 +7,9 @@ from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from loguru import logger
 from pydantic import BaseModel
 
-from getgather.logs import logger
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
 from getgather.mcp.dpage import dpage_check, dpage_finalize, zen_dpage_mcp_tool

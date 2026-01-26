@@ -2,8 +2,8 @@ import asyncio
 from typing import Any, cast
 
 import zendriver as zd
+from loguru import logger
 
-from getgather.logs import logger
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_actions import parse_response_json

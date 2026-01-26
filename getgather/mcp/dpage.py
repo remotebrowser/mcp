@@ -9,10 +9,10 @@ from bs4 import BeautifulSoup, Tag
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastmcp.server.dependencies import get_http_headers
+from loguru import logger
 from nanoid import generate
 
 from getgather.config import settings
-from getgather.logs import logger
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
@@ -251,7 +251,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             converted = await convert(distilled, pattern_path=match.name)
             await dpage_close(id)
             if converted is not None:
-                print(converted)
                 distillation_results[id] = converted
             else:
                 logger.info("No conversion found")
