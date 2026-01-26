@@ -539,6 +539,9 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
                     raise
             return
 
+        kind = "URL" if deny_url else "resource"
+        logger.trace(f" DENY {kind}: {request_url}")
+
         try:
             await page.send(
                 zd.cdp.fetch.fail_request(
@@ -850,6 +853,7 @@ async def distill(
         if domain and hostname:
             local = "localhost" in hostname or "127.0.0.1" in hostname
             if isinstance(domain, str) and not local and domain.lower() not in hostname.lower():
+                logger.trace(f"Skipping {name} due to mismatched domain {domain}")
                 continue
 
         logger.debug(f"Checking {name} with priority {priority}")
