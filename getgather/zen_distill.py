@@ -45,17 +45,12 @@ class Match:
 
 @dataclass
 class ElementConfig:
-    """Configuration for element operations like typing, clicking, etc."""
+    """Configuration for element typing operations."""
 
     # Typing configuration
     clear_delay: float = 0.1
     char_delay_min: float = 0.01
     char_delay_max: float = 0.05
-
-    # Click/action delays
-    click_delay: float = 0.25
-    select_option_delay: float = 0.25
-    check_delay: float = 0.25
 
 
 ConversionResult = list[dict[str, str | list[str]]]
@@ -681,7 +676,7 @@ class Element:
             await self.css_click()
         else:
             await self.xpath_click()
-        await asyncio.sleep(self.config.click_delay)
+        await asyncio.sleep(0.25)
 
     async def select_option(self, value: str) -> None:
         # Only support CSS selectors for now
@@ -726,11 +721,11 @@ class Element:
         except Exception as js_error:
             logger.error(f"JavaScript CSS select_option failed: {js_error}")
 
-        await asyncio.sleep(self.config.select_option_delay)
+        await asyncio.sleep(0.25)
 
     async def check(self) -> None:
         logger.error("TODO: Element#check")
-        await asyncio.sleep(self.config.check_delay)
+        await asyncio.sleep(0.25)
 
     async def type_text(self, text: str) -> None:
         await self.element.clear_input_by_deleting()
