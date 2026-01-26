@@ -43,6 +43,21 @@ class Match:
     distilled: str
 
 
+@dataclass
+class ElementConfig:
+    """Configuration for element operations like typing, clicking, etc."""
+
+    # Typing configuration
+    clear_delay: float = 0.1
+    char_delay_min: float = 0.01
+    char_delay_max: float = 0.05
+
+    # Click/action delays
+    click_delay: float = 0.25
+    select_option_delay: float = 0.25
+    check_delay: float = 0.25
+
+
 ConversionResult = list[dict[str, str | list[str]]]
 
 NETWORK_ERROR_PATTERNS = (
@@ -611,12 +626,14 @@ class Element:
         element: zd.Element,
         css_selector: str | None = None,
         xpath_selector: str | None = None,
+        config: ElementConfig | None = None,
     ):
         self.element = element
         self.tag = element.tag
         self.page = element.tab
         self.css_selector = css_selector
         self.xpath_selector = xpath_selector
+        self.config = config or ElementConfig()
 
     async def inner_html(self) -> str:
         return await self.element.get_html()
@@ -664,7 +681,7 @@ class Element:
             await self.css_click()
         else:
             await self.xpath_click()
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(self.config.click_delay)
 
     async def select_option(self, value: str) -> None:
         # Only support CSS selectors for now
@@ -709,20 +726,22 @@ class Element:
         except Exception as js_error:
             logger.error(f"JavaScript CSS select_option failed: {js_error}")
 
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(self.config.select_option_delay)
 
     async def check(self) -> None:
         logger.error("TODO: Element#check")
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(self.config.check_delay)
 
     async def type_text(self, text: str) -> None:
         await self.element.clear_input_by_deleting()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(self.config.clear_delay)
         await self.element.clear_input()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(self.config.clear_delay)
         for char in text:
             await self.element.send_keys(char)
-            await asyncio.sleep(random.uniform(0.01, 0.05))
+            await asyncio.sleep(
+                random.uniform(self.config.char_delay_min, self.config.char_delay_max)
+            )
 
     async def css_click(self) -> None:
         if not self.css_selector:
@@ -808,12 +827,13 @@ async def page_query_selector(
     timeout: float = 0,
     iframe_selector: str | None = None,
     skip_visibility_check: bool = False,
+    config: ElementConfig | None = None,
 ) -> Element | None:
     try:
         if selector.startswith("//"):
             elements = await page.xpath(selector, timeout)
             if elements and len(elements) > 0:
-                element = Element(elements[0], xpath_selector=selector)
+                element = Element(elements[0], xpath_selector=selector, config=config)
                 if skip_visibility_check or await element.is_visible():
                     return element
             return None
@@ -821,13 +841,13 @@ async def page_query_selector(
         if iframe_selector is not None:
             element = await page.select_all(selector, timeout=timeout, include_frames=True)
             if element and len(element) > 0:
-                element = Element(element[0], css_selector=selector)
+                element = Element(element[0], css_selector=selector, config=config)
                 if skip_visibility_check or await element.is_visible():
                     return element
         else:
             element = await page.select(selector, timeout=timeout)
             if element:
-                element = Element(element, css_selector=selector)
+                element = Element(element, css_selector=selector, config=config)
                 if skip_visibility_check or await element.is_visible():
                     return element
         return None
