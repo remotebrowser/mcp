@@ -40,7 +40,6 @@ def _setup_logfire():
         send_to_logfire="if-token-present",
         token=settings.LOGFIRE_TOKEN,
         environment=settings.ENVIRONMENT,
-        min_level=logging.getLevelNamesMapping()[settings.LOG_LEVEL],
         code_source=logfire.CodeSource(
             repository="https://github.com/remotebrowser/mcp-getgather", revision="main"
         ),
@@ -74,7 +73,9 @@ def _setup_logger():
     ]
 
     if settings.LOGFIRE_TOKEN:
-        handlers.append(logfire.loguru_handler())
+        logfire_handler = logfire.loguru_handler()
+        logfire_handler["level"] = settings.LOG_LEVEL  # Match the log level with other handlers
+        handlers.append(logfire_handler)
 
     logger.configure(handlers=handlers)
 
