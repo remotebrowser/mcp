@@ -1,0 +1,26 @@
+<html gg-domain="blindster" gg-priority="2">
+  <head>
+    <title>Blindster Sign In</title>
+  </head>
+
+  <body>
+    <p gg-optional gg-match="form[class='w-full'] div[class='text-sm text-red-700']"></p>
+    <input
+      autofocus
+      name="email"
+      type="email"
+      gg-match="input#username"
+      placeholder="Email Address"
+    />
+    <input
+      password
+      name="password"
+      type="password"
+      gg-match="input#password"
+      placeholder="Password"
+    />
+    <button type="submit" gg-match="form[class='w-full'] div > button[type='submit']">
+      Login to My Account
+    </button>
+  </body>
+</html>
