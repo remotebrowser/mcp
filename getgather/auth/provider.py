@@ -3,6 +3,7 @@ from typing import Any
 
 from fastmcp.server.auth.auth import AccessToken
 from fastmcp.server.auth.providers.google import GoogleProvider, GoogleTokenVerifier
+from key_value.aio.stores.redis import RedisStore
 from loguru import logger
 from mcp.server.auth.provider import AccessToken as MCPAccessToken
 
@@ -73,11 +74,18 @@ class CustomOAuthProvider(GoogleProvider):
     """Custom OAuthProvider to allow first party OAuth tokens in addition to Google OAuth tokens."""
 
     def __init__(self, *args: Any, **kwargs: Any):
+        extra_args: dict[str, Any] = {}
+        if settings.OAUTH_JWT_SIGNING_KEY:
+            extra_args["jwt_signing_key"] = settings.OAUTH_JWT_SIGNING_KEY
+        if settings.OAUTH_REDIS_URL:
+            extra_args["client_storage"] = RedisStore(url=settings.OAUTH_REDIS_URL)
+
         super().__init__(
             client_id=settings.OAUTH_GOOGLE_CLIENT_ID,
             client_secret=settings.OAUTH_GOOGLE_CLIENT_SECRET,
             base_url=settings.OAUTH_ORIGIN,
             required_scopes=GOOGLE_OAUTH_SCOPES,
+            **extra_args,
         )
         self._token_validator = CustomTokenVerifier(required_scopes=GOOGLE_OAUTH_SCOPES)
 

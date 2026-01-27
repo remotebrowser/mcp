@@ -13,6 +13,9 @@ class AuthSettings(BaseModel):
     OAUTH_GOOGLE_CLIENT_ID: str = ""
     OAUTH_GOOGLE_CLIENT_SECRET: str = ""
 
+    OAUTH_JWT_SIGNING_KEY: str = ""
+    OAUTH_REDIS_URL: str = ""
+
     @cached_property
     def auth_enabled(self) -> bool:
         if not self.OAUTH_ORIGIN:
