@@ -11,6 +11,7 @@ from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_distill import (
     convert,
+    get_url,
     load_distillation_patterns,
     page_query_selector,
     run_distillation_loop,
@@ -79,8 +80,8 @@ async def get_browsing_history() -> dict[str, Any]:
     """Get browsing history from amazon."""
 
     async def get_browsing_history_action(page: zd.Tab, _) -> dict[str, Any]:
-        logger.info(f"Getting browsing history from {page.url}")
-        current_url = page.url
+        current_url = await get_url(page)
+        logger.info(f"Getting browsing history from {current_url}")
         if current_url is None or "signin" in current_url:
             raise Exception("User is not signed in")
 
@@ -92,7 +93,7 @@ async def get_browsing_history() -> dict[str, Any]:
             logger.info(f"No browsing history")
             return {"browsing_history_data": []}
 
-        logger.info(f"Navigating to {page.url}")
+        logger.info(f"Navigating to {current_url}")
 
         await page.send(zd.cdp.page.reload())
         logger.info("Page reloaded, waiting for browsing-history API response")
@@ -267,8 +268,10 @@ async def get_purchase_history_with_details(
         raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     async def get_order_details_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
-        current_url = page.url
+        current_url = await get_url(page)
+        logger.info(f"Current URL: {current_url}")
         if current_url is None or "signin" in current_url:
+            logger.info(f"User is not signed in")
             raise Exception("User is not signed in")
 
         path = os.path.join(os.path.dirname(__file__), "patterns", "**/amazon-*.html")

@@ -1028,6 +1028,13 @@ async def autoclick(page: zd.Tab, distilled: str, expr: str):
                 logger.warning(f"Selector {selector} not found, can't click on it")
 
 
+async def get_url(page: zd.Tab) -> str | None:
+    current_url = await page.evaluate("window.location.href", await_promise=True)
+    if current_url:
+        return str(current_url)
+    return None
+
+
 async def run_distillation_loop(
     location: str,
     patterns: list[Pattern],
