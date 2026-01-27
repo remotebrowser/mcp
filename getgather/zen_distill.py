@@ -22,11 +22,13 @@ from loguru import logger
 from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
+from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
 from getgather.container_utils import check_x_server_available
-from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
+from getgather.logs import logger
+from getgather.mcp.browser import browser_manager
 from getgather.request_info import request_info
 
 
@@ -1137,10 +1139,10 @@ async def short_lived_mcp_tool(
 ) -> tuple[bool, dict[str, Any]]:
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
-
-    browser = await init_zendriver_browser()
+    id = generate(FRIENDLY_CHARS, 6)
+    browser = await create_remote_browser(browser_id=id)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
-    await terminate_zendriver_browser(browser)
+    await terminate_remote_browser(browser_id=id)
 
     result: dict[str, Any] = {result_key: converted if converted else distilled}
     if result_key in result:
