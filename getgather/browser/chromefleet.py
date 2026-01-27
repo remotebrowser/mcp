@@ -77,7 +77,7 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
             resp = await client.get(configure_url)
             resp.raise_for_status()
     cdp_url = data.get("cdp_url")
-    await _wait_for_cdp(cdp_url)
+    await _wait_for_cdp(cdp_url, timeout_s=120.0)
 
     cdp = urlparse(cdp_url)  # type: ignore[assignment]
     hostname = cdp.hostname  # type: ignore[assignment]
