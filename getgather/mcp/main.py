@@ -10,6 +10,7 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from loguru import logger
 from pydantic import BaseModel
 
+from getgather.auth.auth import get_auth_user
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
 from getgather.mcp.dpage import dpage_check, dpage_finalize, zen_dpage_mcp_tool
@@ -143,6 +144,12 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
     """
     mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP")
     mcp.add_middleware(LocationProxyMiddleware())
+
+    @mcp.tool(tags={"general_tool"})
+    def get_user_info():  # type: ignore[reportUnusedFunction]
+        """Get information about the authenticated user."""
+        user = get_auth_user()
+        return user.dump()
 
     @mcp.tool(tags={"general_tool"})
     async def check_signin(ctx: Context, signin_id: str) -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]

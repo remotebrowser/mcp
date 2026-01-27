@@ -2,12 +2,13 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from getgather.auth.settings import AuthSettings
 from getgather.browser.proxy_types import ProxyConfig
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
-class Settings(BaseSettings):
+class Settings(AuthSettings, BaseSettings):
     model_config = SettingsConfigDict(
         env_file=PROJECT_DIR / ".env", env_ignore_empty=True, extra="ignore"
     )
