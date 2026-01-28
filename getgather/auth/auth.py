@@ -113,7 +113,7 @@ class AuthUser(BaseModel):
 
     @model_validator(mode="after")
     def validate_user_id(self) -> "AuthUser":
-        if len(self.user_id) > 63:
+        if len(self.user_id) > 54:
             raise ValueError(f"User id is too long: {self.user_id}")
         if not re.match(r"^[a-z0-9-]+$", self.user_id):
             raise ValueError(f"User id contains invalid characters: {self.user_id}")
@@ -124,7 +124,7 @@ class AuthUser(BaseModel):
         """
         Unique user name combining login and auth provider.
         Only numbers, lowercase letters and dashes are allowed.
-        Maximum length is 63 characters.
+        Maximum length is 54 characters.
         """
         return f"{self.sub}-{self.auth_provider}"
 
