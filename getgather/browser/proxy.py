@@ -4,11 +4,62 @@ This module provides proxy configuration for external proxy service integration
 with hierarchical location support (city, state, country) and multiple proxy types.
 """
 
+import httpx
+import zendriver as zd
 from loguru import logger
 
 from getgather.browser.proxy_builder import build_proxy_config
 from getgather.config import settings
 from getgather.request_info import RequestInfo
+from getgather.zen_distill import (
+    get_new_page,
+    zen_navigate_with_retry,
+)
+
+IP_CHECK_URL = "https://ip.fly.dev/ip"
+
+
+async def _get_working_proxy(browser_id: str) -> None:
+    """In this initial implementation, dependent on CHROMEFLEET_PROXY_URL to set proxy, so no location is passed."""
+    proxy_url = settings.CHROMEFLEET_PROXY_URL.replace(
+        "{session_id}", browser_id
+    )  # for now 1:1 is fine
+    configure_url = (
+        settings.CHROMEFLEET_URL.rstrip("/")
+        + f"/api/v1/configure/{browser_id}?proxy_url={proxy_url}"
+    )
+    logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(configure_url)
+        resp.raise_for_status()
+
+
+async def _check_browser_ip(page: zd.Tab) -> str | None:
+    await zen_navigate_with_retry(page, IP_CHECK_URL, wait_for_ready=False)
+    body = await page.select("body")
+    ip_address = None
+    if body:
+        ip_address = body.text.strip()
+        logger.info(f"Browser validated. IP address: {ip_address}")
+    else:
+        logger.info("Browser validated (could not extract IP)")
+
+    return ip_address
+
+
+async def change_and_validate_proxy(browser: zd.Browser, browser_id: str) -> None:
+    page = await get_new_page(browser)
+    original_ip = await _check_browser_ip(page)
+    # setup proxy if configured
+    if settings.CHROMEFLEET_PROXY_URL:
+        await _get_working_proxy(browser_id)
+        new_ip = await _check_browser_ip(page)
+        if original_ip == new_ip and original_ip is not None:
+            logger.error(
+                f"Proxy setup may have failed, IP address did not change after proxy configuration: {new_ip}"
+            )
+        else:
+            logger.debug(f"Proxy setup successful, IP changed from {original_ip} to {new_ip}")
 
 
 async def setup_proxy(

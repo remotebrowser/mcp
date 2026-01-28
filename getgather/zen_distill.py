@@ -23,7 +23,7 @@ from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
-from getgather.browser.proxy import setup_proxy
+from getgather.browser.proxy import change_and_validate_proxy, setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
 from getgather.container_utils import check_x_server_available
@@ -1148,6 +1148,7 @@ async def short_lived_mcp_tool(
     patterns = load_distillation_patterns(path)
     id = generate(FRIENDLY_CHARS, 6)
     browser = await create_remote_browser(browser_id=id)
+    await change_and_validate_proxy(browser, browser_id=id)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
     await terminate_remote_browser(browser_id=id)
 
