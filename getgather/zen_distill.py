@@ -22,10 +22,11 @@ from loguru import logger
 from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
+from getgather.auth.auth import get_auth_user
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
-from getgather.config import settings
+from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager
@@ -356,9 +357,6 @@ async def install_proxy_handler(username: str, password: str, page: zd.Tab):
 
     page.add_handler(zd.cdp.fetch.AuthRequired, auth_challenge_handler)  # type: ignore[arg-type]
     await page.send(zd.cdp.fetch.enable(handle_auth_requests=True))
-
-
-FRIENDLY_CHARS = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
 async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
@@ -1146,10 +1144,10 @@ async def short_lived_mcp_tool(
 ) -> tuple[bool, dict[str, Any]]:
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
-    id = generate(FRIENDLY_CHARS, 6)
-    browser = await create_remote_browser(browser_id=id)
+    browser_id = get_auth_user().user_id
+    browser = await create_remote_browser(browser_id=browser_id)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
-    await terminate_remote_browser(browser_id=id)
+    await terminate_remote_browser(browser_id=browser_id)
 
     result: dict[str, Any] = {result_key: converted if converted else distilled}
     if result_key in result:

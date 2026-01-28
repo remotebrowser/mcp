@@ -26,7 +26,7 @@ async def call_tool(
     result = None
     error = None
     try:
-        async with Client(url, auth=(token or "oauth"), timeout=60) as client:
+        async with Client(url, auth=(token or "oauth"), timeout=180) as client:
             result = await client.call_tool_mcp(tool, {})
     except Exception:
         error = traceback.format_exc()

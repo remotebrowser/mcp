@@ -1,3 +1,4 @@
+import re
 from typing import cast
 
 from fastapi import FastAPI
@@ -6,7 +7,8 @@ from loguru import logger
 from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
 from mcp.server.auth.middleware.bearer_auth import BearerAuthBackend, RequireAuthMiddleware
 from mcp.server.auth.provider import TokenVerifier
-from pydantic import BaseModel, field_validator
+from nanoid import generate
+from pydantic import BaseModel, field_validator, model_validator
 from starlette.datastructures import Headers
 from starlette.middleware import Middleware
 from starlette.middleware.authentication import AuthenticationMiddleware
@@ -14,7 +16,7 @@ from starlette.responses import RedirectResponse
 from starlette.types import Receive, Scope, Send
 
 from getgather.auth.provider import CustomOAuthProvider
-from getgather.config import settings
+from getgather.config import FRIENDLY_CHARS, settings
 
 
 class RequireAuthMiddlewareCustom(RequireAuthMiddleware):
@@ -99,14 +101,32 @@ class AuthUser(BaseModel):
     @field_validator("auth_provider")
     @classmethod
     def validate_auth_provider(cls, v: str) -> str:
-        if v not in [settings.FIRST_PARTY_OAUTH_PROVIDER_NAME, "google"]:
+        valid_providers = (
+            [settings.FIRST_PARTY_OAUTH_PROVIDER_NAME, "google"]
+            if settings.auth_enabled
+            else [NO_AUTH_PROVIDER]
+        )
+
+        if v not in valid_providers:
             raise ValueError(f"Invalid auth provider: {v}")
         return v
 
+    @model_validator(mode="after")
+    def validate_user_id(self) -> "AuthUser":
+        if len(self.user_id) > 63:
+            raise ValueError(f"User id is too long: {self.user_id}")
+        if not re.match(r"^[a-z0-9-]+$", self.user_id):
+            raise ValueError(f"User id contains invalid characters: {self.user_id}")
+        return self
+
     @property
     def user_id(self) -> str:
-        """Unique user name combining login and auth provider"""
-        return f"{self.sub}.{self.auth_provider}"
+        """
+        Unique user name combining login and auth provider.
+        Only numbers, lowercase letters and dashes are allowed.
+        Maximum length is 63 characters.
+        """
+        return f"{self.sub}-{self.auth_provider}"
 
     @classmethod
     def from_user_id(cls, user_id: str) -> "AuthUser":
@@ -121,8 +141,7 @@ class AuthUser(BaseModel):
 
 def get_auth_user() -> AuthUser:
     if not settings.auth_enabled:
-        # for testing only when auth is disabled
-        return AuthUser(sub="test_user", auth_provider=settings.FIRST_PARTY_OAUTH_PROVIDER_NAME)
+        return _get_user_for_no_auth()
 
     token = get_access_token()
     if not token:
@@ -137,3 +156,12 @@ def get_auth_user() -> AuthUser:
         raise RuntimeError("Missing sub or provider in auth token")
 
     return AuthUser(sub=sub, auth_provider=provider, name=name, email=email, app_name=app_name)
+
+
+NO_AUTH_PROVIDER = "noauth"
+
+
+def _get_user_for_no_auth() -> AuthUser:
+    """Fake auth user for when auth is disabled to keep the code consistent."""
+    sub = generate(FRIENDLY_CHARS, 6)
+    return AuthUser(sub=sub, auth_provider=NO_AUTH_PROVIDER)
