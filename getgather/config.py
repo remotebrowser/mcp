@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from getgather.auth.settings import AuthSettings
@@ -60,6 +61,21 @@ class Settings(AuthSettings, BaseSettings):
         from getgather.browser.proxy_loader import load_proxy_configs
 
         return load_proxy_configs()
+
+    @field_validator("CHROMEFLEET_PROXY_URL")
+    @classmethod
+    def validate_proxy_url_format(cls, v: str) -> str:
+        """Ensure proxy URL doesn't include http:// or https:// prefix."""
+        if not v:  # Allow empty string
+            return v
+
+        if v.startswith(("http://", "https://")):
+            raise ValueError(
+                "CHROMEFLEET_PROXY_URL should not include http:// or https:// prefix. "
+                f"Expected format: [username:password@]host:port, got: {v}"
+            )
+
+        return v
 
 
 settings = Settings()
