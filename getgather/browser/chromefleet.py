@@ -8,8 +8,6 @@ from loguru import logger
 
 from getgather.config import settings
 
-IP_CHECK_URL = "https://ip.fly.dev/ip"
-
 
 async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
     start_time = asyncio.get_event_loop().time()
@@ -57,21 +55,6 @@ async def _call_chromefleet_api(
         return response
 
 
-async def _get_working_proxy(browser_id: str) -> None:
-    """In this initial implementation, dependent on CHROMEFLEET_PROXY_URL to set proxy, so no location is passed."""
-    proxy_url = settings.CHROMEFLEET_PROXY_URL.replace(
-        "{session_id}", browser_id
-    )  # for now 1:1 is fine
-    configure_url = (
-        settings.CHROMEFLEET_URL.rstrip("/")
-        + f"/api/v1/configure/{browser_id}?proxy_url={proxy_url}"
-    )
-    logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(configure_url)
-        resp.raise_for_status()
-
-
 async def create_remote_browser(browser_id: str) -> zd.Browser:
     """
     Start a remote Chrome via ChromeFleet and connect via CDP.
@@ -93,37 +76,6 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     cdp_hostname = f"[{hostname}]" if ":" in hostname else hostname  # type: ignore[assignment]
     browser = await zd.Browser.create(host=cdp_hostname, port=port)  # type: ignore[arg-type]
     browser.id = browser_id  # type: ignore[attr-defined]
-
-    # verify browser is working by checking IP
-    from getgather.zen_distill import (  # avoid circular import and avoid refactoring until migration done
-        get_new_page,
-        zen_navigate_with_retry,
-    )
-
-    async def _check_browser_ip(page: zd.Tab) -> str | None:
-        await zen_navigate_with_retry(page, IP_CHECK_URL, wait_for_ready=False)
-        body = await page.select("body")
-        ip_address = None
-        if body:
-            ip_address = body.text.strip()
-            logger.info(f"Browser validated. IP address: {ip_address}")
-        else:
-            logger.info("Browser validated (could not extract IP)")
-
-        return ip_address
-
-    page = await get_new_page(browser)
-    original_ip = await _check_browser_ip(page)
-    # setup proxy if configured
-    if settings.CHROMEFLEET_PROXY_URL:
-        await _get_working_proxy(browser_id)
-        new_ip = await _check_browser_ip(page)
-        if original_ip == new_ip and original_ip is not None:
-            logger.error(
-                f"Proxy setup may have failed, IP address did not change after proxy configuration: {new_ip}"
-            )
-        else:
-            logger.debug(f"Proxy setup successful, IP changed from {original_ip} to {new_ip}")
     return browser
 
 
