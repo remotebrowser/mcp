@@ -48,14 +48,34 @@ async def get_orders() -> dict[str, Any]:
 
     async def get_orders_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         logger.info("🔧 Executing get_orders_action...")
-        await zen_navigate_with_retry(
-            page, "https://www.blinds.com/myaccount/orders", wait_for_ready=False
-        )
-        orders = None
-        async with page.expect_response(".*/ordersummarylist") as resp:
-            logger.info("Response listener active...")
-            logger.info(f"Response: {resp}")
-            orders = await parse_response_json(resp, [])
+
+        max_retries = 3
+        timeout_seconds = 5
+        orders: list[dict[str, Any]] = []
+
+        for attempt in range(1, max_retries + 1):
+            await zen_navigate_with_retry(
+                page, "https://www.blinds.com/myaccount/orders", wait_for_ready=False
+            )
+            logger.info(f"get_orders_action attempt {attempt}/{max_retries}")
+            try:
+                async with page.expect_response(".*/ordersummarylist") as resp:
+                    logger.info("Response listener active...")
+                    orders = await asyncio.wait_for(
+                        parse_response_json(resp, []),
+                        timeout=timeout_seconds,
+                    )
+                logger.info("Successfully received orders response.")
+                break
+
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"No matching 'ordersummarylist' response within {timeout_seconds}s "
+                    f"(attempt {attempt}/{max_retries})."
+                )
+                if attempt == max_retries:
+                    logger.error("Max retries reached for get_orders_action.")
+                    return {"blinds_orders": []}
 
         logger.info(f"🔍 Orders: {orders}")
 
