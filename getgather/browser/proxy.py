@@ -20,12 +20,11 @@ async def _set_proxy(
 ) -> None:
     proxy_url = browser_proxy_url.replace("{session_id}", browser_id)  # for now 1:1 is fine
     configure_url = (
-        settings.CHROMEFLEET_URL.rstrip("/")
-        + f"/api/v1/configure/{browser_id}?proxy_url={proxy_url}"
+        settings.CHROMEFLEET_URL.rstrip("/") + f"/api/v1/browsers/{browser_id}/configure"
     )
     logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
     async with httpx.AsyncClient() as client:
-        resp = await client.get(configure_url)
+        resp = await client.post(configure_url, json={"proxy_url": proxy_url})
         resp.raise_for_status()
 
 
