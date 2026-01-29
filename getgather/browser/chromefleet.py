@@ -8,6 +8,8 @@ from loguru import logger
 
 from getgather.config import settings
 
+HTTP_METHOD = Literal["GET", "POST", "DELETE"]
+
 
 async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
     start_time = asyncio.get_event_loop().time()
@@ -33,24 +35,20 @@ async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
     raise TimeoutError(f"CDP not ready at {url} after {timeout_s}s (last_error={last_error})")
 
 
-async def _call_chromefleet_api(
-    endpoint: Literal["start", "stop"], browser_id: str
-) -> httpx.Response:
-    """
-    Helper to call the ChromeFleet API.
-    Args:
-        endpoint: The API endpoint (e.g., 'start', 'query', 'stop')
-        browser_id: The browser ID to use in the endpoint
-    Returns:
-        The HTTP response
-    """
+async def _call_chromefleet_api(method: HTTP_METHOD, browser_id: str) -> httpx.Response:
     base_url = settings.CHROMEFLEET_URL.rstrip("/")
     if not base_url:
         raise ValueError("CHROMEFLEET_URL is not configured")
 
-    url = f"{base_url}/api/v1/{endpoint}/{browser_id}"
+    url = f"{base_url}/api/v1/browsers/{browser_id}"
+
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(url)
+        if method.upper() == "POST":
+            response = await client.post(url)
+        elif method.upper() == "DELETE":
+            response = await client.delete(url)
+        else:
+            response = await client.get(url)
         response.raise_for_status()
         return response
 
@@ -61,7 +59,7 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     The browser_id must not already be in use.
     """
     logger.info(f"Starting new ChromeFleet browser: {browser_id}")
-    response = await _call_chromefleet_api("start", browser_id)
+    response = await _call_chromefleet_api("POST", browser_id)
     data = response.json()
     cdp_url = data.get("cdp_url")
     await _wait_for_cdp(cdp_url, timeout_s=120.0)
@@ -73,7 +71,7 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     assert port is not None
     logger.debug(f"Connecting to ChromeFleet CDP at {hostname}:{port}")
     # add '[' and ']' for ipv6 address
-    cdp_hostname = f"[{hostname}]" if ":" in hostname else hostname  # type: ignore[assignment]
+    cdp_hostname = f"[{hostname}]" if ":" in hostname and "[" not in hostname else hostname  # type: ignore[assignment]
     browser = await zd.Browser.create(host=cdp_hostname, port=port)  # type: ignore[arg-type]
     browser.id = browser_id  # type: ignore[attr-defined]
     return browser
@@ -82,5 +80,5 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
 async def terminate_remote_browser(browser_id: str) -> None:
     """Terminate an existing remote Chrome via ChromeFleet."""
     logger.info(f"Terminating ChromeFleet browser: {browser_id}")
-    await _call_chromefleet_api("stop", browser_id)
+    await _call_chromefleet_api("DELETE", browser_id)
     logger.info(f"Successfully terminated ChromeFleet browser: {browser_id}")
