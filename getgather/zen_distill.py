@@ -1148,7 +1148,7 @@ async def short_lived_mcp_tool(
     patterns = load_distillation_patterns(path)
     id = generate(FRIENDLY_CHARS, 6)
     browser = await create_remote_browser(browser_id=id)
-    await change_and_validate_proxy(browser, browser_id=id)
+    await change_and_validate_proxy(browser)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
     await terminate_remote_browser(browser_id=id)
 

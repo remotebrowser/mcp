@@ -11,19 +11,14 @@ from loguru import logger
 from getgather.browser.proxy_builder import build_proxy_config
 from getgather.config import settings
 from getgather.request_info import RequestInfo
-from getgather.zen_distill import (
-    get_new_page,
-    zen_navigate_with_retry,
-)
 
 IP_CHECK_URL = "https://ip.fly.dev/ip"
 
 
-async def _get_working_proxy(browser_id: str) -> None:
-    """In this initial implementation, dependent on CHROMEFLEET_PROXY_URL to set proxy, so no location is passed."""
-    proxy_url = settings.CHROMEFLEET_PROXY_URL.replace(
-        "{session_id}", browser_id
-    )  # for now 1:1 is fine
+async def _set_proxy(
+    browser_id: str, browser_proxy_url: str = settings.CHROMEFLEET_PROXY_URL
+) -> None:
+    proxy_url = browser_proxy_url.replace("{session_id}", browser_id)  # for now 1:1 is fine
     configure_url = (
         settings.CHROMEFLEET_URL.rstrip("/")
         + f"/api/v1/configure/{browser_id}?proxy_url={proxy_url}"
@@ -35,6 +30,8 @@ async def _get_working_proxy(browser_id: str) -> None:
 
 
 async def _check_browser_ip(page: zd.Tab) -> str | None:
+    from getgather.zen_distill import zen_navigate_with_retry
+
     await zen_navigate_with_retry(page, IP_CHECK_URL, wait_for_ready=False)
     body = await page.select("body")
     ip_address = None
@@ -47,12 +44,17 @@ async def _check_browser_ip(page: zd.Tab) -> str | None:
     return ip_address
 
 
-async def change_and_validate_proxy(browser: zd.Browser, browser_id: str) -> None:
+async def change_and_validate_proxy(browser: zd.Browser) -> None:
+    from getgather.zen_distill import (
+        get_new_page,
+    )
+
+    browser_id: str = str(browser.id)  # type: ignore
     page = await get_new_page(browser)
     original_ip = await _check_browser_ip(page)
     # setup proxy if configured
     if settings.CHROMEFLEET_PROXY_URL:
-        await _get_working_proxy(browser_id)
+        await _set_proxy(browser_id)
         new_ip = await _check_browser_ip(page)
         if original_ip == new_ip and original_ip is not None:
             logger.error(
