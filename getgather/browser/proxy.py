@@ -54,7 +54,7 @@ async def change_and_validate_proxy(browser: zd.Browser) -> None:
     original_ip = await _check_browser_ip(page)
     # setup proxy if configured
     if settings.CHROMEFLEET_PROXY_URL:
-        await _set_proxy(browser_id)
+        await _set_proxy(browser_id, browser_proxy_url=settings.CHROMEFLEET_PROXY_URL)
         new_ip = await _check_browser_ip(page)
         if original_ip == new_ip and original_ip is not None:
             logger.error(
