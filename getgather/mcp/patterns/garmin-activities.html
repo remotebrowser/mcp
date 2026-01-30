@@ -1,0 +1,67 @@
+<html gg-domain="garmin">
+  <head>
+    <title>Garmin Activities</title>
+  </head>
+  <body>
+    <div>
+      <div gg-stop gg-match-html="div#scrollableArea.ActivityList_activitiesListItems__lWW3P"></div>
+    </div>
+    <script type="application/json" id="activities">
+      {
+        "rows": "div.ActivityListItem_listItem__aoJjV",
+        "columns": [
+          {
+            "name": "activity_icon",
+            "selector": "div.ActivityListItem_activityIconContainer__erO90 i"
+          },
+          {
+            "name": "activity_date",
+            "selector": "span.ActivityListItem_activityDate__iZtT6"
+          },
+          {
+            "name": "activity_year",
+            "selector": "span.ActivityListItem_activityDateYear__K-0Yn"
+          },
+          {
+            "name": "activity_name",
+            "selector": "div.InlineEditActivityName_activityName__ATZv3 a"
+          },
+          {
+            "name": "activity_url",
+            "selector": "div.InlineEditActivityName_activityName__ATZv3 a",
+            "attribute": "href"
+          },
+          {
+            "name": "activity_type",
+            "selector": "span.ActivityListItem_activityTypeText__jWs2o"
+          },
+          {
+            "name": "is_favorite",
+            "selector": "div.ActivityListItem_favoritesContainer__VhpxY i",
+            "attribute": "class"
+          },
+          {
+            "name": "distance",
+            "selector": "div.ActivityListItem_metricItem__j1l0U:nth-of-type(1) div.ActivityListItem_metricValue__2BPW6"
+          },
+          {
+            "name": "time",
+            "selector": "div.ActivityListItem_metricItem__j1l0U:nth-of-type(2) div.ActivityListItem_metricValue__2BPW6"
+          },
+          {
+            "name": "avg_speed",
+            "selector": "div.ActivityListItem_metricItem__j1l0U:nth-of-type(3) div.ActivityListItem_metricValue__2BPW6"
+          },
+          {
+            "name": "total_ascent",
+            "selector": "div.ActivityListItem_metricItem__j1l0U:nth-of-type(4) div.ActivityListItem_metricValue__2BPW6"
+          },
+          {
+            "name": "avg_power",
+            "selector": "div.ActivityListItem_metricItem__j1l0U:nth-of-type(5) div.ActivityListItem_metricValue__2BPW6"
+          }
+        ]
+      }
+    </script>
+  </body>
+</html>
