@@ -5,9 +5,11 @@ from business logic to avoid circular dependencies.
 """
 
 import re
+from typing import Self
 from urllib.parse import urlparse
 
 from loguru import logger
+from pydantic import BaseModel, model_validator
 
 
 class ProxyConfig:
@@ -83,3 +85,104 @@ class ProxyConfig:
         else:
             logger.warning(f"Could not parse hostname from URL: {self.masked_url}")
             self.server = url
+
+
+# Valid US states (normalized with underscores)
+VALID_US_STATES = {
+    "alabama",
+    "alaska",
+    "arizona",
+    "arkansas",
+    "california",
+    "colorado",
+    "connecticut",
+    "delaware",
+    "florida",
+    "georgia",
+    "hawaii",
+    "idaho",
+    "illinois",
+    "indiana",
+    "iowa",
+    "kansas",
+    "kentucky",
+    "louisiana",
+    "maine",
+    "maryland",
+    "massachusetts",
+    "michigan",
+    "minnesota",
+    "mississippi",
+    "missouri",
+    "montana",
+    "nebraska",
+    "nevada",
+    "new_hampshire",
+    "new_jersey",
+    "new_mexico",
+    "new_york",
+    "north_carolina",
+    "north_dakota",
+    "ohio",
+    "oklahoma",
+    "oregon",
+    "pennsylvania",
+    "rhode_island",
+    "south_carolina",
+    "south_dakota",
+    "tennessee",
+    "texas",
+    "utah",
+    "vermont",
+    "virginia",
+    "washington",
+    "west_virginia",
+    "wisconsin",
+    "wyoming",
+}
+
+
+class Location(BaseModel):
+    """Location information for proxy configuration.
+
+    Validation rules:
+    - Country: Must be 2-char ISO code, normalized to lowercase
+    - State: Normalized to lowercase with underscores, validated for US
+    - Non-US countries: postal_code and state raise ValueError
+    """
+
+    country: str | None = None
+    state: str | None = None
+    city: str | None = None
+    city_compacted: str | None = None
+    postal_code: str | None = None
+
+    @model_validator(mode="after")
+    def validate_and_normalize(self) -> Self:
+        self.country = (str(self.country) if self.country else "").lower().strip()
+        self.state = (str(self.state) if self.state else "").lower().strip().replace(" ", "_")
+        self.city = (str(self.city) if self.city else "").lower().strip().replace(" ", "_")
+        self.postal_code = str(self.postal_code) if self.postal_code else None
+
+        if not self.country or len(self.country) != 2 or not self.country.isalpha():
+            raise ValueError(
+                f"Invalid country code: '{self.country}'. Must be a 2-character ISO country code (e.g., 'us', 'uk')"
+            )
+
+        if self.country != "us":
+            if self.postal_code:
+                raise ValueError(
+                    f"postal_code not supported for non-US (country: '{self.country}')"
+                )
+            if self.state:
+                raise ValueError(f"state not supported for non-US (country: '{self.country}')")
+
+        if self.country == "us" and self.state and self.state not in VALID_US_STATES:
+            raise ValueError(f"Invalid US state: '{self.state}'")
+
+        if self.city:
+            self.city_compacted = (
+                self.city.lower().replace("-", "").replace("_", "").replace(" ", "")
+            )
+
+        return self
