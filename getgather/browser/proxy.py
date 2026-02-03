@@ -15,7 +15,7 @@ from getgather.request_info import RequestInfo
 IP_CHECK_URL = "https://ip.fly.dev/ip"
 
 
-async def _set_proxy(
+async def _set_proxy_url(
     browser_id: str, browser_proxy_url: str = settings.CHROMEFLEET_PROXY_URL
 ) -> None:
     proxy_url = browser_proxy_url.replace("{session_id}", browser_id)  # for now 1:1 is fine
@@ -25,6 +25,16 @@ async def _set_proxy(
     logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
     async with httpx.AsyncClient() as client:
         resp = await client.post(configure_url, json={"proxy_url": proxy_url})
+        resp.raise_for_status()
+
+
+async def _set_proxy_location(browser_id: str, proxy_location: dict[str, str]) -> None:
+    configure_url = (
+        settings.CHROMEFLEET_URL.rstrip("/") + f"/api/v1/browsers/{browser_id}/configure"
+    )
+    logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(configure_url, json={"location": proxy_location})
         resp.raise_for_status()
 
 
@@ -43,7 +53,9 @@ async def _check_browser_ip(page: zd.Tab) -> str | None:
     return ip_address
 
 
-async def change_and_validate_proxy(browser: zd.Browser) -> None:
+async def change_and_validate_proxy(
+    browser: zd.Browser, location: dict[str, str] | None = None
+) -> None:
     from getgather.zen_distill import (
         get_new_page,
     )
@@ -52,15 +64,22 @@ async def change_and_validate_proxy(browser: zd.Browser) -> None:
     page = await get_new_page(browser)
     original_ip = await _check_browser_ip(page)
     # setup proxy if configured
-    if settings.CHROMEFLEET_PROXY_URL:
-        await _set_proxy(browser_id, browser_proxy_url=settings.CHROMEFLEET_PROXY_URL)
-        new_ip = await _check_browser_ip(page)
-        if original_ip == new_ip and original_ip is not None:
-            logger.error(
-                f"Proxy setup may have failed, IP address did not change after proxy configuration: {new_ip}"
-            )
-        else:
-            logger.debug(f"Proxy setup successful, IP changed from {original_ip} to {new_ip}")
+    if location:
+        await _set_proxy_location(browser_id, location)
+    elif settings.CHROMEFLEET_PROXY_URL:
+        await _set_proxy_url(browser_id, browser_proxy_url=settings.CHROMEFLEET_PROXY_URL)
+    else:
+        logger.warning(
+            "IGNORING PROXY SETTING: Currently only proxy configuration by location or by explicit URL are allowed"
+        )
+        return
+    new_ip = await _check_browser_ip(page)
+    if original_ip == new_ip and original_ip is not None:
+        logger.error(
+            f"Proxy setup may have failed, IP address did not change after proxy configuration: {new_ip}"
+        )
+    else:
+        logger.debug(f"Proxy setup successful, IP changed from {original_ip} to {new_ip}")
 
 
 async def setup_proxy(
