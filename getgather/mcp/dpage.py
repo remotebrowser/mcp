@@ -2,7 +2,13 @@ import asyncio
 import ipaddress
 import os
 import urllib.parse
-from typing import Any
+from typing import Any, Literal, TypeAlias, cast
+
+DpageSigninResult: TypeAlias = (
+    tuple[Literal["finished"], Any]
+    | tuple[Literal["form"], tuple[str, dict[str, str]]]
+    | tuple[Literal["timeout"], None]
+)
 
 import zendriver as zd
 from bs4 import BeautifulSoup, Tag
@@ -43,6 +49,7 @@ active_pages: dict[str, zd.Tab] = {}
 distillation_results: dict[str, str | list[dict[str, str | list[str]]] | dict[str, Any]] = {}
 pending_actions: dict[str, dict[str, Any]] = {}
 element_configs: dict[str, ElementConfig] = {}
+_signin_locks: dict[str, asyncio.Lock] = {}
 
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
@@ -166,74 +173,72 @@ def is_local_address(host: str) -> bool:
         return hostname in ("localhost", "127.0.0.1")
 
 
-async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
-    browser_manager.update_last_active(id)
-    form_data = await request.form()
-    fields: dict[str, str] = {k: str(v) for k, v in form_data.items()}
+async def run_dpage_signin_loop(
+    page: zd.Tab, id: str, fields: dict[str, str]
+) -> DpageSigninResult:
+    """Run the dpage sign-in loop with given form fields. Used by HTTP POST and MCP submit_dpage_signin."""
+    lock = _signin_locks.setdefault(id, asyncio.Lock())
+    await lock.acquire()
+    try:
+        return await _run_dpage_signin_loop_impl(page, id, fields)
+    finally:
+        lock.release()
+        if id not in active_pages:
+            _signin_locks.pop(id, None)
 
+
+async def _run_dpage_signin_loop_impl(
+    page: zd.Tab, id: str, fields: dict[str, str]
+) -> DpageSigninResult:
+    """Implementation of run_dpage_signin_loop (called under per-id lock)."""
+    browser_manager.update_last_active(id)
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
-
     logger.info(f"Continuing distillation for page {id}...")
     logger.debug(f"Available distillation patterns: {len(patterns)}")
-
-    TICK = 1  # seconds
-    TIMEOUT = pending_actions.get(id, {}).get("dpage_timeout", 15)  # seconds
-    max = TIMEOUT // TICK
-
+    TICK = 1
+    timeout_sec = pending_actions.get(id, {}).get("dpage_timeout", 15)
+    max_iter = timeout_sec // TICK
     current = Match(name="", priority=-1, distilled="")
-
     if settings.LOG_LEVEL == "DEBUG":
         await zen_capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
-
-    # Force browser to complete rendering by evaluating document state
     try:
         await wait_for_ready_state(page, timeout=5)
-        # Additional wait for any dynamic content/JavaScript to settle
         await page.sleep(1)
         logger.debug("Page ready state is complete")
     except Exception as e:
         logger.warning(f"Error waiting for page ready state: {e}")
-
-    for iteration in range(max):
-        logger.debug(f"Iteration {iteration + 1} of {max}")
+    for iteration in range(max_iter):
+        logger.debug(f"Iteration {iteration + 1} of {max_iter}")
         await asyncio.sleep(TICK)
-
         hostname = str(urllib.parse.urlparse(page.url).hostname) if page.url else None
         match = await zen_distill(hostname, page, patterns)
         if not match:
             logger.info("No matched pattern found")
             continue
-
         distilled = match.distilled
         document = BeautifulSoup(distilled, "html.parser")
-
         title_element = BeautifulSoup(distilled, "html.parser").find("title")
         title = title_element.get_text() if title_element is not None else DEFAULT_TITLE
         action = f"/dpage/{id}"
         options = {"title": title, "action": action}
         inputs = document.find_all("input")
-
         if match.distilled == current.distilled:
             logger.info(f"Still the same: {match.name}")
             has_inputs = len(inputs) > 0
-            max_reached = iteration == max - 1
+            max_reached = iteration == max_iter - 1
             if max_reached and has_inputs:
                 logger.info("Still the same after timeout and need inputs, render the page...")
-                return HTMLResponse(render(str(document.find("body")), options))
+                body = document.find("body")
+                return ("form", (str(body) if body else "", options))
             continue
-
         current = match
-
         if await terminate(distilled):
             logger.info("Finished!")
-
             error = await check_error(distilled)
-
             if id in pending_actions and not error:
                 action_info = pending_actions[id]
                 logger.info(f"Signin completed for {id}, resuming action...")
-
                 action_result = await zen_dpage_with_action(
                     initial_url=action_info["initial_url"],
                     action=action_info["action"],
@@ -241,13 +246,10 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     _signin_completed=True,
                     _page_id=id,
                 )
-
                 distillation_results[id] = action_result
-
                 del pending_actions[id]
                 await dpage_close(id)
-                return HTMLResponse(render(FINISHED_MSG, options))
-
+                return ("finished", action_result)
             converted = await convert(distilled, pattern_path=match.name)
             await dpage_close(id)
             if converted is not None:
@@ -255,17 +257,14 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             else:
                 logger.info("No conversion found")
                 distillation_results[id] = distilled
-            return HTMLResponse(render(FINISHED_MSG, options))
-
+            return ("finished", distillation_results[id])
         names: list[str] = []
-
         if fields.get("button"):
             button = document.find("button", value=str(fields.get("button")))
             if button:
                 logger.info(f"Clicking button button[value={fields.get('button')}]")
                 await zen_autoclick(page, distilled, f"button[value={fields.get('button')}]")
                 continue
-
         for input in inputs:
             if isinstance(input, Tag):
                 gg_match = input.get("gg-match")
@@ -281,7 +280,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 )
                 name = input.get("name")
                 input_type = input.get("type")
-
                 if element:
                     if input_type == "checkbox":
                         if not name:
@@ -336,7 +334,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                             del fields[name_str]
                         else:
                             logger.info(f"No form data found for {name}")
-
         await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
         if document.select(SUBMIT_BUTTON):
@@ -345,9 +342,9 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 await zen_autoclick(page, distilled, SUBMIT_BUTTON)
                 continue
             logger.warning("Not all form fields are filled")
-            return HTMLResponse(render(str(document.find("body")), options))
-
-    hostname_attr: str | None = getattr(page, "hostname", None)  # type: ignore[assignment]
+            body = document.find("body")
+            return ("form", (str(body) if body else "", options))
+    hostname_attr = getattr(page, "hostname", None)  # type: ignore[assignment]
     location = getattr(page, "url", "unknown")  # type: ignore[assignment]
     timeout_error = TimeoutError("Timeout reached in zen_post_dpage")
     await zen_report_distill_error(
@@ -356,8 +353,23 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         profile_id=id,
         location=location,
         hostname=hostname_attr or "unknown",
-        iteration=max,
+        iteration=max_iter,
     )
+    return ("timeout", None)
+
+
+async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
+    if id not in active_pages:
+        raise HTTPException(status_code=404, detail="Page not found")
+    form_data = await request.form()
+    fields: dict[str, str] = {k: str(v) for k, v in form_data.items()}
+    status, data = await run_dpage_signin_loop(page, id, fields)
+    if status == "finished":
+        options = {"title": DEFAULT_TITLE, "action": f"/dpage/{id}"}
+        return HTMLResponse(render(FINISHED_MSG, options))
+    if status == "form":
+        body_str, options = cast(tuple[str, dict[str, str]], data)
+        return HTMLResponse(render(body_str, options))
     raise HTTPException(status_code=503, detail="Timeout reached")
 
 
@@ -436,7 +448,7 @@ async def zen_dpage_with_action(
     initial_url: str,
     action: Any,
     timeout: int = 2,
-    dpage_timeout: int = 15,
+    dpage_timeout: int = 60,
     _signin_completed: bool = False,
     _page_id: str | None = None,
     config: ElementConfig | None = None,

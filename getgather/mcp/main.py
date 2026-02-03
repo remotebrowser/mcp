@@ -13,7 +13,14 @@ from pydantic import BaseModel
 from getgather.auth.auth import get_auth_user
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
-from getgather.mcp.dpage import dpage_check, dpage_finalize, zen_dpage_mcp_tool
+from getgather.mcp.dpage import (
+    active_pages,
+    dpage_check,
+    dpage_finalize,
+    pending_actions,
+    run_dpage_signin_loop,
+    zen_dpage_mcp_tool,
+)
 from getgather.mcp.registry import AppUIConfig, GatherMCP
 from getgather.request_info import RequestInfo, request_info
 
@@ -175,6 +182,36 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
         }
 
     @mcp.tool(tags={"general_tool"})
+    async def submit_dpage_signin(  # pyright: ignore[reportUnusedFunction]
+        ctx: Context, signin_id: str, email: str, password: str
+    ) -> dict[str, Any]:
+        """Submit sign-in credentials for a dpage session. Call this from the MCP App UI after the user enters email and password."""
+        if signin_id not in active_pages:
+            return {
+                "status": "ERROR",
+                "message": "Invalid or expired signin_id. Please start the sign-in flow again.",
+            }
+        if signin_id not in pending_actions:
+            return {
+                "status": "ERROR",
+                "message": "No pending action for this signin_id.",
+            }
+        page = active_pages[signin_id]
+        fields = {"email": email, "password": password}
+        status, data = await run_dpage_signin_loop(page, signin_id, fields)
+        if status == "finished":
+            return {"status": "success", "result": data}
+        if status == "form":
+            return {
+                "status": "need_more",
+                "message": "Form may require additional input or submission.",
+            }
+        return {
+            "status": "timeout",
+            "message": "Sign-in did not complete within the time limit. Please try again.",
+        }
+
+    @mcp.tool(tags={"general_tool"})
     async def get_browser_ip_address() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
         return await _get_browser_ip_address()
 
@@ -199,17 +236,37 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                     f"MCP App UI enabled for {brand_id_str}: {gather_mcp.app_ui.resource_uri}"
                 )
                 app_ui = gather_mcp.app_ui
+                
+                if app_ui.template_content is not None:
+                    def _make_ui_resource(ui: AppUIConfig):
+                        def _serve() -> str:
+                            return ui.template_content or ""
 
-                def _make_ui_resource(ui: AppUIConfig):
-                    def _serve() -> str:
-                        return ui.template_content or ""
+                        return _serve
 
-                    return _serve
+                    mcp.resource(
+                        uri=app_ui.resource_uri,
+                        mime_type=app_ui.mime_type,
+                    )(_make_ui_resource(app_ui))
+                else:
 
-                mcp.resource(
-                    uri=app_ui.resource_uri,
-                    mime_type=app_ui.mime_type,
-                )(_make_ui_resource(app_ui))
+                    def _make_dynamic_ui_resource(
+                        server: GatherMCP,
+                        ui: AppUIConfig,
+                    ):
+                        async def _read() -> str | bytes:
+                            resource = await server.get_resource(ui.resource_uri)
+                            return await resource.read()
+
+                        return _read
+
+                    mcp.resource(
+                        uri=app_ui.resource_uri,
+                        mime_type=app_ui.mime_type,
+                    )(_make_dynamic_ui_resource(gather_mcp, app_ui))
+                    logger.info(
+                        f"MCP App UI for {brand_id_str} uses dynamic resource, registered on parent"
+                    )
             mcp.mount(server=gather_mcp, prefix=gather_mcp.brand_id)
 
     mcp.mount(server=calendar_mcp, prefix="calendar")

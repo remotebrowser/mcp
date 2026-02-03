@@ -5,107 +5,16 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
-from bs4 import BeautifulSoup
-
 from getgather.mcp.dpage import zen_dpage_with_action
-from getgather.mcp.html_renderer import render_form
 from getgather.mcp.registry import AppUIConfig, GatherMCP
 from getgather.zen_actions import parse_response_json
 from getgather.zen_distill import load_distillation_patterns, run_distillation_loop
 
-EMBEDDED_VIEW_HTML = """<!DOCTYPE html>
-<html>
-<head>
-  <meta name="color-scheme" content="light dark">
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: transparent;
-    }
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 340px;
-      width: 340px;
-    }
-    img {
-      width: 300px;
-      height: 300px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-  </style>
-</head>
-<body>
-  <div id="qr"></div>
-  <script type="module">
-    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
-
-    const app = new App({ name: "QR View", version: "1.0.0" });
-
-    app.ontoolresult = ({ content }) => {
-      const img = content?.find(c => c.type === 'image');
-      if (img) {
-        const qrDiv = document.getElementById('qr');
-        qrDiv.innerHTML = '';
-
-        const allowedTypes = ['image/png', 'image/jpeg', 'image/gif'];
-        const mimeType = allowedTypes.includes(img.mimeType) ? img.mimeType : 'image/png';
-
-        const image = document.createElement('img');
-        image.src = `data:${mimeType};base64,${img.data}`;
-        image.alt = "QR Code";
-        qrDiv.appendChild(image);
-      }
-    };
-
-    function handleHostContextChanged(ctx) {
-      if (ctx.safeAreaInsets) {
-        document.body.style.paddingTop = `${ctx.safeAreaInsets.top}px`;
-        document.body.style.paddingRight = `${ctx.safeAreaInsets.right}px`;
-        document.body.style.paddingBottom = `${ctx.safeAreaInsets.bottom}px`;
-        document.body.style.paddingLeft = `${ctx.safeAreaInsets.left}px`;
-      }
-    }
-
-    app.onhostcontextchanged = handleHostContextChanged;
-
-    await app.connect();
-    const ctx = app.getHostContext();
-    if (ctx) {
-      handleHostContextChanged(ctx);
-    }
-  </script>
-</body>
-</html>"""
-
-GARMIN_SIGNIN_HTML_PATH = os.path.join(
-    os.path.dirname(__file__), "patterns", "garmin-signin.html"
-)
-with open(GARMIN_SIGNIN_HTML_PATH, encoding="utf-8") as f:
-    GARMIN_SIGNIN_HTML_RAW = f.read()
-
-GARMIN_SIGNIN_SOUP = BeautifulSoup(GARMIN_SIGNIN_HTML_RAW, "html.parser")
-GARMIN_SIGNIN_BODY = GARMIN_SIGNIN_SOUP.find("body")
-GARMIN_SIGNIN_CONTENT = (
-    str(GARMIN_SIGNIN_BODY) if GARMIN_SIGNIN_BODY else GARMIN_SIGNIN_HTML_RAW
-)
-GARMIN_SIGNIN_TITLE_EL = GARMIN_SIGNIN_SOUP.find("title")
-GARMIN_SIGNIN_TITLE = (
-    GARMIN_SIGNIN_TITLE_EL.get_text(strip=True) if GARMIN_SIGNIN_TITLE_EL else "Garmin Sign In"
-)
-GARMIN_ACTIVITIES_UI_HTML = render_form(
-    GARMIN_SIGNIN_CONTENT,
-    title=GARMIN_SIGNIN_TITLE,
-    action="",
-)
+GARMIN_SIGNIN_UI_URI = "ui://garmin/signin"
 
 garmin_app_ui = AppUIConfig(
-    resource_uri="ui://garmin/activities",
-    template_content=GARMIN_ACTIVITIES_UI_HTML,
+    resource_uri=GARMIN_SIGNIN_UI_URI,
+    template_content=None,
     csp_resource_domains=["https://unpkg.com"],
 )
 garmin_mcp = GatherMCP(
@@ -115,24 +24,55 @@ garmin_mcp = GatherMCP(
 )
 
 
-@garmin_mcp.resource(uri=garmin_app_ui.resource_uri)
-def _garmin_activities_ui_resource() -> str:  # pyright: ignore[reportUnusedFunction]
-    """Serve the MCP App UI for Garmin activities."""
-    return garmin_app_ui.template_content or ""
+ERROR_HTML_TEMPLATE = """<!DOCTYPE html>
+<html><head><title>{title}</title></head>
+<body><p style='color: #b91c1c; text-align: center; padding: 2rem;'>{body}</p></body>
+</html>"""
+
+IFRAME_HTML_TEMPLATE = """<!DOCTYPE html>
+<html><head><title>Sign In</title></head>
+<body style="margin:0;"><iframe src="{url}" style="width:100%;height:100vh;border:0;"></iframe></body>
+</html>"""
+
+MCP_APP_HTML_MIME = "text/html;profile=mcp-app"
+_signin_url: str | None = None
+
+
+@garmin_mcp.resource(uri=GARMIN_SIGNIN_UI_URI, mime_type=MCP_APP_HTML_MIME)
+async def _garmin_signin_ui_resource() -> str:  # pyright: ignore[reportUnusedFunction]
+    """Serve the MCP App UI for Garmin sign-in. Returns HTML that embeds the dpage URL from zen_dpage_with_action."""
+    from getgather.mcp.dpage import active_pages
+
+    signin_id = next(reversed(active_pages), None) if active_pages else None
+    if not signin_id or signin_id not in active_pages:
+        return ERROR_HTML_TEMPLATE.format(
+            title="Session Expired",
+            body="Sign-in session not found or expired. Please try again.",
+        )
+
+    url = _signin_url
+    if not url:
+        return ERROR_HTML_TEMPLATE.format(
+            title="Error",
+            body="No sign-in URL available. Start the sign-in flow again.",
+        )
+    return IFRAME_HTML_TEMPLATE.format(url=url)
 
 
 @garmin_mcp.tool(meta=garmin_app_ui.tool_meta())
-async def show_activities_ui() -> dict[str, Any]:
-    """Open the Garmin activities UI (test tool for MCP App). Use this to verify the embedded UI loads."""
+async def show_signin_ui(signin_id: str) -> dict[str, Any]:
+    """Open the Garmin sign-in UI so the user can enter credentials. Call this with the signin_id returned by get_activities or get_activity_stats when sign-in is required. The UI will receive this signin_id and use it when calling submit_dpage_signin."""
     return {
-        "message": "Garmin activities UI test",
-        "status": "ok",
+        "signin_id": signin_id,
+        "ui_resource_uri": GARMIN_SIGNIN_UI_URI,
+        "message": "Enter your Garmin credentials in the sign-in form.",
     }
 
 
 @garmin_mcp.tool
 async def get_activities() -> dict[str, Any]:
     """Get the activity history from a user's account."""
+    global _signin_url
 
     async def add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         path = os.path.join(os.path.dirname(__file__), "patterns", "garmin-activities.html")
@@ -163,15 +103,25 @@ async def get_activities() -> dict[str, Any]:
 
         return {"garmin_activity_history": activities}
 
-    return await zen_dpage_with_action(
+    result = await zen_dpage_with_action(
         "https://connect.garmin.com/modern/activities",
         action=add_activity_ids_action,
     )
+    signin_id_val = result.get("signin_id")
+    if signin_id_val:
+        _signin_url = result.get("url") or None
+        result["ui_resource_uri"] = GARMIN_SIGNIN_UI_URI
+        result["system_message"] = (
+            "Sign-in is required. Call show_signin_ui with the signin_id from this response so the user can sign in. "
+            "After the user submits the form, you can call check_signin(signin_id) to get the result, or the result may be returned directly from submit_dpage_signin."
+        )
+    return result
 
 
 @garmin_mcp.tool
 async def get_activity_stats(activity_id: str) -> dict[str, Any]:
     """Get the stats for a specific activity."""
+    global _signin_url
 
     async def action(tab: zd.Tab, _) -> dict[str, Any]:
         try:
@@ -192,10 +142,19 @@ async def get_activity_stats(activity_id: str) -> dict[str, Any]:
             )
             return {"garmin_activity_stats": {}}
 
-    return await zen_dpage_with_action(
+    result = await zen_dpage_with_action(
         f"https://connect.garmin.com/modern/activity/{activity_id}",
         action,
     )
+    signin_id_val = result.get("signin_id")
+    if signin_id_val:
+        _signin_url = result.get("url") or None
+        result["ui_resource_uri"] = GARMIN_SIGNIN_UI_URI
+        result["system_message"] = (
+            "Sign-in is required. Call show_signin_ui with the signin_id from this response so the user can sign in. "
+            "After the user submits the form, you can call check_signin(signin_id) to get the result, or the result may be returned directly from submit_dpage_signin."
+        )
+    return result
 
 
 @garmin_mcp.tool
