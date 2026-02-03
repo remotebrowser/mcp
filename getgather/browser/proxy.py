@@ -69,9 +69,10 @@ async def change_and_validate_proxy(
     elif settings.CHROMEFLEET_PROXY_URL:
         await _set_proxy_url(browser_id, browser_proxy_url=settings.CHROMEFLEET_PROXY_URL)
     else:
-        raise NotImplementedError(
-            "Currently only proxy configuration by location or by explicit URL are allowed"
+        logger.warning(
+            "IGNORING PROXY SETTING: Currently only proxy configuration by location or by explicit URL are allowed"
         )
+        return
     new_ip = await _check_browser_ip(page)
     if original_ip == new_ip and original_ip is not None:
         logger.error(
