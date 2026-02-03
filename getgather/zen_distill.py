@@ -24,7 +24,6 @@ from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.browser.proxy import change_and_validate_proxy, setup_proxy
-from getgather.browser.proxy_types import Location
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import settings
 from getgather.container_utils import check_x_server_available
@@ -1151,7 +1150,7 @@ async def short_lived_mcp_tool(
     browser = await create_remote_browser(browser_id=id)
 
     if req_info := request_info.get():
-        proxy_location = Location(**req_info.model_dump())
+        proxy_location = req_info.model_dump()
     else:
         proxy_location = None
     await change_and_validate_proxy(browser, location=proxy_location)

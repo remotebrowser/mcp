@@ -9,7 +9,6 @@ import zendriver as zd
 from loguru import logger
 
 from getgather.browser.proxy_builder import build_proxy_config
-from getgather.browser.proxy_types import Location
 from getgather.config import settings
 from getgather.request_info import RequestInfo
 
@@ -29,13 +28,13 @@ async def _set_proxy_url(
         resp.raise_for_status()
 
 
-async def _set_proxy_location(browser_id: str, proxy_location: Location) -> None:
+async def _set_proxy_location(browser_id: str, proxy_location: dict[str, str]) -> None:
     configure_url = (
         settings.CHROMEFLEET_URL.rstrip("/") + f"/api/v1/browsers/{browser_id}/configure"
     )
     logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
     async with httpx.AsyncClient() as client:
-        resp = await client.post(configure_url, json={"location": proxy_location.model_dump()})
+        resp = await client.post(configure_url, json={"location": proxy_location})
         resp.raise_for_status()
 
 
@@ -54,7 +53,9 @@ async def _check_browser_ip(page: zd.Tab) -> str | None:
     return ip_address
 
 
-async def change_and_validate_proxy(browser: zd.Browser, location: Location | None = None) -> None:
+async def change_and_validate_proxy(
+    browser: zd.Browser, location: dict[str, str] | None = None
+) -> None:
     from getgather.zen_distill import (
         get_new_page,
     )
