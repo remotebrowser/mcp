@@ -2,6 +2,7 @@ import importlib
 import importlib.util
 import inspect
 import pkgutil
+import re
 import sys
 from typing import Any
 
@@ -32,10 +33,10 @@ def check_module_source_for_mcp(module_name: str) -> bool:
         if not module_spec.origin.endswith(".py"):
             return False
 
-        # Check for imports in the source file
+        # Check for GatherMCP usage (e.g. "import GatherMCP" or "from ... import AppUIConfig, GatherMCP")
         with open(module_spec.origin, "r") as f:
             source = f.read()
-        return "import GatherMCP" in source
+        return bool(re.search(r"import\s+.*GatherMCP", source))
 
     except Exception:
         # If we can't check the source, assume it might have an MCP class
