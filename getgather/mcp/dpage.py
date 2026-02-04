@@ -173,9 +173,7 @@ def is_local_address(host: str) -> bool:
         return hostname in ("localhost", "127.0.0.1")
 
 
-async def run_dpage_signin_loop(
-    page: zd.Tab, id: str, fields: dict[str, str]
-) -> DpageSigninResult:
+async def run_dpage_signin_loop(page: zd.Tab, id: str, fields: dict[str, str]) -> DpageSigninResult:
     """Run the dpage sign-in loop with given form fields. Used by HTTP POST and MCP submit_dpage_signin."""
     lock = _signin_locks.setdefault(id, asyncio.Lock())
     await lock.acquire()

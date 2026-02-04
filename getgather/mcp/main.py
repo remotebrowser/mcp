@@ -236,8 +236,9 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                     f"MCP App UI enabled for {brand_id_str}: {gather_mcp.app_ui.resource_uri}"
                 )
                 app_ui = gather_mcp.app_ui
-                
+
                 if app_ui.template_content is not None:
+
                     def _make_ui_resource(ui: AppUIConfig):
                         def _serve() -> str:
                             return ui.template_content or ""

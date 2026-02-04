@@ -4,7 +4,6 @@ from typing import ClassVar
 from fastmcp import Context, FastMCP
 from loguru import logger
 
-
 MCP_APP_HTML_MIME_TYPE = "text/html;profile=mcp-app"
 
 
