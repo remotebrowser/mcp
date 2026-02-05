@@ -1,0 +1,15 @@
+<html gg-domain="lazada" gg-priority="2">
+  <head>
+    <title>Verify MFA</title>
+  </head>
+
+  <body>
+    <p gg-match="p.verification-list-notice"></p>
+    <input gg-match="p.verify-item-text" name="none" value="none" style="display: none" />
+    <button
+      type="submit"
+      gg-autoclick
+      gg-match="div.verification-list ul.verify-list li.verify-item p.verify-item-text"
+    ></button>
+  </body>
+</html>
