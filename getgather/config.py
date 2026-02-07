@@ -20,6 +20,9 @@ class Settings(AuthSettings, BaseSettings):
 
     CHROMEFLEET_URL: str = ""
     CHROMEFLEET_PROXY_URL: str = ""
+    PROXY_HOST_PORT: str = ""  # HOST:PORT format
+    PROXY_USERNAME: str = ""
+    PROXY_PASSWORD: str = ""
 
     # Logging
     LOG_LEVEL: str = "INFO"
