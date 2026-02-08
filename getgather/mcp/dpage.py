@@ -12,6 +12,7 @@ from fastmcp.server.dependencies import get_http_headers
 from loguru import logger
 from nanoid import generate
 
+from getgather.browser.chromefleet import create_remote_browser
 from getgather.config import settings
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
@@ -374,9 +375,11 @@ async def zen_dpage_mcp_tool(
     headers = get_http_headers(include_all=True)
     incognito = headers.get("x-incognito", "0") == "1"
     signin_id = headers.get("x-signin-id") or None
+    cdp_url = headers.get("x-cdp-url") or None
 
     if incognito:
-        browser = await init_zendriver_browser(signin_id)
+        # browser = await init_zendriver_browser(signin_id)
+        browser = await create_remote_browser(cdp_url=cdp_url)
     else:
         browser = browser_manager.get_global_browser()
         if browser is None:
@@ -455,7 +458,8 @@ async def zen_dpage_with_action(
     headers = get_http_headers(include_all=True)
     incognito = headers.get("x-incognito", "0") == "1"
     signin_id = headers.get("x-signin-id") or None
-
+    cdp_url = headers.get("x-cdp-url") or None
+    
     # Step 1: If resuming after signin completion, use the active page directly
     if _signin_completed and _page_id is not None and _page_id in active_pages:
         logger.info(f"Resuming action after signin with page_id={_page_id}")
@@ -477,7 +481,7 @@ async def zen_dpage_with_action(
         if global_browser and not incognito:
             browser = global_browser
         else:
-            browser = await init_zendriver_browser(signin_id)
+            browser = await create_remote_browser(cdp_url=cdp_url)
 
         try:
             logger.info("Trying action with existing global browser session...")
@@ -495,7 +499,7 @@ async def zen_dpage_with_action(
     # Step 3: User not signed in - create interactive signin flow with action
     browser_instance: zd.Browser
     if incognito:
-        browser_instance = await init_zendriver_browser(signin_id)
+        browser_instance = await create_remote_browser(cdp_url=cdp_url)
     else:
         if browser_manager.get_global_browser() is None:
             logger.info("Creating global browser for Zendriver signin flow...")
