@@ -1105,6 +1105,12 @@ async def run_distillation_loop(
         logger.info(f"Iteration {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
+        try:
+            current_url = str(await page.evaluate("window.location.href", await_promise=True))
+            hostname = urllib.parse.urlparse(current_url).hostname or ""
+        except Exception:
+            pass  # keep previous hostname
+
         match = await distill(hostname, page, patterns)
         if match:
             if match.distilled == current.distilled:
