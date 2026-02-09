@@ -1,5 +1,5 @@
 import asyncio
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -72,8 +72,9 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     return browser
 
 
-async def terminate_remote_browser(browser_id: str) -> None:
+async def terminate_remote_browser(browser: zd.Browser) -> None:
     """Terminate an existing remote Chrome via ChromeFleet."""
+    browser_id = cast(str, browser.id)  # type: ignore[attr-defined]
     logger.info(f"Terminating ChromeFleet browser: {browser_id}")
     await _call_chromefleet_api("DELETE", browser_id)
     logger.info(f"Successfully terminated ChromeFleet browser: {browser_id}")

@@ -1155,7 +1155,7 @@ async def short_lived_mcp_tool(
         proxy_location = None
     await change_and_validate_proxy(browser, location=proxy_location)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
-    await terminate_remote_browser(browser_id=id)
+    await terminate_remote_browser(browser)
 
     result: dict[str, Any] = {result_key: converted if converted else distilled}
     if result_key in result:
