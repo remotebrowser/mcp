@@ -871,11 +871,9 @@ async def distill(
 
         if domain and hostname:
             local = "localhost" in hostname or "127.0.0.1" in hostname
-            if isinstance(domain, str) and not local:
-                domains = domain.lower().split()
-                if not any(d in hostname.lower() for d in domains):
-                    logger.trace(f"Skipping {name} due to mismatched domain {domain}")
-                    continue
+            if isinstance(domain, str) and not local and domain.lower() not in hostname.lower():
+                logger.trace(f"Skipping {name} due to mismatched domain {domain}")
+                continue
 
         logger.debug(f"Checking {name} with priority {priority}")
 
