@@ -3,7 +3,7 @@ from typing import Any
 
 import zendriver as zd
 
-from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
+from getgather.mcp.dpage import zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_distill import (
     load_distillation_patterns,
@@ -11,15 +11,6 @@ from getgather.zen_distill import (
 )
 
 youtube_mcp = GatherMCP(brand_id="youtube", name="YouTube MCP")
-
-
-@youtube_mcp.tool
-async def signin() -> dict[str, Any]:
-    """Signin to YouTube."""
-    return await zen_dpage_mcp_tool(
-        "https://www.youtube.com",
-        "signin",
-    )
 
 
 @youtube_mcp.tool
