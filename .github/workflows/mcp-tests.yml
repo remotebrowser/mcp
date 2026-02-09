@@ -27,8 +27,15 @@ jobs:
           fly-api-token: ${{ env.FLY_API_TOKEN }}
           fly-org-slug: ${{ env.FLY_ORG_SLUG }}
 
-      - name: check the health of chromefleet connection
-        run: curl -s "${{ env.CHROMEFLEET_URL }}/health"
+      - name: Wait for chromefleet to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf "${{ env.CHROMEFLEET_URL }}/health" && exit 0
+            echo "Attempt $i: chromefleet not ready, retrying in 2s..."
+            sleep 2
+          done
+          echo "chromefleet failed to become healthy after 60s"
+          exit 1
 
       - run: docker build -t getgather .
 
