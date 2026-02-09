@@ -29,7 +29,7 @@ async def get_liked_videos() -> dict[str, Any]:
     async def action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
         patterns = load_distillation_patterns(path)
-        terminated, distilled, converted = await run_distillation_loop(
+        terminated, _distilled, converted = await run_distillation_loop(
             "https://www.youtube.com/playlist?list=LL",
             patterns,
             browser,
@@ -38,7 +38,7 @@ async def get_liked_videos() -> dict[str, Any]:
             close_page=False,
         )
         if terminated:
-            return {"youtube_liked_videos": converted or distilled}
+            return {"youtube_liked_videos": converted if converted else []}
         raise ValueError("Failed to extract liked videos")
 
     return await zen_dpage_with_action(
