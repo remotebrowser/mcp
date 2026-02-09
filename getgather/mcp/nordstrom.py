@@ -5,6 +5,7 @@ from loguru import logger
 
 from getgather.mcp.dpage import zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
+from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
 from getgather.zen_distill import page_query_selector, zen_navigate_with_retry
 
@@ -19,62 +20,54 @@ async def get_order_details_with_retry(
         f"Starting get_order_details_with_retry (page_number={page_number}, max_retries={max_retries})"
     )
 
-    for attempt in range(1, max_retries + 1):
-        logger.info(f"Attempt {attempt}/{max_retries}")
-        try:
-            await zen_navigate_with_retry(tab, "https://www.nordstrom.com/my-account")
-            select_element = await page_query_selector(tab, "div > label > select", timeout=10)
+    async def fetch_orders() -> dict[str, Any]:
+        await zen_navigate_with_retry(tab, "https://www.nordstrom.com/my-account")
+        select_element = await page_query_selector(tab, "div > label > select", timeout=10)
 
-            orders = None
-            if select_element:
-                async with tab.expect_response(".*/orders.*") as resp:
-                    logger.info("Response listener active. Triggering select_option('all')...")
-                    await select_element.select_option(value="all")
-                    orders = await parse_response_json(resp, {"orders": []}, "orders")
-            else:
-                logger.warning("Select element not found. Skipping dropdown selection.")
+        orders = None
+        if select_element:
+            async with tab.expect_response(".*/orders.*") as resp:
+                logger.info("Response listener active. Triggering select_option('all')...")
+                await select_element.select_option(value="all")
+                orders = await parse_response_json(resp, {"orders": []}, "orders")
+        else:
+            logger.warning("Select element not found. Skipping dropdown selection.")
 
-            if page_number > 1:
-                logger.info(f"Looking for pagination link: ul li a[href='?page={page_number}']")
-                pagination_link = await page_query_selector(
-                    tab, f"ul li a[href='?page={page_number}']", timeout=10
-                )
-                if not pagination_link:
-                    logger.warning(
-                        f"Pagination link for page {page_number} not found. Returning empty orders."
-                    )
-                    return {"orders": []}
-
-                logger.info(
-                    "Setting up response listener for pagination API response containing '/orders'..."
-                )
-                async with tab.expect_response(".*/orders.*") as resp:
-                    await pagination_link.click()
-                    orders = await parse_response_json(resp, {"orders": []}, "pagination orders")
-            else:
-                logger.info("Page 1 - no pagination needed")
-
-            result = orders or {"orders": []}
-            orders_count = (
-                len(result.get("orders", [])) if isinstance(result.get("orders"), list) else 0
+        if page_number > 1:
+            logger.info(f"Looking for pagination link: ul li a[href='?page={page_number}']")
+            pagination_link = await page_query_selector(
+                tab, f"ul li a[href='?page={page_number}']", timeout=10
             )
-            logger.info(f"Successfully retrieved orders. Returning {orders_count} orders.")
-            return result
-
-        except Exception as e:
-            logger.error(f"Attempt {attempt}/{max_retries} failed: {e}")
-
-            if attempt == max_retries:
-                logger.error(
-                    f" Max retries ({max_retries}) reached for getting order details for page {page_number}"
+            if not pagination_link:
+                logger.warning(
+                    f"Pagination link for page {page_number} not found. Returning empty orders."
                 )
-                raise Exception(
-                    f"Max retries reached for getting order details for page {page_number}"
-                )
-            else:
-                logger.info(f"Waiting before retry {attempt + 1}...")
+                return {"orders": []}
 
-    raise Exception(f"Max retries reached for getting order details for page {page_number}")
+            logger.info(
+                "Setting up response listener for pagination API response containing '/orders'..."
+            )
+            async with tab.expect_response(".*/orders.*") as resp:
+                await pagination_link.click()
+                orders = await parse_response_json(resp, {"orders": []}, "pagination orders")
+        else:
+            logger.info("Page 1 - no pagination needed")
+
+        result = orders or {"orders": []}
+        orders_count = (
+            len(result.get("orders", [])) if isinstance(result.get("orders"), list) else 0
+        )
+        logger.info(f"Successfully retrieved orders. Returning {orders_count} orders.")
+        return result
+
+    return await retry_with_navigation(
+        tab=tab,
+        operation=fetch_orders,
+        max_retries=max_retries,
+        exceptions=(Exception,),
+        re_raise_on_max_retries=True,
+        operation_name=f"get_order_details_with_retry (page {page_number})",
+    )
 
 
 # Currently, no way for us to get the order detail based on the order id since

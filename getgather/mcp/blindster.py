@@ -8,8 +8,8 @@ from zendriver.core.connection import ProtocolException
 from getgather.logs import logger
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
+from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
-from getgather.zen_distill import zen_navigate_with_retry
 
 blindster_mcp = GatherMCP(brand_id="blindster", name="Blindster MCP")
 
@@ -40,38 +40,29 @@ async def get_orders() -> dict[str, Any]:
     async def get_orders_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         logger.info("🔧 Executing get_orders_action...")
 
-        max_retries = 3
         orders: list[dict[str, Any]] = []
         authorization_headers: str | None = None
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(f"get_orders_action attempt {attempt}/{max_retries}")
-                await zen_navigate_with_retry(
-                    page, "https://www.blindster.com/account/orders", wait_for_ready=False
+        async def fetch_orders() -> tuple[list[dict[str, Any]], str | None]:
+            async with page.expect_response(".*/ecommerce/customer/orders") as resp:
+                logger.info("Response listener active...")
+                request_value = await resp.request
+                request_headers = cast(dict[str, str], request_value.headers)
+                auth_headers = request_headers.get("authorization") or request_headers.get(
+                    "Authorization"
                 )
+                orders_data = await parse_response_json(resp, [])
+                return orders_data, auth_headers
 
-                async with page.expect_response(".*/ecommerce/customer/orders") as resp:
-                    logger.info("Response listener active...")
-                    request_value = await resp.request
-                    request_headers = cast(dict[str, str], request_value.headers)
-                    authorization_headers = request_headers.get(
-                        "authorization"
-                    ) or request_headers.get("Authorization")
-                    orders = await parse_response_json(resp, [])
-
-                logger.info("Orders successfully retrieved from Blindster.")
-                break
-
-            except ProtocolException as e:
-                logger.error(
-                    f"get_orders_action attempt {attempt}/{max_retries} failed with "
-                    f"ProtocolException while fetching orders: {e}"
-                )
-                if attempt == max_retries:
-                    logger.error("Max retries reached for get_orders_action; re-raising error.")
-                    raise
-                logger.info("Retrying get_orders_action...")
+        orders, authorization_headers = await retry_with_navigation(
+            tab=page,
+            operation=fetch_orders,
+            navigation_url="https://www.blindster.com/account/orders",
+            max_retries=3,
+            exceptions=(ProtocolException,),
+            re_raise_on_max_retries=True,
+            operation_name="get_orders_action",
+        )
 
         order_details_list = await asyncio.gather(
             *[get_order_details(order["orderNumber"], authorization_headers) for order in orders],
