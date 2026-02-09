@@ -85,6 +85,7 @@ MCP_BUNDLES: dict[str, list[str]] = {
     "media": ["bbc", "cnn", "espn", "groundnews", "npr", "nytimes"],
     "books": ["goodreads"],
     "shopping": ["amazon", "amazonca", "shopee", "wayfair"],
+    "sports": ["garmin"],
     "media": ["bbc", "cnn", "espn", "groundnews", "npr", "nytimes"],
 }
 

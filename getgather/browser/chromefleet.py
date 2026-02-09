@@ -1,5 +1,5 @@
 import asyncio
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -8,7 +8,7 @@ from loguru import logger
 
 from getgather.config import settings
 
-IP_CHECK_URL = "https://ip.fly.dev/ip"
+HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
 
 async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
@@ -35,41 +35,17 @@ async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
     raise TimeoutError(f"CDP not ready at {url} after {timeout_s}s (last_error={last_error})")
 
 
-async def _call_chromefleet_api(
-    endpoint: Literal["start", "stop"], browser_id: str
-) -> httpx.Response:
-    """
-    Helper to call the ChromeFleet API.
-    Args:
-        endpoint: The API endpoint (e.g., 'start', 'query', 'stop')
-        browser_id: The browser ID to use in the endpoint
-    Returns:
-        The HTTP response
-    """
+async def _call_chromefleet_api(method: HTTP_METHOD, browser_id: str) -> httpx.Response:
     base_url = settings.CHROMEFLEET_URL.rstrip("/")
     if not base_url:
         raise ValueError("CHROMEFLEET_URL is not configured")
 
-    url = f"{base_url}/api/v1/{endpoint}/{browser_id}"
+    url = f"{base_url}/api/v1/browsers/{browser_id}"
+
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(url)
+        response = await client.request(method, url)
         response.raise_for_status()
         return response
-
-
-async def _get_working_proxy(browser_id: str) -> None:
-    """In this initial implementation, dependent on CHROMEFLEET_PROXY_URL to set proxy, so no location is passed."""
-    proxy_url = settings.CHROMEFLEET_PROXY_URL.replace(
-        "{session_id}", browser_id
-    )  # for now 1:1 is fine
-    configure_url = (
-        settings.CHROMEFLEET_URL.rstrip("/")
-        + f"/api/v1/configure/{browser_id}?proxy_url={proxy_url}"
-    )
-    logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(configure_url)
-        resp.raise_for_status()
 
 
 async def create_remote_browser(browser_id: str) -> zd.Browser:
@@ -78,7 +54,7 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     The browser_id must not already be in use.
     """
     logger.info(f"Starting new ChromeFleet browser: {browser_id}")
-    response = await _call_chromefleet_api("start", browser_id)
+    response = await _call_chromefleet_api("POST", browser_id)
     data = response.json()
     cdp_url = data.get("cdp_url")
     await _wait_for_cdp(cdp_url, timeout_s=120.0)
@@ -90,45 +66,15 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     assert port is not None
     logger.debug(f"Connecting to ChromeFleet CDP at {hostname}:{port}")
     # add '[' and ']' for ipv6 address
-    cdp_hostname = f"[{hostname}]" if ":" in hostname else hostname  # type: ignore[assignment]
+    cdp_hostname = f"[{hostname}]" if ":" in hostname and "[" not in hostname else hostname  # type: ignore[assignment]
     browser = await zd.Browser.create(host=cdp_hostname, port=port)  # type: ignore[arg-type]
     browser.id = browser_id  # type: ignore[attr-defined]
-
-    # verify browser is working by checking IP
-    from getgather.zen_distill import (  # avoid circular import and avoid refactoring until migration done
-        get_new_page,
-        zen_navigate_with_retry,
-    )
-
-    async def _check_browser_ip(page: zd.Tab) -> str | None:
-        await zen_navigate_with_retry(page, IP_CHECK_URL, wait_for_ready=False)
-        body = await page.select("body")
-        ip_address = None
-        if body:
-            ip_address = body.text.strip()
-            logger.info(f"Browser validated. IP address: {ip_address}")
-        else:
-            logger.info("Browser validated (could not extract IP)")
-
-        return ip_address
-
-    page = await get_new_page(browser)
-    original_ip = await _check_browser_ip(page)
-    # setup proxy if configured
-    if settings.CHROMEFLEET_PROXY_URL:
-        await _get_working_proxy(browser_id)
-        new_ip = await _check_browser_ip(page)
-        if original_ip == new_ip and original_ip is not None:
-            logger.error(
-                f"Proxy setup may have failed, IP address did not change after proxy configuration: {new_ip}"
-            )
-        else:
-            logger.debug(f"Proxy setup successful, IP changed from {original_ip} to {new_ip}")
     return browser
 
 
-async def terminate_remote_browser(browser_id: str) -> None:
+async def terminate_remote_browser(browser: zd.Browser) -> None:
     """Terminate an existing remote Chrome via ChromeFleet."""
+    browser_id = cast(str, browser.id)  # type: ignore[attr-defined]
     logger.info(f"Terminating ChromeFleet browser: {browser_id}")
-    await _call_chromefleet_api("stop", browser_id)
+    await _call_chromefleet_api("DELETE", browser_id)
     logger.info(f"Successfully terminated ChromeFleet browser: {browser_id}")

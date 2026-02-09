@@ -24,7 +24,7 @@ from zendriver.core.connection import ProtocolException
 
 from getgather.auth.auth import get_auth_user
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
-from getgather.browser.proxy import setup_proxy
+from getgather.browser.proxy import change_and_validate_proxy, setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
@@ -1146,8 +1146,14 @@ async def short_lived_mcp_tool(
     patterns = load_distillation_patterns(path)
     browser_id = get_auth_user().user_id
     browser = await create_remote_browser(browser_id=browser_id)
+
+    if req_info := request_info.get():
+        proxy_location = req_info.model_dump()
+    else:
+        proxy_location = None
+    await change_and_validate_proxy(browser, location=proxy_location)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
-    await terminate_remote_browser(browser_id=browser_id)
+    await terminate_remote_browser(browser)
 
     result: dict[str, Any] = {result_key: converted if converted else distilled}
     if result_key in result:

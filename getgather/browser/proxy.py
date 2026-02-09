@@ -4,11 +4,82 @@ This module provides proxy configuration for external proxy service integration
 with hierarchical location support (city, state, country) and multiple proxy types.
 """
 
+import httpx
+import zendriver as zd
 from loguru import logger
 
 from getgather.browser.proxy_builder import build_proxy_config
 from getgather.config import settings
 from getgather.request_info import RequestInfo
+
+IP_CHECK_URL = "https://ip.fly.dev/ip"
+
+
+async def _set_proxy_url(
+    browser_id: str, browser_proxy_url: str = settings.CHROMEFLEET_PROXY_URL
+) -> None:
+    proxy_url = browser_proxy_url.replace("{session_id}", browser_id)  # for now 1:1 is fine
+    configure_url = (
+        settings.CHROMEFLEET_URL.rstrip("/") + f"/api/v1/browsers/{browser_id}/configure"
+    )
+    logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(configure_url, json={"proxy_url": proxy_url})
+        resp.raise_for_status()
+
+
+async def _set_proxy_location(browser_id: str, proxy_location: dict[str, str]) -> None:
+    configure_url = (
+        settings.CHROMEFLEET_URL.rstrip("/") + f"/api/v1/browsers/{browser_id}/configure"
+    )
+    logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(configure_url, json={"location": proxy_location})
+        resp.raise_for_status()
+
+
+async def _check_browser_ip(page: zd.Tab) -> str | None:
+    from getgather.zen_distill import zen_navigate_with_retry
+
+    await zen_navigate_with_retry(page, IP_CHECK_URL, wait_for_ready=False)
+    body = await page.select("body")
+    ip_address = None
+    if body:
+        ip_address = body.text.strip()
+        logger.info(f"Browser validated. IP address: {ip_address}")
+    else:
+        logger.info("Browser validated (could not extract IP)")
+
+    return ip_address
+
+
+async def change_and_validate_proxy(
+    browser: zd.Browser, location: dict[str, str] | None = None
+) -> None:
+    from getgather.zen_distill import (
+        get_new_page,
+    )
+
+    browser_id: str = str(browser.id)  # type: ignore
+    page = await get_new_page(browser)
+    original_ip = await _check_browser_ip(page)
+    # setup proxy if configured
+    if location:
+        await _set_proxy_location(browser_id, location)
+    elif settings.CHROMEFLEET_PROXY_URL:
+        await _set_proxy_url(browser_id, browser_proxy_url=settings.CHROMEFLEET_PROXY_URL)
+    else:
+        logger.warning(
+            "IGNORING PROXY SETTING: Currently only proxy configuration by location or by explicit URL are allowed"
+        )
+        return
+    new_ip = await _check_browser_ip(page)
+    if original_ip == new_ip and original_ip is not None:
+        logger.error(
+            f"Proxy setup may have failed, IP address did not change after proxy configuration: {new_ip}"
+        )
+    else:
+        logger.debug(f"Proxy setup successful, IP changed from {original_ip} to {new_ip}")
 
 
 async def setup_proxy(

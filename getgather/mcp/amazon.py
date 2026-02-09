@@ -546,3 +546,12 @@ async def get_purchase_history_with_details(
         f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
         action=get_order_details_action,
     )
+
+
+@amazon_mcp.tool
+async def signin() -> dict[str, Any]:
+    """Signin to amazon."""
+    return await zen_dpage_mcp_tool(
+        f"https://www.amazon.com/ax/account/manage",
+        "signin",
+    )

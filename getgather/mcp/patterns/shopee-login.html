@@ -1,16 +1,28 @@
-<html gg-domain="shopee">
+<html gg-domain="shopee" gg-priority="2">
   <head>
     <title>Shopee Sign In</title>
   </head>
+
   <body>
     <input
       autofocus
       name="loginKey"
       type="text"
-      gg-match="input[name=loginKey]"
+      gg-match="input[name='loginKey']"
       placeholder="No. Handphone/Username/Email"
     />
-    <input name="password" type="password" gg-match="input[name=password]" placeholder="Password" />
-    <button type="submit" gg-match="//button[contains(text(), 'Log in')]">Log in</button>
+    <input
+      name="password"
+      type="password"
+      gg-match="input[name='password']"
+      placeholder="Password"
+    />
+
+    <button
+      type="submit"
+      gg-match="//button[contains(normalize-space(.),'Log In') or contains(normalize-space(.),'Log in')]"
+    >
+      Log in
+    </button>
   </body>
 </html>

@@ -53,7 +53,7 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          cat .env | flyctl secrets import --app ${{ matrix.org.app_name }}
+          cat .env | flyctl secrets import --app ${{ matrix.org.app_name }} --stage
 
       - name: Deploy ${{ matrix.org.app_name }} app
         env:

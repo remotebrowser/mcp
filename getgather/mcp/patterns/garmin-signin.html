@@ -1,0 +1,22 @@
+<html gg-domain="garmin">
+  <head>
+    <title>Garmin Sign In</title>
+  </head>
+  <body>
+    <h1 gg-match="//h1[contains(text(), 'Sign In')]">Sign In</h1>
+    <input
+      autofocus
+      name="email"
+      type="email"
+      placeholder="Email Address"
+      gg-match="input#email[name='email'][type='email']"
+    />
+    <input
+      name="password"
+      type="password"
+      placeholder="Password"
+      gg-match="input#password[name='password'][type='password']"
+    />
+    <button type="submit" gg-match="button[type='submit']">Sign In</button>
+  </body>
+</html>
