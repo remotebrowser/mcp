@@ -27,21 +27,24 @@ jobs:
           fly-api-token: ${{ env.FLY_API_TOKEN }}
           fly-org-slug: ${{ env.FLY_ORG_SLUG }}
 
-      - name: Debug network connectivity
+      - name: Wake up chromefleet and resolve its IP
         run: |
-          echo "=== WireGuard status ==="
-          sudo wg show
-          echo "=== DNS resolver ==="
-          cat /etc/resolv.conf
-          echo "=== Try resolving flyfleet.internal ==="
-          dig flyfleet.internal AAAA +short || nslookup flyfleet.internal || echo "DNS lookup failed"
-          echo "=== Try ping6 to flyfleet ==="
-          ping6 -c 2 flyfleet.internal || echo "ping6 failed"
-          echo "=== Try curl verbose ==="
-          curl -v --max-time 10 "http://flyfleet.internal:8300/health" || echo "curl failed"
+          MACHINE=$(flyctl machines list -a flyfleet --json | jq -r '.[0]')
+          MACHINE_ID=$(echo "$MACHINE" | jq -r '.id')
+          echo "Starting machine $MACHINE_ID..."
+          flyctl machines start "$MACHINE_ID" -a flyfleet
+          MACHINE_IP=$(echo "$MACHINE" | jq -r '.private_ip // .ips.private_ip // empty')
+          if [ -z "$MACHINE_IP" ]; then
+            MACHINE_IP=$(flyctl machines list -a flyfleet --json | jq -r '.[0].private_ip // empty')
+          fi
+          echo "Machine IP: $MACHINE_IP"
+          echo "CHROMEFLEET_URL=http://[$MACHINE_IP]:8300" >> $GITHUB_ENV
+        env:
+          FLY_API_TOKEN: ${{ env.FLY_API_TOKEN }}
 
       - name: Wait for chromefleet to be healthy
         run: |
+          echo "Using CHROMEFLEET_URL: ${{ env.CHROMEFLEET_URL }}"
           for i in $(seq 1 30); do
             curl -sf "${{ env.CHROMEFLEET_URL }}/health" && exit 0
             echo "Attempt $i: chromefleet not ready, retrying in 2s..."
