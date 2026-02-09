@@ -1144,12 +1144,33 @@ async def run_distillation_loop(
     return (False, current.distilled, None)
 
 
+async def create_working_random_browser(req_info: Any | None = None) -> zd.Browser:
+    proxy_location = req_info.model_dump() if req_info else None
+
+    async def create_single_browser(proxy_location: Any | None) -> zd.Browser:
+        id = generate(FRIENDLY_CHARS, 6)
+        browser = await create_remote_browser(browser_id=id)
+        await change_and_validate_proxy(browser, location=proxy_location)
+        return browser
+
+    browsers = await asyncio.gather(*[create_single_browser(proxy_location) for _ in range(3)])
+    selected_browser = random.choice(browsers)
+
+    for browser in browsers:
+        if browser is not selected_browser:
+            await terminate_remote_browser(browser)
+
+    return selected_browser
+
+
 async def short_lived_mcp_tool(
     location: str,
     pattern_wildcard: str,
     result_key: str,
     url_hostname: str,
 ) -> tuple[bool, dict[str, Any]]:
+    browser = await create_working_random_browser(request_info.get())
+
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
     browser_id = get_auth_user().user_id
