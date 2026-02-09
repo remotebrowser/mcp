@@ -8,6 +8,7 @@ from loguru import logger
 
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
+from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
 from getgather.zen_distill import page_query_selector, zen_navigate_with_retry
 
@@ -127,9 +128,20 @@ async def get_purchase_history(
     async def action(tab: zd.Tab, _) -> dict[str, Any]:
         results: list[dict[str, Any]] = []
 
-        async with tab.expect_response(".*gql.tokopedia.com/graphql/GetOrderHistory.*") as resp:
-            await tab.get(f"https://www.tokopedia.com/order-list?page={page_number}")
-            raw_data = await parse_response_json(resp, [], "purchase history")
+        async def fetch_purchase_history() -> list[dict[str, Any]] | None:
+            async with tab.expect_response(".*gql.tokopedia.com/graphql/GetOrderHistory.*") as resp:
+                await tab.get(f"https://www.tokopedia.com/order-list?page={page_number}")
+                return await parse_response_json(resp, [], "purchase history")
+
+        raw_data = await retry_with_navigation(
+            tab=tab,
+            operation=fetch_purchase_history,
+            max_retries=3,
+            exceptions=(Exception,),
+            timeout_seconds=10,
+            default_on_max_retries=None,
+            operation_name="get_purchase_history",
+        )
 
         if raw_data:
             uoh_orders: dict[str, Any] = raw_data[0].get("data", {}).get("uohOrders", {})
@@ -142,15 +154,16 @@ async def get_purchase_history(
                 product_results: list[dict[str, Any]] = order.get("metadata", {}).get(
                     "products", []
                 )
-                if list_product_str != "":
+                if list_product_str != "" and product_results == []:
                     product_results = []
                     products: list[dict[str, Any]] = json.loads(list_product_str)
                     for product in products:
                         product_result: dict[str, Any] = {
-                            "product_name": product.get("product_name", ""),
+                            "title": product.get("product_name", ""),
                             "product_price": product.get("product_price", ""),
                             "original_price": product.get("original_price", ""),
                             "quantity": product.get("quantity", ""),
+                            "imageURL": "",
                         }
                         product_results.append(product_result)
                 result: dict[str, Any] = {

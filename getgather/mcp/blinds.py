@@ -6,6 +6,7 @@ from loguru import logger
 
 from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
+from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
 from getgather.zen_distill import ElementConfig, zen_navigate_with_retry
 
@@ -49,33 +50,26 @@ async def get_orders() -> dict[str, Any]:
     async def get_orders_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         logger.info("🔧 Executing get_orders_action...")
 
-        max_retries = 3
-        timeout_seconds = 5
-        orders: list[dict[str, Any]] = []
-
-        for attempt in range(1, max_retries + 1):
-            await zen_navigate_with_retry(
-                page, "https://www.blinds.com/myaccount/orders", wait_for_ready=False
-            )
-            logger.info(f"get_orders_action attempt {attempt}/{max_retries}")
-            try:
-                async with page.expect_response(".*/ordersummarylist") as resp:
-                    logger.info("Response listener active...")
-                    orders = await asyncio.wait_for(
-                        parse_response_json(resp, []),
-                        timeout=timeout_seconds,
-                    )
-                logger.info("Successfully received orders response.")
-                break
-
-            except asyncio.TimeoutError:
-                logger.warning(
-                    f"No matching 'ordersummarylist' response within {timeout_seconds}s "
-                    f"(attempt {attempt}/{max_retries})."
+        async def fetch_orders() -> list[dict[str, Any]]:
+            # Set up response listener, then navigate to trigger the request
+            # The response will be captured by the listener
+            async with page.expect_response(".*/ordersummarylist") as resp:
+                logger.info("Response listener active...")
+                # Navigate to trigger the API call (response is triggered by page JavaScript)
+                await zen_navigate_with_retry(
+                    page, "https://www.blinds.com/myaccount/orders", wait_for_ready=False
                 )
-                if attempt == max_retries:
-                    logger.error("Max retries reached for get_orders_action.")
-                    return {"blinds_orders": []}
+                return await parse_response_json(resp, [])
+
+        orders = await retry_with_navigation(
+            tab=page,
+            operation=fetch_orders,
+            max_retries=3,
+            timeout_seconds=5,
+            exceptions=(asyncio.TimeoutError,),
+            default_on_max_retries=[],
+            operation_name="get_orders_action",
+        )
 
         logger.info(f"🔍 Orders: {orders}")
 
