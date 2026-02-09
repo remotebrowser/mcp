@@ -27,6 +27,19 @@ jobs:
           fly-api-token: ${{ env.FLY_API_TOKEN }}
           fly-org-slug: ${{ env.FLY_ORG_SLUG }}
 
+      - name: Debug network connectivity
+        run: |
+          echo "=== WireGuard status ==="
+          sudo wg show
+          echo "=== DNS resolver ==="
+          cat /etc/resolv.conf
+          echo "=== Try resolving flyfleet.internal ==="
+          dig flyfleet.internal AAAA +short || nslookup flyfleet.internal || echo "DNS lookup failed"
+          echo "=== Try ping6 to flyfleet ==="
+          ping6 -c 2 flyfleet.internal || echo "ping6 failed"
+          echo "=== Try curl verbose ==="
+          curl -v --max-time 10 "http://flyfleet.internal:8300/health" || echo "curl failed"
+
       - name: Wait for chromefleet to be healthy
         run: |
           for i in $(seq 1 30); do
