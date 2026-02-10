@@ -6,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from getgather.auth.settings import AuthSettings
 from getgather.browser.proxy_types import ProxyConfig
 
+FRIENDLY_CHARS = "23456789abcdefghijkmnpqrstuvwxyz"
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
