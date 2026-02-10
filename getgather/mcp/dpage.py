@@ -199,7 +199,11 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         logger.debug(f"Iteration {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
-        hostname = str(urllib.parse.urlparse(page.url).hostname) if page.url else None
+        try:
+            current_url = str(await page.evaluate("window.location.href", await_promise=True))
+        except Exception:
+            current_url = page.url
+        hostname = str(urllib.parse.urlparse(current_url).hostname) if current_url else None
         match = await zen_distill(hostname, page, patterns)
         if not match:
             logger.info("No matched pattern found")
