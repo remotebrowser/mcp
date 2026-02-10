@@ -48,6 +48,32 @@ async def _call_chromefleet_api(method: HTTP_METHOD, browser_id: str) -> httpx.R
         return response
 
 
+async def get_remote_browser(browser_id: str) -> zd.Browser | None:
+    logger.info(f"Finding the ChromeFleet browser: {browser_id}")
+    try:
+        response = await _call_chromefleet_api("GET", browser_id)
+        if response.status_code != 200:
+            return None
+        data = response.json()
+    except Exception:
+        return None
+
+    data = response.json()
+    cdp_url = data.get("cdp_url")
+    await _wait_for_cdp(cdp_url, timeout_s=120.0)
+    cdp = urlparse(cdp_url)  # type: ignore[assignment]
+    hostname = cdp.hostname  # type: ignore[assignment]
+    port = cdp.port  # type: ignore[assignment]
+    assert hostname is not None
+    assert port is not None
+    logger.debug(f"Connecting to ChromeFleet CDP at {hostname}:{port}")
+    # add '[' and ']' for ipv6 address
+    cdp_hostname = f"[{hostname}]" if ":" in hostname and "[" not in hostname else hostname  # type: ignore[assignment]
+    browser = await zd.Browser.create(host=cdp_hostname, port=port)  # type: ignore[arg-type]
+    browser.id = browser_id  # type: ignore[attr-defined]
+    return browser
+
+
 async def create_remote_browser(browser_id: str) -> zd.Browser:
     """
     Start a remote Chrome via ChromeFleet and connect via CDP.
