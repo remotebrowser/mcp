@@ -17,9 +17,9 @@ jobs:
       - name: Load environment variables from Doppler
         uses: ./.github/actions/download-env
         with:
-          doppler-token: ${{ secrets.FLYFLEET_DEV_DOPPLER_TOKEN }}
-          project: flyfleet
-          config: dev
+          doppler-token: ${{ secrets.REMOTEBROWSER_CI_DOPPLER_TOKEN }}
+          project: remotebrowser
+          config: ci
 
       - name: Setup ChromeFleet via WireGuard
         uses: ./.github/actions/setup-chromefleet
