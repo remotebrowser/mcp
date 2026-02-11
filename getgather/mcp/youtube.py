@@ -22,3 +22,12 @@ async def get_watch_history() -> dict[str, Any]:
         "https://www.youtube.com/feed/history",
         "youtube_watch_history",
     )
+
+
+@youtube_mcp.tool
+async def get_channel_subscriptions() -> dict[str, Any]:
+    """Get channel subscriptions from YouTube."""
+    return await zen_dpage_mcp_tool(
+        "https://www.youtube.com",
+        "youtube_channel_subscriptions",
+    )
