@@ -539,6 +539,7 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
                 if isinstance(e, ProtocolException) and (
                     "Invalid state for continueInterceptedRequest" in str(e)
                     or "Invalid InterceptionId" in str(e)
+                    or "Fetch domain is not enabled" in str(e)
                 ):
                     logger.debug(
                         f"Request already processed or invalid interception ID: {request_url}"
@@ -563,6 +564,7 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             if isinstance(e, ProtocolException) and (
                 "Invalid state for continueInterceptedRequest" in str(e)
                 or "Invalid InterceptionId" in str(e)
+                or "Fetch domain is not enabled" in str(e)
             ):
                 logger.debug(f"Request already processed or invalid interception ID: {request_url}")
             elif isinstance(e, websockets.ConnectionClosedError):
