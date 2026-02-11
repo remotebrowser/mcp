@@ -1155,7 +1155,7 @@ async def short_lived_mcp_tool(
     browser_id = get_auth_user().user_id
     browser = await create_remote_browser(browser_id=browser_id)
 
-    if req_info := request_info.get():
+    if (req_info := request_info.get()) and not req_info.is_empty():
         proxy_location = req_info.model_dump()
     else:
         proxy_location = None
