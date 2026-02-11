@@ -42,7 +42,7 @@ async def get_watch_history() -> dict[str, Any]:
 async def get_channel_subscriptions() -> dict[str, Any]:
     """Get channel subscriptions from YouTube."""
     result = await zen_dpage_mcp_tool(
-        YOUTUBE_BASE,
+        "https://www.youtube.com/feed/subscriptions",
         "youtube_channel_subscriptions",
     )
     return _prepend_base_urls(result, "youtube_channel_subscriptions")
