@@ -30,7 +30,7 @@ from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
 from getgather.logs import logger
 from getgather.mcp.browser import browser_manager
-from getgather.request_info import is_empty_request_info, request_info
+from getgather.request_info import request_info
 
 
 @dataclass
@@ -1155,7 +1155,7 @@ async def short_lived_mcp_tool(
     browser_id = get_auth_user().user_id
     browser = await create_remote_browser(browser_id=browser_id)
 
-    if (req_info := request_info.get()) and not is_empty_request_info(req_info):
+    if (req_info := request_info.get()) and not req_info.is_empty():
         proxy_location = req_info.model_dump()
     else:
         proxy_location = None

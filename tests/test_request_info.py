@@ -1,4 +1,4 @@
-from getgather.request_info import RequestInfo, is_empty_request_info, request_info
+from getgather.request_info import RequestInfo, request_info
 
 
 class TestRequestInfo:
@@ -69,6 +69,27 @@ class TestRequestInfo:
         assert info.timezone == "America/Los_Angeles"
         assert info.proxy_type is None
 
+    def test_is_empty_request_info(self):
+        empty_info = RequestInfo()
+
+        assert empty_info.is_empty()
+
+    def test_is_not_empty_request_info(self):
+        non_empty_info = RequestInfo(city="Miami", country="US")
+        assert not non_empty_info.is_empty()
+
+    def test_is_empty_request_info_with_all_fields_none(self):
+        all_fields_none = RequestInfo(
+            city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=None
+        )
+        assert all_fields_none.is_empty()
+
+    def test_is_empty_request_info_with_empty_string_proxy_type(self):
+        different_empty = RequestInfo(
+            city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=""
+        )
+        assert different_empty.is_empty()
+
 
 class TestRequestInfoContextVar:
     def test_context_var_default_is_none(self):
@@ -91,21 +112,3 @@ class TestRequestInfoContextVar:
         assert info.country == "CA"
         request_info.reset(token)
         assert request_info.get() is None
-
-
-def test_is_empty_request_info():
-    """Test the is_empty_request_info utility function."""
-    empty_info = RequestInfo()
-    assert is_empty_request_info(empty_info) is True
-
-    non_empty_info = RequestInfo(city="Miami")
-    assert is_empty_request_info(non_empty_info) is False
-
-    all_fields_none = RequestInfo(
-        city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=None
-    )
-    assert is_empty_request_info(all_fields_none) is True
-    different_empty = RequestInfo(
-        city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=""
-    )
-    assert is_empty_request_info(different_empty) is True
