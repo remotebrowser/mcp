@@ -2,7 +2,7 @@
   <body>
     <div gg-stop gg-match="ytd-playlist-video-list-renderer"></div>
     <div gg-stop gg-match-html="ytd-playlist-video-list-renderer"></div>
-    <script type="application/json" id="liked_videos">
+    <script type="application/json" id="playlist_videos">
       {
         "rows": "ytd-playlist-video-renderer",
         "columns": [
@@ -23,6 +23,11 @@
           {
             "name": "channel",
             "selector": "ytd-channel-name yt-formatted-string#text a"
+          },
+          {
+            "name": "channel_url",
+            "selector": "ytd-channel-name yt-formatted-string#text a",
+            "attribute": "href"
           },
           {
             "name": "views_and_date",
