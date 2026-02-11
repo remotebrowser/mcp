@@ -164,5 +164,6 @@ NO_AUTH_PROVIDER = "noauth"
 def _get_user_for_no_auth() -> AuthUser:
     """Fake auth user for when auth is disabled to keep the code consistent."""
     hostname = socket.gethostname()
-    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower())
+    logger.warning(f"Hostname is {hostname}")
+    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower().removesuffix(".local"))
     return AuthUser(sub=sub, auth_provider=NO_AUTH_PROVIDER)
