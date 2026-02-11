@@ -17,3 +17,8 @@ class RequestInfo(BaseModel):
 
 
 request_info: ContextVar[RequestInfo | None] = ContextVar("request_info", default=None)
+
+
+def is_empty_request_info(info: RequestInfo) -> bool:
+    """Check if all fields in RequestInfo are None."""
+    return all(not getattr(info, field_name) for field_name in RequestInfo.model_fields.keys())

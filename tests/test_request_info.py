@@ -1,4 +1,4 @@
-from getgather.request_info import RequestInfo, request_info
+from getgather.request_info import RequestInfo, is_empty_request_info, request_info
 
 
 class TestRequestInfo:
@@ -91,3 +91,21 @@ class TestRequestInfoContextVar:
         assert info.country == "CA"
         request_info.reset(token)
         assert request_info.get() is None
+
+
+def test_is_empty_request_info():
+    """Test the is_empty_request_info utility function."""
+    empty_info = RequestInfo()
+    assert is_empty_request_info(empty_info) is True
+
+    non_empty_info = RequestInfo(city="Miami")
+    assert is_empty_request_info(non_empty_info) is False
+
+    all_fields_none = RequestInfo(
+        city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=None
+    )
+    assert is_empty_request_info(all_fields_none) is True
+    different_empty = RequestInfo(
+        city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=""
+    )
+    assert is_empty_request_info(different_empty) is True
