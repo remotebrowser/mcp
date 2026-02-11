@@ -1,13 +1,15 @@
 from typing import Any
 
 from getgather.mcp.dpage import zen_dpage_mcp_tool
-from getgather.mcp.registry import AppUIConfig, GatherMCP
+from getgather.mcp.registry import GatherMCP
+from getgather.mcp.ui import UI_MIME_TYPE, ToolUI
+from mcp_ui_server import create_ui_resource, UIResource
 
 GOODREADS_SIGNIN_UI_URI = "ui://goodreads/signin"
+GOODREADS_TEST_UI_URI = "ui://goodreads/test"
+GOODREADS_TEST_APP_URI = "ui://goodreads/test-app"
 
-goodreads_app_ui = AppUIConfig(
-    resource_uri=GOODREADS_SIGNIN_UI_URI,
-)
+goodreads_app_ui = ToolUI(resource_uri=GOODREADS_TEST_APP_URI)  # pyright: ignore[reportCallIssue]
 goodreads_mcp = GatherMCP(
     brand_id="goodreads",
     name="Goodreads MCP",
@@ -20,19 +22,77 @@ _signin_url: str | None = None
 @goodreads_mcp.resource(uri=GOODREADS_SIGNIN_UI_URI)
 async def _goodreads_signin_ui_resource() -> str:  # pyright: ignore[reportUnusedFunction]
     """Serve minimal HTML that redirects to the Goodreads sign-in URL."""
-    if not _signin_url:
-        return "<!DOCTYPE html><html><body><p>No sign-in URL available. Please try again.</p></body></html>"
-    return f'<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url={_signin_url}"></head><body><p><a href="{_signin_url}">Click here to sign in</a></p></body></html>'
+    signin_url = "https://example.com"
+    return (
+        "<!DOCTYPE html>"
+        "<html>"
+        "<head>"
+        f'<meta http-equiv="refresh" content="0;url={signin_url}">'
+        "</head>"
+        "<body>"
+        f'<p><a href="{signin_url}">Click here to sign in</a></p>'
+        "</body>"
+        "</html>"
+    )
 
 
-@goodreads_mcp.tool(meta=goodreads_app_ui.tool_meta())
-async def show_signin_ui(signin_id: str) -> dict[str, Any]:
+@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
+async def show_signin_ui(signin_id: str) -> list[UIResource]:
     """Open the Goodreads sign-in UI so the user can enter credentials. Call this with the signin_id returned by get_book_list when sign-in is required. The UI will receive this signin_id and use it when calling submit_dpage_signin."""
+    ui_resource = create_ui_resource({
+        "uri": GOODREADS_SIGNIN_UI_URI,
+        "content": {
+            "type": "externalUrl",
+            "iframeUrl": "https://example.com"
+        },
+        "encoding": "text"
+    })
+    return [ui_resource]
+
+
+# For testing mcp ui mechanism
+@goodreads_mcp.tool
+async def show_test_ui() -> list[UIResource]:
+    """Open a test UI resource that renders http://example.com. This is for testing purposes only."""
+    ui_resource = create_ui_resource({
+        "uri": GOODREADS_TEST_UI_URI,
+        "content": {
+            "type": "externalUrl",
+            "iframeUrl": "http://example.com"
+        },
+        "encoding": "text"
+    })
+    return [ui_resource]
+
+
+@goodreads_mcp.resource(uri=GOODREADS_TEST_APP_URI, mime_type=UI_MIME_TYPE)
+async def _goodreads_test_app_resource() -> str:  # pyright: ignore[reportUnusedFunction]
+    """Serve HTML resource that returns http://example.com for testing purposes."""
+    return "<html><meta http-equiv='refresh' content='0;url=http://example.com'></meta><body></body></html>"
+
+
+# For testing mcp apps mechanism
+@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
+async def show_test_app() -> dict[str, str]:
+    """Show the test app."""
     return {
-        "signin_id": signin_id,
-        "ui_resource_uri": GOODREADS_SIGNIN_UI_URI,
-        "message": "Enter your Goodreads credentials in the sign-in form.",
+        "message": "Howdy!",
     }
+
+
+# For testing combined mcp apps and ui mechanism
+@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
+async def show_test_app_and_ui() -> list[UIResource]:
+    """Show the test app and ui."""
+    ui_resource = create_ui_resource({
+        "uri": GOODREADS_TEST_APP_URI,
+        "content": {
+            "type": "externalUrl",
+            "iframeUrl": "http://example.com"
+        },
+        "encoding": "text"
+    })
+    return [ui_resource]
 
 
 @goodreads_mcp.tool

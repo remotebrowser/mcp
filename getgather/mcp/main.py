@@ -18,7 +18,8 @@ from getgather.mcp.dpage import (
     dpage_finalize,
     zen_dpage_mcp_tool,
 )
-from getgather.mcp.registry import AppUIConfig, GatherMCP
+from getgather.mcp.registry import GatherMCP
+from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
 from getgather.request_info import RequestInfo, request_info
 
 # Ensure calendar MCP is registered by importing its module
@@ -199,42 +200,29 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                 f"Mounting {gather_mcp.name} (distillation-based) to MCP bundle {bundle_name}"
             )
             if gather_mcp.app_ui:
-                logger.info(
-                    f"MCP App UI enabled for {brand_id_str}: {gather_mcp.app_ui.resource_uri}"
-                )
                 app_ui = gather_mcp.app_ui
+                resource_uri = app_ui.resource_uri
+                if resource_uri is None:
+                    logger.warning(f"MCP App UI for {brand_id_str} has no resource_uri")
+                    continue
 
-                if app_ui.template_content is not None:
+                logger.info(f"MCP App UI enabled for {brand_id_str}: {resource_uri}")
 
-                    def _make_ui_resource(ui: AppUIConfig):
-                        def _serve() -> str:
-                            return ui.template_content or ""
+                def _make_ui_resource(server: GatherMCP, ui_uri: str):
+                    async def _read() -> str | bytes:
+                        resource = await server.get_resource(ui_uri)
+                        return await resource.read()
 
-                        return _serve
+                    return _read
 
-                    mcp.resource(
-                        uri=app_ui.resource_uri,
-                        mime_type=app_ui.mime_type,
-                    )(_make_ui_resource(app_ui))
-                else:
-
-                    def _make_dynamic_ui_resource(
-                        server: GatherMCP,
-                        ui: AppUIConfig,
-                    ):
-                        async def _read() -> str | bytes:
-                            resource = await server.get_resource(ui.resource_uri)
-                            return await resource.read()
-
-                        return _read
-
-                    mcp.resource(
-                        uri=app_ui.resource_uri,
-                        mime_type=app_ui.mime_type,
-                    )(_make_dynamic_ui_resource(gather_mcp, app_ui))
-                    logger.info(
-                        f"MCP App UI for {brand_id_str} uses dynamic resource, registered on parent"
-                    )
+                mcp.resource(
+                    uri=resource_uri,
+                    mime_type=UI_MIME_TYPE,
+                    meta={"ui": ui_to_meta_dict(app_ui)},
+                )(_make_ui_resource(gather_mcp, resource_uri))
+                logger.info(
+                    f"MCP App UI for {brand_id_str} uses dynamic resource, registered on parent"
+                )
             mcp.mount(server=gather_mcp, prefix=gather_mcp.brand_id)
 
     mcp.mount(server=calendar_mcp, prefix="calendar")
