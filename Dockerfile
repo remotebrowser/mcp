@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM mirror.gcr.io/library/python:3.13-slim-bookworm AS builder
+FROM mirror.gcr.io/library/python:3.13-slim-trixie AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.8.4 /uv /uvx /bin/
 
