@@ -22,7 +22,6 @@ from loguru import logger
 from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
-from getgather.auth.auth import get_auth_user
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.browser.proxy import change_and_validate_proxy, setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
@@ -1173,14 +1172,6 @@ async def short_lived_mcp_tool(
 
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
-    browser_id = get_auth_user().user_id
-    browser = await create_remote_browser(browser_id=browser_id)
-
-    if (req_info := request_info.get()) and not req_info.is_empty():
-        proxy_location = req_info.model_dump()
-    else:
-        proxy_location = None
-    await change_and_validate_proxy(browser, location=proxy_location)
     terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
     await terminate_remote_browser(browser)
 
