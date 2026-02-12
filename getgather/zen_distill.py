@@ -1139,7 +1139,8 @@ async def run_distillation_loop(
         hostname=hostname,
         iteration=max,
     )
-    await safe_close_page(page)
+    if close_page:
+        await safe_close_page(page)
     return (False, current.distilled, None)
 
 

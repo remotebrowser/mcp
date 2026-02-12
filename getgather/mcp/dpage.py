@@ -12,6 +12,8 @@ from fastmcp.server.dependencies import get_http_headers
 from loguru import logger
 from nanoid import generate
 
+from getgather.auth.auth import get_auth_user
+from getgather.browser.chromefleet import create_remote_browser, get_remote_browser
 from getgather.config import settings
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
@@ -140,7 +142,8 @@ async def get_dpage(id: str | None = None) -> HTMLResponse:
     if id:
         if id in active_pages:
             return redirect(id)
-        raise HTTPException(status_code=404, detail="Invalid page id")
+        elif is_remote_browser(id):
+            return redirect(id)
 
     raise HTTPException(status_code=400, detail="Missing page id")
 
@@ -148,12 +151,30 @@ async def get_dpage(id: str | None = None) -> HTMLResponse:
 FINISHED_MSG = "Finished! You can close this window now."
 
 
+def is_remote_browser(dpage_id: str) -> bool:
+    return "--" in dpage_id
+
+
 @router.post("/{id}", response_class=HTMLResponse)
 async def post_dpage(id: str, request: Request) -> HTMLResponse:
-    if id not in active_pages:
+    page: zd.Tab | None = None
+
+    if id in active_pages:
+        page = active_pages[id]
+
+    if is_remote_browser(id):
+        browser_id, page_id = id.split("--")
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            raise HTTPException(status_code=404, detail="Remote browser not found")
+        for tab in browser.tabs:
+            if tab.target_id == page_id:
+                page = tab
+                break
+
+    if page is None:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    page = active_pages[id]
     return await zen_post_dpage(page, id, request)
 
 
@@ -167,7 +188,9 @@ def is_local_address(host: str) -> bool:
 
 
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
-    browser_manager.update_last_active(id)
+    if not is_remote_browser(id):
+        browser_manager.update_last_active(id)
+
     form_data = await request.form()
     fields: dict[str, str] = {k: str(v) for k, v in form_data.items()}
 
@@ -250,10 +273,14 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
                 del pending_actions[id]
                 await dpage_close(id)
+                if is_remote_browser(id):
+                    await safe_close_page(page)
                 return HTMLResponse(render(FINISHED_MSG, options))
 
             converted = await convert(distilled, pattern_path=match.name)
             await dpage_close(id)
+            if is_remote_browser(id):
+                await safe_close_page(page)
             if converted is not None:
                 distillation_results[id] = converted
             else:
@@ -555,5 +582,64 @@ async def zen_dpage_with_action(
             f"Try open the url {url} in a browser with a tool if available."
             "Give the url to the user so the user can open it manually in their browser."
             f"Then call check_signin tool with the signin_id to check if the sign in process is completed. "
+        ),
+    }
+
+
+async def remote_zen_dpage_mcp_tool(
+    initial_url: str,
+    result_key: str,
+    timeout: int = 2,
+    config: ElementConfig | None = None,
+) -> dict[str, Any]:
+    """Generic MCP tool based on distillation with remote Zendriver"""
+    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+    patterns = load_distillation_patterns(path)
+
+    user_id = get_auth_user().user_id
+
+    browser_id: str = user_id
+    browser = await get_remote_browser(browser_id)
+    if browser is None:
+        browser = await create_remote_browser(browser_id)
+
+    page = await get_new_page(browser)
+    dpage_id = f"{browser_id}--{page.target_id}"
+    logger.info(f"For user {user_id}: using browser {browser_id}")
+
+    logger.info(f"Navigating remote browser to {initial_url}")
+    await zen_navigate_with_retry(page, initial_url)
+
+    terminated, distilled, converted = await zen_run_distillation_loop(
+        initial_url, patterns, browser, timeout, interactive=False, close_page=False, page=page
+    )
+    if terminated:
+        await safe_close_page(page)
+        distillation_result = converted if converted is not None else distilled
+        return {result_key: distillation_result}
+
+    page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
+
+    headers = get_http_headers(include_all=True)
+    host = headers.get("x-forwarded-host") or headers.get("host")
+    if host is None:
+        logger.warning("Missing Host header; defaulting to localhost")
+        base_url = "http://localhost:23456"
+    else:
+        default_scheme = "http" if is_local_address(host) else "https"
+        scheme = headers.get("x-forwarded-proto", default_scheme)
+        base_url = f"{scheme}://{host}"
+
+    url = f"{base_url}/dpage/{dpage_id}"
+    logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": dpage_id})
+    return {
+        "url": url,
+        "message": f"Continue to sign in in your browser at {url}.",
+        "signin_id": dpage_id,
+        "system_message": (
+            f"Try open the url {url} in a browser with a tool if available."
+            "Give the url to the user so the user can open it manually in their browser."
+            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
+            "Once it is completed successfully, then call this tool again to proceed with the action."
         ),
     }
