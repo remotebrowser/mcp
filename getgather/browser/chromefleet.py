@@ -58,7 +58,6 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     except Exception:
         return None
 
-    data = response.json()
     cdp_url = data.get("cdp_url")
     await _wait_for_cdp(cdp_url, timeout_s=120.0)
     cdp = urlparse(cdp_url)  # type: ignore[assignment]
