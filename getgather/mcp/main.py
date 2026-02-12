@@ -1,3 +1,4 @@
+import asyncio
 import json
 from dataclasses import dataclass
 from functools import cache, cached_property
@@ -7,7 +8,9 @@ from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from fastmcp.server.providers.fastmcp_provider import FastMCPProviderTool
 from loguru import logger
+from mcp.types import ToolExecution
 from pydantic import BaseModel
 
 from getgather.auth.auth import get_auth_user
@@ -22,6 +25,21 @@ try:
     from getgather.mcp import calendar_utils  # type: ignore
 except Exception as e:
     logger.warning(f"Failed to register calendar MCP: {e}")
+
+
+def _patch_mounted_tool_execution_advertisement() -> None:
+    if getattr(FastMCPProviderTool, "_getgather_execution_patch", False):
+        return
+
+    original_to_mcp_tool = FastMCPProviderTool.to_mcp_tool
+
+    def patched_to_mcp_tool(self: FastMCPProviderTool, **overrides: Any):
+        if self.task_config.supports_tasks() and "execution" not in overrides:
+            overrides["execution"] = ToolExecution(taskSupport=self.task_config.mode)
+        return original_to_mcp_tool(self, **overrides)
+
+    FastMCPProviderTool.to_mcp_tool = patched_to_mcp_tool  # type: ignore[method-assign]
+    setattr(FastMCPProviderTool, "_getgather_execution_patch", True)
 
 
 class LocationProxyMiddleware(Middleware):
@@ -65,13 +83,15 @@ class LocationProxyMiddleware(Middleware):
             request_info.set(RequestInfo(**info_data))  # type: ignore[arg-type]
 
         tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)  # type: ignore
+        if tool is None:
+            return await call_next(context)
 
         if "general_tool" in tool.tags:
             with logger.contextualize(**log_context):
                 return await call_next(context)
 
         brand_id = context.message.name.split("_")[0]
-        context.fastmcp_context.set_state("brand_id", brand_id)
+        await context.fastmcp_context.set_state("brand_id", brand_id)
 
         # Use contextualize to set context for all logs during tool execution
         with logger.contextualize(**log_context):
@@ -143,6 +163,8 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     This performs plugin discovery/registration and mounts brand MCPs.
     """
+    _patch_mounted_tool_execution_advertisement()
+
     mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP")
     mcp.add_middleware(LocationProxyMiddleware())
 
