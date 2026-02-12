@@ -1,22 +1,18 @@
 """Tests for NPR Tools: get_headlines."""
 
 import json
-import os
+from typing import Any
 
 import pytest
 from fastmcp import Client
 from mcp.types import TextContent
 
-config = {
-    "mcpServers": {"getgather": {"url": f"{os.environ.get('HOST', 'http://localhost:23456')}/mcp"}}
-}
-
 
 @pytest.mark.mcp
 @pytest.mark.asyncio
-async def test_npr_get_headlines():
+async def test_npr_get_headlines(mcp_config: dict[str, Any]):
     """Test get headlines from NPR."""
-    client = Client(config)
+    client = Client(mcp_config)
     async with client:
         mcp_call_result = await client.call_tool("npr_get_headlines")
         assert isinstance(mcp_call_result.content[0], TextContent), (

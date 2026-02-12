@@ -2,6 +2,7 @@
 
 import json
 import os
+from typing import Any
 
 import pytest
 import zendriver as zd
@@ -11,17 +12,13 @@ from mcp.types import TextContent
 
 load_dotenv()
 
-config = {
-    "mcpServers": {"getgather": {"url": f"{os.environ.get('HOST', 'http://localhost:23456')}/mcp"}}
-}
-
 
 @pytest.mark.mcp
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason="flaky")
-async def test_wayfair_login_and_get_order_history():
+async def test_wayfair_login_and_get_order_history(mcp_config: dict[str, Any]):
     """Test login to wayfair and get order history."""
-    client = Client(config)
+    client = Client(mcp_config)
     async with client:
         mcp_call_tool = await client.call_tool("wayfair_get_order_history")
         assert isinstance(mcp_call_tool.content[0], TextContent), (
@@ -77,9 +74,9 @@ async def test_wayfair_login_and_get_order_history():
 @pytest.mark.mcp
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason="flaky")
-async def test_wayfair_get_cart():
+async def test_wayfair_get_cart(mcp_config: dict[str, Any]):
     """Test get cart from wayfair."""
-    client = Client(config)
+    client = Client(mcp_config)
     async with client:
         mcp_call_get_cart = await client.call_tool("wayfair_get_cart")
         assert isinstance(mcp_call_get_cart.content[0], TextContent), (
@@ -95,9 +92,9 @@ async def test_wayfair_get_cart():
 @pytest.mark.mcp
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason="flaky")
-async def test_wayfair_get_wishlists():
+async def test_wayfair_get_wishlists(mcp_config: dict[str, Any]):
     """Test get wishlists from wayfair."""
-    client = Client(config)
+    client = Client(mcp_config)
     async with client:
         mcp_call_get_wishlists = await client.call_tool("wayfair_get_wishlists")
         assert isinstance(mcp_call_get_wishlists.content[0], TextContent), (
