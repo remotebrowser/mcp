@@ -142,9 +142,8 @@ async def get_dpage(id: str | None = None) -> HTMLResponse:
     if id:
         if id in active_pages:
             return redirect(id)
-        else:
-            if is_remote_browser(id):
-                return redirect(id)
+        elif is_remote_browser(id):
+            return redirect(id)
 
     raise HTTPException(status_code=400, detail="Missing page id")
 
