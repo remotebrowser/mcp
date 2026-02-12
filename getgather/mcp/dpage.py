@@ -1,7 +1,6 @@
 import asyncio
 import ipaddress
 import os
-import time
 import urllib.parse
 from typing import Any
 
