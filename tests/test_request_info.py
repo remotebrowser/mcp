@@ -69,6 +69,27 @@ class TestRequestInfo:
         assert info.timezone == "America/Los_Angeles"
         assert info.proxy_type is None
 
+    def test_is_empty_request_info(self):
+        empty_info = RequestInfo()
+
+        assert empty_info.is_empty()
+
+    def test_is_not_empty_request_info(self):
+        non_empty_info = RequestInfo(city="Miami", country="US")
+        assert not non_empty_info.is_empty()
+
+    def test_is_empty_request_info_with_all_fields_none(self):
+        all_fields_none = RequestInfo(
+            city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=None
+        )
+        assert all_fields_none.is_empty()
+
+    def test_is_empty_request_info_with_empty_string_proxy_type(self):
+        different_empty = RequestInfo(
+            city=None, state=None, country=None, postal_code=None, timezone=None, proxy_type=""
+        )
+        assert different_empty.is_empty()
+
 
 class TestRequestInfoContextVar:
     def test_context_var_default_is_none(self):

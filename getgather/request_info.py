@@ -15,5 +15,9 @@ class RequestInfo(BaseModel):
         description="The proxy type to use (e.g., 'proxy-0', 'proxy-1')", default=None
     )
 
+    def is_empty(self) -> bool:
+        """Check if all fields in RequestInfo are None."""
+        return all(not getattr(self, field_name) for field_name in RequestInfo.model_fields.keys())
+
 
 request_info: ContextVar[RequestInfo | None] = ContextVar("request_info", default=None)
