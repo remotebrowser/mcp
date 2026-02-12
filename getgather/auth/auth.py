@@ -1,5 +1,4 @@
 import re
-import socket
 from typing import cast
 
 from fastapi import FastAPI
@@ -8,6 +7,7 @@ from loguru import logger
 from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
 from mcp.server.auth.middleware.bearer_auth import BearerAuthBackend, RequireAuthMiddleware
 from mcp.server.auth.provider import TokenVerifier
+from nanoid import generate
 from pydantic import BaseModel, field_validator, model_validator
 from starlette.datastructures import Headers
 from starlette.middleware import Middleware
@@ -16,7 +16,7 @@ from starlette.responses import RedirectResponse
 from starlette.types import Receive, Scope, Send
 
 from getgather.auth.provider import CustomOAuthProvider
-from getgather.config import settings
+from getgather.config import FRIENDLY_CHARS, settings
 
 
 class RequireAuthMiddlewareCustom(RequireAuthMiddleware):
@@ -163,7 +163,5 @@ NO_AUTH_PROVIDER = "noauth"
 
 def _get_user_for_no_auth() -> AuthUser:
     """Fake auth user for when auth is disabled to keep the code consistent."""
-    hostname = socket.gethostname()
-    logger.warning(f"Hostname is {hostname}")
-    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower().removesuffix(".local"))
+    sub = generate(FRIENDLY_CHARS, 6)
     return AuthUser(sub=sub, auth_provider=NO_AUTH_PROVIDER)

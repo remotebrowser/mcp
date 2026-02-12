@@ -1,6 +1,7 @@
 import asyncio
 import ipaddress
 import os
+import time
 import urllib.parse
 from typing import Any
 
@@ -13,7 +14,11 @@ from loguru import logger
 from nanoid import generate
 
 from getgather.auth.auth import get_auth_user
-from getgather.browser.chromefleet import create_remote_browser, get_remote_browser
+from getgather.browser.chromefleet import (
+    create_remote_browser,
+    get_remote_browser,
+    terminate_remote_browser,
+)
 from getgather.config import settings
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
@@ -103,6 +108,13 @@ async def dpage_check(id: str):
 
 
 async def dpage_finalize(id: str):
+    if is_remote_browser(id):
+        browser_id, _ = id.split("--")
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            raise HTTPException(status_code=404, detail="Remote browser not found")
+        await terminate_remote_browser(browser)
+        return True
     if browser := browser_manager.get_incognito_browser(id):
         await terminate_zendriver_browser(browser)
         browser_manager.remove_incognito_browser(id)
@@ -597,7 +609,13 @@ async def remote_zen_dpage_mcp_tool(
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
 
-    user_id = get_auth_user().user_id
+    headers = get_http_headers(include_all=True)
+    signin_id = headers.get("x-signin-id") or None
+
+    if signin_id:
+        user_id, _ = signin_id.split("--")
+    else:
+        user_id = get_auth_user().user_id
 
     browser_id: str = user_id
     browser = await get_remote_browser(browser_id)
