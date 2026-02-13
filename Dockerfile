@@ -44,7 +44,7 @@ RUN curl -o /app/blocklists-privacy.txt https://raw.githubusercontent.com/hector
 RUN curl -o /app/blocklists-adguard.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/adguard-simplified/list.txt
 
 # Stage 2: Final image
-FROM mirror.gcr.io/library/python:3.13-slim-bookworm
+FROM mirror.gcr.io/library/python:3.13-slim-trixie
 
 RUN apt-get update && apt-get install -y \
     tigervnc-standalone-server \
