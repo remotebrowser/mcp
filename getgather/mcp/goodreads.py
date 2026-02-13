@@ -1,5 +1,4 @@
 from fastmcp.tools.tool import ToolResult
-from mcp.types import TextContent
 from mcp_ui_server import UIResource, create_ui_resource
 
 from getgather.mcp.dpage import zen_dpage_mcp_tool
@@ -98,33 +97,8 @@ async def show_test_app_and_ui() -> list[UIResource]:
 async def get_book_list() -> ToolResult:
     """Get the book list from a user's Goodreads account."""
     result = await zen_dpage_mcp_tool(
-        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table", "goodreads_book_list"
+        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
+        "goodreads_book_list",
+        return_ui_resource=True,
     )
-    signin_id = result.get("signin_id")
-    signin_url = result.get("url") or None
-    if signin_id and signin_url:
-        ui_resource = create_ui_resource({
-            "uri": f"ui://dpage/{signin_id}",
-            "content": {
-                "type": "externalUrl",
-                "iframeUrl": signin_url,
-            },
-            "uiMetadata": {"preferred-frame-size": ["100%", "500px"]},
-            "encoding": "text",
-            "metadata": result,
-        })
-        return ToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=str(result),
-                ),
-                ui_resource,
-            ],
-            structured_content=result,
-        )
-
-    return ToolResult(
-        content=result,
-        structured_content=result,
-    )
+    return result

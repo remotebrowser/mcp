@@ -2,14 +2,17 @@ import asyncio
 import ipaddress
 import os
 import urllib.parse
-from typing import Any
+from typing import Any, Literal, overload
 
 import zendriver as zd
 from bs4 import BeautifulSoup, Tag
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastmcp.server.dependencies import get_http_headers
+from fastmcp.tools.tool import ToolResult
 from loguru import logger
+from mcp.types import TextContent
+from mcp_ui_server import create_ui_resource
 from nanoid import generate
 
 from getgather.config import settings
@@ -361,13 +364,70 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     raise HTTPException(status_code=503, detail="Timeout reached")
 
 
+def dpage_signin_required_result(result: dict[str, Any]) -> ToolResult:
+    """Build a ToolResult with UIResource for sign-in required, for use by zen_dpage_mcp_tool."""
+    signin_id = result.get("signin_id")
+    signin_url = result.get("url") or ""
+    ui_resource = create_ui_resource({
+        "uri": f"ui://dpage/{signin_id}",
+        "content": {
+            "type": "externalUrl",
+            "iframeUrl": signin_url,
+        },
+        "uiMetadata": {"preferred-frame-size": ["100%", "500px"]},
+        "encoding": "text",
+        "metadata": result,
+    })
+    return ToolResult(
+        content=[
+            TextContent(
+                type="text",
+                text=str(result),
+            ),
+            ui_resource,
+        ],
+        structured_content=result,
+    )
+
+
+@overload
 async def zen_dpage_mcp_tool(
     initial_url: str,
     result_key: str,
     timeout: int = 2,
     config: ElementConfig | None = None,
-) -> dict[str, Any]:
-    """Generic MCP tool based on distillation with Zendriver"""
+    *,
+    return_ui_resource: Literal[True],
+) -> ToolResult: ...
+
+
+@overload
+async def zen_dpage_mcp_tool(
+    initial_url: str,
+    result_key: str,
+    timeout: int = 2,
+    config: ElementConfig | None = None,
+    *,
+    return_ui_resource: Literal[False] = False,
+) -> dict[str, Any]: ...
+
+
+async def zen_dpage_mcp_tool(
+    initial_url: str,
+    result_key: str,
+    timeout: int = 2,
+    config: ElementConfig | None = None,
+    return_ui_resource: bool = False,
+) -> dict[str, Any] | ToolResult:
+    """Generic MCP tool based on distillation with Zendriver
+
+    Args:
+        initial_url: The starting URL for distillation
+        result_key: Key under which the distillation result will be placed
+        timeout: Timeout for the distillation
+        config: Optional ElementConfig for dpage_add
+        return_ui_resource: If True, include UIResource in ToolResult when sign-in flow triggered
+    """
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
 
@@ -393,7 +453,12 @@ async def zen_dpage_mcp_tool(
         )
         if terminated:
             distillation_result = converted if converted is not None else distilled
-            return {result_key: distillation_result}
+            if not return_ui_resource:
+                return {result_key: distillation_result}
+            return ToolResult(
+                content=[TextContent(type="text", text=str(distillation_result))],
+                structured_content={result_key: distillation_result},
+            )
 
     page = await get_new_page(browser)
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
@@ -419,7 +484,7 @@ async def zen_dpage_mcp_tool(
 
     url = f"{base_url}/dpage/{id}"
     logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": id})
-    return {
+    result = {
         "url": url,
         "message": f"Continue to sign in in your browser at {url}.",
         "signin_id": id,
@@ -430,6 +495,10 @@ async def zen_dpage_mcp_tool(
             "Once it is completed successfully, then call this tool again to proceed with the action."
         ),
     }
+
+    if not return_ui_resource:
+        return result
+    return dpage_signin_required_result(result)
 
 
 async def zen_dpage_with_action(
