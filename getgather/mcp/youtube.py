@@ -12,6 +12,9 @@ YOUTUBE_BASE = "https://www.youtube.com"
 def _prepend_base_urls(result: dict[str, Any], key: str) -> dict[str, Any]:
     if "signin_id" in result:
         return result
+    value = result.get(key)
+    if isinstance(value, str):
+        return {key: []}
     for entry in result.get(key, []):
         for field in ("url", "channel_url"):
             if field in entry and entry[field].startswith("/"):
