@@ -12,9 +12,13 @@ YOUTUBE_BASE = "https://www.youtube.com"
 def _prepend_base_urls(result: dict[str, Any], key: str) -> dict[str, Any]:
     if "signin_id" in result:
         return result
+    value = result.get(key)
+    if isinstance(value, str):
+        return {key: []}
     for entry in result.get(key, []):
-        if "url" in entry and entry["url"].startswith("/"):
-            entry["url"] = YOUTUBE_BASE + entry["url"]
+        for field in ("url", "channel_url"):
+            if field in entry and entry[field].startswith("/"):
+                entry[field] = YOUTUBE_BASE + entry[field]
     return result
 
 
@@ -36,6 +40,16 @@ async def get_watch_history() -> dict[str, Any]:
         "youtube_watch_history",
     )
     return _prepend_base_urls(result, "youtube_watch_history")
+
+
+@youtube_mcp.tool
+async def get_watch_later() -> dict[str, Any]:
+    """Get watch later playlist from YouTube."""
+    result = await zen_dpage_mcp_tool(
+        "https://www.youtube.com/playlist?list=WL",
+        "youtube_watch_later",
+    )
+    return _prepend_base_urls(result, "youtube_watch_later")
 
 
 @youtube_mcp.tool
