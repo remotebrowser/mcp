@@ -30,7 +30,13 @@ jobs:
       - name: check the health of chromefleet connection
         run: curl -s "${{ env.CHROMEFLEET_URL }}/health"
 
-      - run: docker build -t getgather .
+      - name: Runner DNS sanity
+        run: |
+          set -eux
+          cat /etc/resolv.conf
+          getent hosts deb.debian.org || true
+
+      - run: docker build --network=host -t getgather .
 
       - run: |
           docker run --network host --name getgather -d \
