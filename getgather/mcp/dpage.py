@@ -13,7 +13,11 @@ from loguru import logger
 from nanoid import generate
 
 from getgather.auth.auth import get_auth_user
-from getgather.browser.chromefleet import create_remote_browser, get_remote_browser
+from getgather.browser.chromefleet import (
+    create_remote_browser,
+    get_remote_browser,
+    terminate_remote_browser,
+)
 from getgather.config import settings
 from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
@@ -47,6 +51,10 @@ pending_actions: dict[str, dict[str, Any]] = {}
 element_configs: dict[str, ElementConfig] = {}
 
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
+
+
+def is_remote_browser(dpage_id: str) -> bool:
+    return "--" in dpage_id
 
 
 async def dpage_add(
@@ -107,6 +115,13 @@ async def dpage_finalize(id: str):
         await terminate_zendriver_browser(browser)
         browser_manager.remove_incognito_browser(id)
         return True
+
+    if is_remote_browser(id):
+        browser_id, _ = id.split("--")
+        if browser := await get_remote_browser(browser_id):
+            await terminate_remote_browser(browser)
+            return True
+
     raise ValueError(f"Browser profile for signin {id} not found in incognito browser profiles")
 
 
@@ -149,10 +164,6 @@ async def get_dpage(id: str | None = None) -> HTMLResponse:
 
 
 FINISHED_MSG = "Finished! You can close this window now."
-
-
-def is_remote_browser(dpage_id: str) -> bool:
-    return "--" in dpage_id
 
 
 @router.post("/{id}", response_class=HTMLResponse)
@@ -596,16 +607,42 @@ async def remote_zen_dpage_mcp_tool(
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
 
-    user_id = get_auth_user().user_id
+    headers = get_http_headers(include_all=True)
+    signin_id = headers.get("x-signin-id") or None
+    incognito = headers.get("x-incognito", "0") == "1"
 
-    browser_id: str = user_id
-    browser = await get_remote_browser(browser_id)
-    if browser is None:
+    browser = None
+    page = None
+
+    if signin_id:
+        browser_id, page_id = signin_id.split("--")
+        dpage_id = signin_id
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            raise HTTPException(status_code=400, detail="Remote browser not found")
+        for tab in browser.tabs:
+            if tab.target_id == page_id:
+                page = tab
+                break
+        if page is None:
+            raise HTTPException(status_code=400, detail="Page not found")
+        logger.info(f"Continue with browser {browser_id} and page {page_id}")
+    elif incognito:
+        prefix = "E"  # for Ephemeral
+        browser_id = prefix + generate(FRIENDLY_CHARS, 7)
         browser = await create_remote_browser(browser_id)
-
-    page = await get_new_page(browser)
-    dpage_id = f"{browser_id}--{page.target_id}"
-    logger.info(f"For user {user_id}: using browser {browser_id}")
+        page = await get_new_page(browser)
+        dpage_id = f"{browser_id}--{page.target_id}"
+        logger.info(f"Start with an ephemeral browser {browser_id}")
+    else:
+        user_id = get_auth_user().user_id
+        browser_id: str = user_id
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            browser = await create_remote_browser(browser_id)
+        page = await get_new_page(browser)
+        dpage_id = f"{browser_id}--{page.target_id}"
+        logger.info(f"For user {user_id}: using browser {browser_id}")
 
     logger.info(f"Navigating remote browser to {initial_url}")
     await zen_navigate_with_retry(page, initial_url)
