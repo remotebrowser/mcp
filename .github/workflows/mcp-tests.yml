@@ -14,6 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - run: docker build -t getgather .
+
       - name: Load environment variables from Doppler
         uses: ./.github/actions/download-env
         with:
@@ -29,8 +31,6 @@ jobs:
 
       - name: check the health of chromefleet connection
         run: curl -s "${{ env.CHROMEFLEET_URL }}/health"
-
-      - run: docker build -t getgather .
 
       - run: |
           docker run --network host --name getgather -d \
