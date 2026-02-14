@@ -1163,16 +1163,6 @@ async def create_working_random_browser(req_info: Any | None = None) -> zd.Brows
     return selected_browser
 
 
-async def _create_browsers(proxy_location: Any | None, num_browsers: int) -> list[zd.Browser]:
-    async def create_single(proxy_location: Any | None) -> zd.Browser:
-        id = generate(FRIENDLY_CHARS, 6)
-        browser = await create_remote_browser(browser_id=id)
-        await change_and_validate_proxy(browser, location=proxy_location)
-        return browser
-
-    return list(await asyncio.gather(*[create_single(proxy_location) for _ in range(num_browsers)]))
-
-
 async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://api.ipify.org") -> int:
     """Returns 1 if browser can reach the IP check URL, 0 otherwise. Will be extended in the future to include more comprehensive checks."""
     try:
@@ -1189,21 +1179,20 @@ async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://api.i
     return 0
 
 
-def _select_best(scored: list[tuple[zd.Browser, int]]) -> zd.Browser:
-    """Return the browser with the highest score. Raises if all scores are 0."""
-    best = max(scored, key=lambda x: x[1])
-    if best[1] == 0:
-        raise RuntimeError("No browser passed scoring")
-    return best[0]
-
-
 async def get_best_browser_with_working_proxy(
     req_info: Any | None = None,
     num_browsers: int = 3,
     strategy: Literal["best", "race"] = "race",
 ) -> zd.Browser:
     proxy_location = req_info.model_dump() if req_info else None
-    browsers = await _create_browsers(proxy_location, num_browsers)
+
+    async def create_single_browser() -> zd.Browser:
+        id = generate(FRIENDLY_CHARS, 6)
+        browser = await create_remote_browser(browser_id=id)
+        await change_and_validate_proxy(browser, location=proxy_location)
+        return browser
+
+    browsers = list(await asyncio.gather(*[create_single_browser() for _ in range(num_browsers)]))
     selected_browser: zd.Browser | None = None
     if strategy == "race":
 
@@ -1229,7 +1218,10 @@ async def get_best_browser_with_working_proxy(
         scored: list[tuple[zd.Browser, int]] = [
             (b, s) for b, s in zip(browsers, scores) if isinstance(s, int)
         ]
-        selected_browser = _select_best(scored)
+        best = max(scored, key=lambda x: x[1])
+        if best[1] == 0:
+            raise RuntimeError("No browser passed scoring")
+        selected_browser = best[0]
 
     for browser in browsers:
         if browser is not selected_browser:
