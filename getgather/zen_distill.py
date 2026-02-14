@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 from urllib.parse import urlunparse
 
 import nanoid
@@ -1163,13 +1163,88 @@ async def create_working_random_browser(req_info: Any | None = None) -> zd.Brows
     return selected_browser
 
 
+async def _create_browsers(proxy_location: Any | None, num_browsers: int) -> list[zd.Browser]:
+    async def create_single(proxy_location: Any | None) -> zd.Browser:
+        id = generate(FRIENDLY_CHARS, 6)
+        browser = await create_remote_browser(browser_id=id)
+        await change_and_validate_proxy(browser, location=proxy_location)
+        return browser
+
+    return list(await asyncio.gather(*[create_single(proxy_location) for _ in range(num_browsers)]))
+
+
+async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://api.ipify.org") -> int:
+    """Returns 1 if browser can reach the IP check URL, 0 otherwise. Will be extended in the future to include more comprehensive checks."""
+    try:
+        page = await get_new_page(browser)
+        await zen_navigate_with_retry(page, ip_check_url, wait_for_ready=False)
+        body = await page.select("body")
+        ip = body.text.strip() if body else None
+        await safe_close_page(page)
+        if ip:
+            logger.info(f"Browser {browser.id} IP: {ip}")  # type: ignore[attr-defined]
+            return 1
+    except Exception as e:
+        logger.warning(f"Browser {browser.id} score failed: {e}")  # type: ignore[attr-defined]
+    return 0
+
+
+def _select_best(scored: list[tuple[zd.Browser, int]]) -> zd.Browser:
+    """Return the browser with the highest score. Raises if all scores are 0."""
+    best = max(scored, key=lambda x: x[1])
+    if best[1] == 0:
+        raise RuntimeError("No browser passed scoring")
+    return best[0]
+
+
+async def get_best_browser_with_working_proxy(
+    req_info: Any | None = None,
+    num_browsers: int = 3,
+    strategy: Literal["best", "race"] = "race",
+) -> zd.Browser:
+    proxy_location = req_info.model_dump() if req_info else None
+    browsers = await _create_browsers(proxy_location, num_browsers)
+    selected_browser: zd.Browser | None = None
+    if strategy == "race":
+
+        async def _score_with_browser(
+            b: zd.Browser,
+        ) -> tuple[
+            zd.Browser, int
+        ]:  # this allows the browser to be carried along (preventing the need for a separate mapping of tasks to browsers)
+            return b, await _score_browser(b)
+
+        race_tasks = [asyncio.create_task(_score_with_browser(b)) for b in browsers]
+        for coro in asyncio.as_completed(race_tasks):
+            browser, score = await coro
+            if score > 0 and selected_browser is None:
+                selected_browser = browser
+                break
+        if selected_browser is None:
+            raise RuntimeError("No browser passed scoring")
+    else:
+        scores = await asyncio.gather(
+            *[_score_browser(b) for b in browsers], return_exceptions=True
+        )
+        scored: list[tuple[zd.Browser, int]] = [
+            (b, s) for b, s in zip(browsers, scores) if isinstance(s, int)
+        ]
+        selected_browser = _select_best(scored)
+
+    for browser in browsers:
+        if browser is not selected_browser:
+            await terminate_remote_browser(browser)
+
+    return selected_browser
+
+
 async def short_lived_mcp_tool(
     location: str,
     pattern_wildcard: str,
     result_key: str,
     url_hostname: str,
 ) -> tuple[bool, dict[str, Any]]:
-    browser = await create_working_random_browser(request_info.get())
+    browser = await get_best_browser_with_working_proxy(request_info.get())
 
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
