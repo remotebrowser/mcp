@@ -3,6 +3,7 @@ import os
 from typing import Any
 
 import zendriver as zd
+from fastmcp.tools.tool import ToolResult
 from loguru import logger
 
 from getgather.mcp.dpage import zen_dpage_with_action
@@ -14,7 +15,7 @@ garmin_mcp = GatherMCP(brand_id="garmin", name="Garmin MCP")
 
 
 @garmin_mcp.tool
-async def get_activities() -> dict[str, Any]:
+async def get_activities() -> ToolResult:
     """Get the activity history from a user's account."""
 
     async def add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
@@ -49,6 +50,7 @@ async def get_activities() -> dict[str, Any]:
     return await zen_dpage_with_action(
         "https://connect.garmin.com/modern/activities",
         action=add_activity_ids_action,
+        return_ui_resource=True,
     )
 
 

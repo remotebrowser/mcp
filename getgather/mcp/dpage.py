@@ -501,6 +501,7 @@ async def zen_dpage_mcp_tool(
     return dpage_signin_required_result(result)
 
 
+@overload
 async def zen_dpage_with_action(
     initial_url: str,
     action: Any,
@@ -509,7 +510,35 @@ async def zen_dpage_with_action(
     _signin_completed: bool = False,
     _page_id: str | None = None,
     config: ElementConfig | None = None,
-) -> dict[str, Any]:
+    *,
+    return_ui_resource: Literal[True],
+) -> ToolResult: ...
+
+
+@overload
+async def zen_dpage_with_action(
+    initial_url: str,
+    action: Any,
+    timeout: int = 2,
+    dpage_timeout: int = 15,
+    _signin_completed: bool = False,
+    _page_id: str | None = None,
+    config: ElementConfig | None = None,
+    *,
+    return_ui_resource: Literal[False] = False,
+) -> dict[str, Any]: ...
+
+
+async def zen_dpage_with_action(
+    initial_url: str,
+    action: Any,
+    timeout: int = 2,
+    dpage_timeout: int = 15,
+    _signin_completed: bool = False,
+    _page_id: str | None = None,
+    config: ElementConfig | None = None,
+    return_ui_resource: bool = False,
+) -> dict[str, Any] | ToolResult:
     """Execute an action after signin completion with Zendriver.
 
     Args:
@@ -518,8 +547,9 @@ async def zen_dpage_with_action(
         timeout: Timeout in seconds
         _signin_completed: Whether the signin process is completed
         _page_id: ID of the page to resume from
+        return_ui_resource: If True, include UIResource in ToolResult when sign-in flow triggered
     Returns:
-        Dict with result or signin flow info
+        Dict with result or signin flow info, or ToolResult when return_ui_resource=True and sign-in required
     """
     headers = get_http_headers(include_all=True)
     incognito = headers.get("x-incognito", "0") == "1"
@@ -611,8 +641,7 @@ async def zen_dpage_with_action(
     )
 
     message = "Continue to sign in in your browser"
-
-    return {
+    result = {
         "url": url,
         "message": f"{message} at {url}.",
         "signin_id": id,
@@ -622,3 +651,7 @@ async def zen_dpage_with_action(
             f"Then call check_signin tool with the signin_id to check if the sign in process is completed. "
         ),
     }
+
+    if not return_ui_resource:
+        return result
+    return dpage_signin_required_result(result)
