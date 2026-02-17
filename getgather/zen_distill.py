@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 from urllib.parse import urlunparse
 
 import nanoid
@@ -1179,10 +1179,9 @@ async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://api.i
     return 0
 
 
-async def get_best_browser_with_working_proxy(
+async def create_best_browser(
     req_info: Any | None = None,
     num_browsers: int = 3,
-    strategy: Literal["best", "race"] = "race",
 ) -> zd.Browser:
     proxy_location = req_info.model_dump() if req_info else None
 
@@ -1194,34 +1193,22 @@ async def get_best_browser_with_working_proxy(
 
     browsers = list(await asyncio.gather(*[create_single_browser() for _ in range(num_browsers)]))
     selected_browser: zd.Browser | None = None
-    if strategy == "race":
 
-        async def _score_with_browser(
-            b: zd.Browser,
-        ) -> tuple[
-            zd.Browser, int
-        ]:  # this allows the browser to be carried along (preventing the need for a separate mapping of tasks to browsers)
-            return b, await _score_browser(b)
+    async def _score_with_browser(
+        b: zd.Browser,
+    ) -> tuple[
+        zd.Browser, int
+    ]:  # this allows the browser to be carried along (preventing the need for a separate mapping of tasks to browsers)
+        return b, await _score_browser(b)
 
-        race_tasks = [asyncio.create_task(_score_with_browser(b)) for b in browsers]
-        for coro in asyncio.as_completed(race_tasks):
-            browser, score = await coro
-            if score > 0 and selected_browser is None:
-                selected_browser = browser
-                break
-        if selected_browser is None:
-            raise RuntimeError("No browser passed scoring")
-    else:
-        scores = await asyncio.gather(
-            *[_score_browser(b) for b in browsers], return_exceptions=True
-        )
-        scored: list[tuple[zd.Browser, int]] = [
-            (b, s) for b, s in zip(browsers, scores) if isinstance(s, int)
-        ]
-        best = max(scored, key=lambda x: x[1])
-        if best[1] == 0:
-            raise RuntimeError("No browser passed scoring")
-        selected_browser = best[0]
+    race_tasks = [asyncio.create_task(_score_with_browser(b)) for b in browsers]
+    for coro in asyncio.as_completed(race_tasks):
+        browser, score = await coro
+        if score > 0 and selected_browser is None:
+            selected_browser = browser
+            break
+    if selected_browser is None:
+        raise RuntimeError("No browser passed scoring")
 
     for browser in browsers:
         if browser is not selected_browser:
@@ -1236,7 +1223,7 @@ async def short_lived_mcp_tool(
     result_key: str,
     url_hostname: str,
 ) -> tuple[bool, dict[str, Any]]:
-    browser = await get_best_browser_with_working_proxy(request_info.get())
+    browser = await create_best_browser(request_info.get())
 
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
