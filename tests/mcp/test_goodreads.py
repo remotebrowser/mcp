@@ -2,23 +2,20 @@
 
 import json
 import os
+from typing import Any
 
 import pytest
 import zendriver as zd
 from fastmcp import Client
 from mcp.types import TextContent
 
-config = {
-    "mcpServers": {"getgather": {"url": f"{os.environ.get('HOST', 'http://localhost:23456')}/mcp"}}
-}
-
 
 @pytest.mark.mcp
 @pytest.mark.asyncio
 @pytest.mark.xfail(reason="flaky")
-async def test_goodreads_login_and_get_book_list():
+async def test_goodreads_login_and_get_book_list(mcp_config: dict[str, Any]):
     """Test login to goodreads."""
-    client = Client(config)
+    client = Client(mcp_config)
     async with client:
         mcp_call_tool = await client.call_tool("goodreads_get_book_list")
         assert isinstance(mcp_call_tool.content[0], TextContent), (

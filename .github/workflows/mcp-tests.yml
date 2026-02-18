@@ -14,7 +14,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - run: docker build --network=host -t getgather .
+      - run: |
+          docker container rm -f getgather 2>/dev/null || true
+          docker build --network=host -t getgather .
 
       - name: Load environment variables from Doppler
         uses: ./.github/actions/download-env
@@ -39,6 +41,11 @@ jobs:
             -e DEFAULT_PROXY_TYPE=proxy-0 \
             -e PROXIES_CONFIG="${{ secrets.PROXIES_CONFIG }}" \
             -e CHROMEFLEET_URL="${{ env.CHROMEFLEET_URL }}" \
+            -e OAUTH_ORIGIN=http://localhost:23456 \
+            -e FIRST_PARTY_OAUTH_PROVIDER_NAME=firstparty \
+            -e FIRST_PARTY_APPS='{"test-key": "test-app"}' \
+            -e OAUTH_GOOGLE_CLIENT_ID=fake-client-id \
+            -e OAUTH_GOOGLE_CLIENT_SECRET=fake-client-secret \
             getgather
         timeout-minutes: 3
 
@@ -76,6 +83,8 @@ jobs:
         run: xvfb-run -a uv run pytest -m "mcp" -s
         env:
           HOST: http://localhost:23456
+          FIRST_PARTY_OAUTH_PROVIDER_NAME: firstparty
+          FIRST_PARTY_APPS: '{"test-key": "test-app"}'
           BBC_EMAIL: ${{ secrets.BBC_EMAIL }}
           BBC_PASSWORD: ${{ secrets.BBC_PASSWORD }}
           GOODREADS_EMAIL: ${{ secrets.GOODREADS_EMAIL }}
