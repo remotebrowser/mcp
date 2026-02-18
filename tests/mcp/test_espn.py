@@ -12,7 +12,7 @@ from mcp.types import TextContent
 @pytest.mark.asyncio
 async def test_espn_get_schedule(mcp_config: dict[str, Any]):
     """Test get schedule from ESPN."""
-    client = Client(mcp_config)
+    client = Client(mcp_config, timeout=60)
     async with client:
         mcp_call_result = await client.call_tool("espn_get_schedule")
         assert isinstance(mcp_call_result.content[0], TextContent), (
