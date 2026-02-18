@@ -12,7 +12,7 @@ from mcp.types import TextContent
 @pytest.mark.asyncio
 async def test_npr_get_headlines(mcp_config: dict[str, Any]):
     """Test get headlines from NPR."""
-    client = Client(mcp_config)
+    client = Client(mcp_config, timeout=120)
     async with client:
         mcp_call_result = await client.call_tool("npr_get_headlines")
         assert isinstance(mcp_call_result.content[0], TextContent), (
