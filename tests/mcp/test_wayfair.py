@@ -18,7 +18,7 @@ load_dotenv()
 @pytest.mark.xfail(reason="flaky")
 async def test_wayfair_login_and_get_order_history(mcp_config: dict[str, Any]):
     """Test login to wayfair and get order history."""
-    client = Client(mcp_config)
+    client = Client(mcp_config, timeout=120)
     async with client:
         mcp_call_tool = await client.call_tool("wayfair_get_order_history")
         assert isinstance(mcp_call_tool.content[0], TextContent), (
@@ -76,7 +76,7 @@ async def test_wayfair_login_and_get_order_history(mcp_config: dict[str, Any]):
 @pytest.mark.xfail(reason="flaky")
 async def test_wayfair_get_cart(mcp_config: dict[str, Any]):
     """Test get cart from wayfair."""
-    client = Client(mcp_config)
+    client = Client(mcp_config, timeout=120)
     async with client:
         mcp_call_get_cart = await client.call_tool("wayfair_get_cart")
         assert isinstance(mcp_call_get_cart.content[0], TextContent), (
@@ -94,7 +94,7 @@ async def test_wayfair_get_cart(mcp_config: dict[str, Any]):
 @pytest.mark.xfail(reason="flaky")
 async def test_wayfair_get_wishlists(mcp_config: dict[str, Any]):
     """Test get wishlists from wayfair."""
-    client = Client(mcp_config)
+    client = Client(mcp_config, timeout=120)
     async with client:
         mcp_call_get_wishlists = await client.call_tool("wayfair_get_wishlists")
         assert isinstance(mcp_call_get_wishlists.content[0], TextContent), (
