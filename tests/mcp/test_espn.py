@@ -1,22 +1,18 @@
 """Tests for ESPN Tools: get_schedule."""
 
 import json
-import os
+from typing import Any
 
 import pytest
 from fastmcp import Client
 from mcp.types import TextContent
 
-config = {
-    "mcpServers": {"getgather": {"url": f"{os.environ.get('HOST', 'http://localhost:23456')}/mcp"}}
-}
-
 
 @pytest.mark.mcp
 @pytest.mark.asyncio
-async def test_espn_get_schedule():
+async def test_espn_get_schedule(mcp_config: dict[str, Any]):
     """Test get schedule from ESPN."""
-    client = Client(config)
+    client = Client(mcp_config)
     async with client:
         mcp_call_result = await client.call_tool("espn_get_schedule")
         assert isinstance(mcp_call_result.content[0], TextContent), (
