@@ -15,7 +15,7 @@ from mcp.types import TextContent
 @pytest.mark.xfail(reason="flaky")
 async def test_goodreads_login_and_get_book_list(mcp_config: dict[str, Any]):
     """Test login to goodreads."""
-    client = Client(mcp_config, timeout=60)
+    client = Client(mcp_config, timeout=120)
     async with client:
         mcp_call_tool = await client.call_tool("goodreads_get_book_list")
         assert isinstance(mcp_call_tool.content[0], TextContent), (

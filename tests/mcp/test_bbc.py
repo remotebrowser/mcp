@@ -15,7 +15,7 @@ from mcp.types import TextContent
 @pytest.mark.xfail(reason="flaky")
 async def test_bbc_login_and_get_bookmarks(mcp_config: dict[str, Any]):
     """Test login to bbc."""
-    client = Client(mcp_config, timeout=60)
+    client = Client(mcp_config, timeout=120)
     async with client:
         mcp_call_tool = await client.call_tool("bbc_get_saved_articles")
         assert isinstance(mcp_call_tool.content[0], TextContent), (
