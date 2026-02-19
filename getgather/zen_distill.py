@@ -1163,13 +1163,67 @@ async def create_working_random_browser(req_info: Any | None = None) -> zd.Brows
     return selected_browser
 
 
+async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://ip.fly.dev/ip") -> int:
+    """Returns 1 if browser can reach the IP check URL, 0 otherwise. Will be extended in the future to include more comprehensive checks."""
+    try:
+        page = await get_new_page(browser)
+        await zen_navigate_with_retry(page, ip_check_url, wait_for_ready=False)
+        body = await page.select("body")
+        ip = body.text.strip() if body else None
+        await safe_close_page(page)
+        if ip:
+            logger.info(f"Browser {browser.id} IP: {ip}")  # type: ignore[attr-defined]
+            return 1
+    except Exception as e:
+        logger.warning(f"Browser {browser.id} score failed: {e}")  # type: ignore[attr-defined]
+    return 0
+
+
+async def create_best_browser(
+    req_info: Any | None = None,
+    num_browsers: int = 3,
+) -> zd.Browser:
+    proxy_location = req_info.model_dump() if req_info else None
+
+    async def create_single_browser() -> zd.Browser:
+        id = generate(FRIENDLY_CHARS, 6)
+        browser = await create_remote_browser(browser_id=id)
+        await change_and_validate_proxy(browser, location=proxy_location)
+        return browser
+
+    browsers = list(await asyncio.gather(*[create_single_browser() for _ in range(num_browsers)]))
+    selected_browser: zd.Browser | None = None
+
+    async def _score_with_browser(
+        b: zd.Browser,
+    ) -> tuple[
+        zd.Browser, int
+    ]:  # this allows the browser to be carried along (preventing the need for a separate mapping of tasks to browsers)
+        return b, await _score_browser(b)
+
+    race_tasks = [asyncio.create_task(_score_with_browser(b)) for b in browsers]
+    for coro in asyncio.as_completed(race_tasks):
+        browser, score = await coro
+        if score > 0 and selected_browser is None:
+            selected_browser = browser
+            break
+    if selected_browser is None:
+        raise RuntimeError("No browser passed scoring")
+
+    for browser in browsers:
+        if browser is not selected_browser:
+            await terminate_remote_browser(browser)
+
+    return selected_browser
+
+
 async def short_lived_mcp_tool(
     location: str,
     pattern_wildcard: str,
     result_key: str,
     url_hostname: str,
 ) -> tuple[bool, dict[str, Any]]:
-    browser = await create_working_random_browser(request_info.get())
+    browser = await create_best_browser(request_info.get())
 
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
