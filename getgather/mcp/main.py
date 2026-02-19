@@ -1,8 +1,9 @@
 import json
 from dataclasses import dataclass
 from functools import cache, cached_property
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
+import mcp.types
 from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.http import StarletteWithLifespan
@@ -21,6 +22,60 @@ from getgather.mcp.dpage import (
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
 from getgather.request_info import RequestInfo, request_info
+
+
+def _inject_app_ui_content_meta(
+    fastmcp_server: FastMCP,
+    uri_to_meta: dict[str, dict[str, Any]],
+) -> None:
+    """Wrap read_resource handler so content items include _meta.ui (e.g. csp) for app UI resources."""
+    mcp_server = getattr(fastmcp_server, "_mcp_server", None)
+    if mcp_server is None:
+        return
+    original = mcp_server.request_handlers.get(mcp.types.ReadResourceRequest)
+    if original is None:
+        return
+
+    async def wrapped(req: mcp.types.ReadResourceRequest) -> mcp.types.ServerResult:
+        result = await original(req)
+        uri = str(req.params.uri)
+        meta = uri_to_meta.get(uri)
+        result_root = getattr(result, "root", None)
+        if meta is None or result_root is None:
+            return result
+        contents: list[mcp.types.TextResourceContents | mcp.types.BlobResourceContents] = (
+            getattr(result_root, "contents", None) or []
+        )
+        if not contents:
+            return result
+        new_contents: list[mcp.types.TextResourceContents | mcp.types.BlobResourceContents] = []
+        for c in contents:
+            existing_meta: dict[str, Any] = getattr(c, "_meta", None) or {}
+            content_meta: dict[str, Any] = {**existing_meta, **meta}
+            if isinstance(c, mcp.types.TextResourceContents):
+                new_contents.append(
+                    mcp.types.TextResourceContents(
+                        uri=c.uri,
+                        mimeType=c.mimeType,
+                        text=c.text,
+                        _meta=content_meta,
+                    )
+                )
+            elif isinstance(c, mcp.types.BlobResourceContents):  # pyright: ignore[reportUnnecessaryIsInstance]
+                new_contents.append(
+                    mcp.types.BlobResourceContents(
+                        uri=c.uri,
+                        mimeType=c.mimeType,
+                        blob=c.blob,
+                        _meta=content_meta,
+                    )
+                )
+            else:
+                new_contents.append(cast(mcp.types.TextResourceContents, c))
+        return mcp.types.ServerResult(mcp.types.ReadResourceResult(contents=new_contents))
+
+    mcp_server.request_handlers[mcp.types.ReadResourceRequest] = wrapped
+
 
 # Ensure calendar MCP is registered by importing its module
 try:
@@ -192,6 +247,8 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
             initial_url="https://ip.fly.dev/ip", result_key="ip_address"
         )
 
+    app_ui_content_meta: dict[str, dict[str, Any]] = {}
+
     for brand_id in brand_ids:
         brand_id_str = brand_id
         if brand_id_str in GatherMCP.registry:
@@ -207,6 +264,7 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                     continue
 
                 logger.info(f"MCP App UI enabled for {brand_id_str}: {resource_uri}")
+                app_ui_content_meta[str(resource_uri)] = {"ui": ui_to_meta_dict(app_ui)}
 
                 def _make_ui_resource(server: GatherMCP, ui_uri: str):
                     async def _read() -> str | bytes:
@@ -224,6 +282,9 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                     f"MCP App UI for {brand_id_str} uses dynamic resource, registered on parent"
                 )
             mcp.mount(server=gather_mcp, prefix=gather_mcp.brand_id)
+
+    if app_ui_content_meta:
+        _inject_app_ui_content_meta(mcp, app_ui_content_meta)
 
     mcp.mount(server=calendar_mcp, prefix="calendar")
 
