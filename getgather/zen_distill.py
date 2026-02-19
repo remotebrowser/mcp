@@ -1163,7 +1163,7 @@ async def create_working_random_browser(req_info: Any | None = None) -> zd.Brows
     return selected_browser
 
 
-async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://api.ipify.org") -> int:
+async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://ip.fly.dev/ip") -> int:
     """Returns 1 if browser can reach the IP check URL, 0 otherwise. Will be extended in the future to include more comprehensive checks."""
     try:
         page = await get_new_page(browser)
