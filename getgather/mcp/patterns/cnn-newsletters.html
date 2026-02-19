@@ -3,29 +3,6 @@
     <title>CNN Newsletters</title>
   </head>
   <body>
-    <ul gg-stop gg-match-html="ul.newsletter-hub__cards"></ul>
-    <script type="application/json" id="newsletters">
-      {
-        "rows": "li[data-subscription-status=subscribed]",
-        "columns": [
-          { "name": "id", "selector": "[id]", "attribute": "id" },
-          {
-            "name": "newsletter_id",
-            "selector": "[data-newsletter-id]",
-            "attribute": "data-newsletter-id"
-          },
-          {
-            "name": "display_name",
-            "selector": "[data-display-name]",
-            "attribute": "data-display-name"
-          },
-          { "name": "title", "selector": "h4.newsletter-hub-card__name" },
-          { "name": "frequency", "selector": "h5.newsletter-hub-card__frequency" },
-          { "name": "description", "selector": "p.newsletter-hub-card__desc" },
-          { "name": "image", "selector": "img.newsletter-hub-card__poster", "attribute": "src" },
-          { "name": "image_alt", "selector": "img.newsletter-hub-card__poster", "attribute": "alt" }
-        ]
-      }
-    </script>
+    <ul gg-stop gg-convert="cnn-newsletters.json" gg-match-html="ul.newsletter-hub__cards"></ul>
   </body>
 </html>
