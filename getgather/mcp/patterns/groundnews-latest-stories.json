@@ -1,0 +1,7 @@
+{
+  "rows": "[data-testid=story-item]",
+  "columns": [
+    { "name": "title", "selector": "h4" },
+    { "name": "link", "selector": "a", "attribute": "href" }
+  ]
+}

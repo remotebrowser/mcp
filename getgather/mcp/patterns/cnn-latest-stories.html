@@ -4,15 +4,6 @@
   </head>
   <body>
     <div gg-match="//p[@class='title' and contains(text(), 'Latest Stories')]"></div>
-    <div gg-stop gg-match-html="div[data-uri^=cms]"></div>
-    <script type="application/json" id="stories">
-      {
-        "rows": "section.active ul li",
-        "columns": [
-          { "name": "title", "selector": "a" },
-          { "name": "link", "selector": "a", "attribute": "href" }
-        ]
-      }
-    </script>
+    <div gg-stop gg-convert="cnn-latest-stories.json" gg-match-html="div[data-uri^=cms]"></div>
   </body>
 </html>
