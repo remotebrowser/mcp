@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any, cast
 
 import zendriver as zd
-from fastmcp.tools.tool import ToolResult
 from loguru import logger
 
 from getgather.mcp.dpage import (
@@ -78,7 +77,6 @@ async def get_purchase_history(
     return await zen_dpage_mcp_tool(
         f"https://www.amazon.com/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
         "amazon_purchase_history",
-        return_ui_resource=True,
     )
 
 

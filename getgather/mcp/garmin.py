@@ -3,7 +3,6 @@ import os
 from typing import Any
 
 import zendriver as zd
-from fastmcp.tools.tool import ToolResult
 from loguru import logger
 
 from getgather.mcp.dpage import remote_zen_dpage_with_action, zen_dpage_with_action
@@ -45,7 +44,7 @@ async def _garmin_add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> d
 
 
 @garmin_mcp.tool
-async def get_activities() -> ToolResult:
+async def get_activities() -> dict[str, Any]:
     """Get the activity history from a user's account."""
     return await zen_dpage_with_action(
         "https://connect.garmin.com/modern/activities",

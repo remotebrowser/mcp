@@ -1,4 +1,4 @@
-from fastmcp.tools.tool import ToolResult
+from typing import Any
 from mcp_ui_server import UIResource, create_ui_resource
 
 import zendriver as zd
@@ -132,14 +132,12 @@ async def show_test_app_and_ui() -> list[UIResource]:
 
 
 @goodreads_mcp.tool
-async def get_book_list() -> ToolResult:
+async def get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
-    result = await remote_zen_dpage_mcp_tool(
+    return await remote_zen_dpage_mcp_tool(
         "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
         "goodreads_book_list",
-        return_ui_resource=True,
     )
-    return result
 
 
 @goodreads_mcp.tool
