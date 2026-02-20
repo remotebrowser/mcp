@@ -156,10 +156,37 @@ def render_app_ui_html(title: str = "MCP GetGather App") -> str:
     #signin .signin-iframe {{ width: 100%; min-height: 480px; border: 1px solid var(--color-border); border-radius: 8px; margin-top: 0.5rem; }}
     #error {{ color: var(--color-error); }}
     .app-ui-success-message {{ color: var(--color-muted); margin: 0; }}
+    #loading.view {{ display: none; }}
+    #loading.view.active {{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 120px;
+      gap: 1rem;
+    }}
+    .loading-spinner {{
+      width: 28px;
+      height: 28px;
+      border: 3px solid var(--color-border);
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: loading-spin 0.7s linear infinite;
+    }}
+    .loading-text {{
+      font-size: 0.875rem;
+      color: var(--color-muted);
+    }}
+    @keyframes loading-spin {{
+      to {{ transform: rotate(360deg); }}
+    }}
   </style>
 </head>
 <body>
-  <div id="loading" class="view active">Loading…</div>
+  <div id="loading" class="view active">
+    <div class="loading-spinner" aria-hidden="true"></div>
+    <span class="loading-text">Loading…</span>
+  </div>
   <div id="signin" class="view"></div>
   <div id="success" class="view"><p class="app-ui-success-message">You're signed in. Data has been loaded.</p></div>
   <div id="error" class="view"></div>
