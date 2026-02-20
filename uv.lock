@@ -657,7 +657,6 @@ dependencies = [
     { name = "logfire", extra = ["fastapi", "httpx"] },
     { name = "loguru" },
     { name = "lxml" },
-    { name = "mcp-ui-server" },
     { name = "nanoid" },
     { name = "pwinput" },
     { name = "pydantic" },
@@ -698,7 +697,6 @@ requires-dist = [
     { name = "logfire", extras = ["fastapi", "httpx"], specifier = ">=4.13.2" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "lxml", specifier = ">=6.0.0" },
-    { name = "mcp-ui-server", specifier = ">=1.0.0" },
     { name = "nanoid", specifier = ">=2.0.0" },
     { name = "pwinput", specifier = ">=1.0.3" },
     { name = "pydantic", specifier = ">=2.11.3" },
@@ -1238,20 +1236,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d5/2d/649d80a0ecf6a1f82632ca44bec21c0461a9d9fc8934d38cb5b319f2db5e/mcp-1.25.0.tar.gz", hash = "sha256:56310361ebf0364e2d438e5b45f7668cbb124e158bb358333cd06e49e83a6802", size = 605387, upload-time = "2025-12-19T10:19:56.985Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e2/fc/6dc7659c2ae5ddf280477011f4213a74f806862856b796ef08f028e664bf/mcp-1.25.0-py3-none-any.whl", hash = "sha256:b37c38144a666add0862614cc79ec276e97d72aa8ca26d622818d4e278b9721a", size = 233076, upload-time = "2025-12-19T10:19:55.416Z" },
-]
-
-[[package]]
-name = "mcp-ui-server"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/ed/80b21fb515be72baa7fbb55326ee36bad55aa3080519827431599b003989/mcp_ui_server-1.0.0.tar.gz", hash = "sha256:5ab8f17b93bf794966af7c35e9a575e4f21a9ba2bab3d316cfc107a15f88a3c9", size = 78389, upload-time = "2025-11-04T16:17:01.21Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/8a/4c1b2b5708e2f8bf3f3d2ebc130f5bb2a1805cd648b6eda8e5e4bdc039bc/mcp_ui_server-1.0.0-py3-none-any.whl", hash = "sha256:85f53b2e4300fbd175f1fbb7c40f2566b1f4a4ad03a1f33647867c82a3159dcc", size = 11500, upload-time = "2025-11-04T16:17:00.366Z" },
 ]
 
 [[package]]
