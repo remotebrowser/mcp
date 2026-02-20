@@ -43,9 +43,11 @@ def _setup_logfire():
         code_source=logfire.CodeSource(
             repository="https://github.com/remotebrowser/mcp-getgather", revision="main"
         ),
+        distributed_tracing=True,
         console=False,
         scrubbing=False,
     )
+    logfire.instrument_httpx()
 
 
 def _setup_logger():
