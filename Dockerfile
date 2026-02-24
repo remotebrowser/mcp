@@ -77,7 +77,7 @@ RUN apt-get update && apt-get install -y \
 COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
 COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
 
-# Create Tailscale directories (chown will happen after user creation)
+# Create Tailscale directories
 RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
 
 RUN ln -s /usr/bin/chromium /usr/bin/chromium-browser
@@ -107,6 +107,7 @@ EXPOSE 5900
 
 RUN useradd -m -s /bin/bash getgather && \
     chown -R getgather:getgather /app && \
+    chown -R getgather:getgather /var/run/tailscale /var/cache/tailscale /var/lib/tailscale && \
     usermod -aG sudo getgather && \
     echo 'getgather ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
