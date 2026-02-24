@@ -4,7 +4,10 @@
   </head>
   <body>
     <span gg-match="//span[contains(normalize-space(.), '2-Step Verification')]"></span>
-    <div gg-match="//div[contains(normalize-space(.), 'Google sent a notification to your')]"></div>
+    <div
+      gg-match-html="//div[@class='dMNVAe' and contains(normalize-space(.), 'Google sent a notification to your')]"
+    ></div>
+
     <input type="text" value="submit" name="submit" style="display: none" />
     <button type="submit" gg-autoclick>I've done this</button>
   </body>
