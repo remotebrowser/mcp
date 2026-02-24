@@ -68,8 +68,17 @@ RUN apt-get update && apt-get install -y \
     dbus-x11 \
     iproute2 \
     sudo \
+    ca-certificates \
+    iptables \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
+
+# Copy Tailscale binaries
+COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/local/bin/tailscale
+
+# Create Tailscale directories (chown will happen after user creation)
+RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
 
 RUN ln -s /usr/bin/chromium /usr/bin/chromium-browser
 
