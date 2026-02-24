@@ -701,22 +701,7 @@ async def remote_zen_dpage_with_action(
     _page_id: str | None = None,
     config: ElementConfig | None = None,
 ) -> dict[str, Any]:
-    """Execute an action after signin completion with remote Zendriver.
-
-    Same as zen_dpage_with_action but uses remote browsers (create_remote_browser /
-    get_remote_browser). Use when the client connects via remote browser MCP.
-
-    Args:
-        initial_url: URL to navigate to
-        action: Async function that receives (page, browser) and returns a dict
-        timeout: Timeout in seconds for initial distillation
-        dpage_timeout: Timeout in seconds for interactive dpage loop
-        _signin_completed: Whether the signin process is completed (internal)
-        _page_id: ID of the page to resume from, e.g. browser_id--page_id (internal)
-        config: Optional element config for form interaction
-    Returns:
-        Dict with action result, or signin flow info (url, signin_id, message).
-    """
+    """Execute an action after signin completion with remote Zendriver."""
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
     incognito = headers.get("x-incognito", "0") == "1"
