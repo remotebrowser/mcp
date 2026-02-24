@@ -499,16 +499,26 @@ async def zen_dpage_with_action(
     signin_id = headers.get("x-signin-id") or None
 
     # Step 1: If resuming after signin completion, use the active page directly
-    if _signin_completed and _page_id is not None and _page_id in active_pages:
-        logger.info(f"Resuming action after signin with page_id={_page_id}")
-        page = active_pages[_page_id]
+    if _signin_completed and _page_id is not None and _page_id in pending_actions:
         action_info = pending_actions[_page_id]
-
+        page: zd.Tab | None = None
+        if _page_id in active_pages:
+            page = active_pages[_page_id]
+        elif is_remote_browser(_page_id):
+            browser_id, page_id = _page_id.split("--")
+            browser = await get_remote_browser(browser_id)
+            if browser is not None:
+                for tab in browser.tabs:
+                    if tab.target_id == page_id:
+                        page = tab
+                        break
+        if page is None:
+            raise ValueError(f"Page for signin {_page_id} not found")
+        logger.info(f"Resuming action after signin with page_id={_page_id}")
         try:
             await zen_navigate_with_retry(page, initial_url)
         except Exception as e:
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
-
         result = await action(page, action_info["browser"])
         return result
 
@@ -678,5 +688,159 @@ async def remote_zen_dpage_mcp_tool(
             "Give the url to the user so the user can open it manually in their browser."
             "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
             "Once it is completed successfully, then call this tool again to proceed with the action."
+        ),
+    }
+
+
+async def remote_zen_dpage_with_action(
+    initial_url: str,
+    action: Any,
+    timeout: int = 2,
+    dpage_timeout: int = 15,
+    _signin_completed: bool = False,
+    _page_id: str | None = None,
+    config: ElementConfig | None = None,
+) -> dict[str, Any]:
+    """Execute an action after signin completion with remote Zendriver.
+
+    Same as zen_dpage_with_action but uses remote browsers (create_remote_browser /
+    get_remote_browser). Use when the client connects via remote browser MCP.
+
+    Args:
+        initial_url: URL to navigate to
+        action: Async function that receives (page, browser) and returns a dict
+        timeout: Timeout in seconds for initial distillation
+        dpage_timeout: Timeout in seconds for interactive dpage loop
+        _signin_completed: Whether the signin process is completed (internal)
+        _page_id: ID of the page to resume from, e.g. browser_id--page_id (internal)
+        config: Optional element config for form interaction
+    Returns:
+        Dict with action result, or signin flow info (url, signin_id, message).
+    """
+    headers = get_http_headers(include_all=True)
+    signin_id = headers.get("x-signin-id") or None
+    incognito = headers.get("x-incognito", "0") == "1"
+
+    # Step 1: Resuming after signin completion (same as zen_dpage_with_action; supports remote id)
+    if _signin_completed and _page_id is not None and _page_id in pending_actions:
+        action_info = pending_actions[_page_id]
+        page = None
+        if is_remote_browser(_page_id):
+            browser_id, page_id = _page_id.split("--")
+            browser = await get_remote_browser(browser_id)
+            if browser is not None:
+                for tab in browser.tabs:
+                    if tab.target_id == page_id:
+                        page = tab
+                        break
+        if page is None:
+            raise ValueError(f"Page for signin {_page_id} not found")
+        logger.info(f"Resuming remote action after signin with page_id={_page_id}")
+        try:
+            await zen_navigate_with_retry(page, initial_url)
+        except Exception as e:
+            logger.warning(f"Failed to navigate to {initial_url}: {e}")
+        result = await action(page, action_info["browser"])
+        return result
+
+    # Step 2: Try with existing remote session (no sign-in flow)
+    browser = None
+    page = None
+    if signin_id and is_remote_browser(signin_id):
+        browser_id, page_id = signin_id.split("--")
+        browser = await get_remote_browser(browser_id)
+        if browser is not None:
+            for tab in browser.tabs:
+                if tab.target_id == page_id:
+                    page = tab
+                    break
+    elif not incognito:
+        user_id = get_auth_user().user_id
+        browser = await get_remote_browser(user_id)
+        if browser is not None:
+            page = await get_new_page(browser)
+
+    if browser is not None and page is not None:
+        created_new_page = not (signin_id and is_remote_browser(signin_id))
+        try:
+            logger.info("Trying remote action with existing session...")
+            await zen_navigate_with_retry(page, initial_url)
+            result = await action(page, browser)
+            if created_new_page:
+                await safe_close_page(page)
+            logger.info("Remote action succeeded with existing session!")
+            return result
+        except Exception as e:
+            logger.info(
+                f"remote_zen_dpage_with_action failed with existing session (likely not signed in): {e}"
+            )
+            if created_new_page:
+                await safe_close_page(page)
+
+    # Step 3: Create interactive sign-in flow with pending action
+    if signin_id and is_remote_browser(signin_id):
+        browser_id, page_id = signin_id.split("--")
+        dpage_id = signin_id
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            raise HTTPException(status_code=400, detail="Remote browser not found")
+        for tab in browser.tabs:
+            if tab.target_id == page_id:
+                page = tab
+                break
+        if page is None:
+            raise HTTPException(status_code=400, detail="Page not found")
+        logger.info(f"Continue with remote browser {browser_id} and page {page_id}")
+    elif incognito:
+        prefix = "E"
+        browser_id = prefix + generate(FRIENDLY_CHARS, 7)
+        browser = await create_remote_browser(browser_id)
+        page = await get_new_page(browser)
+        dpage_id = f"{browser_id}--{page.target_id}"
+        logger.info(f"Start with ephemeral remote browser {browser_id}")
+    else:
+        user_id = get_auth_user().user_id
+        browser_id = user_id
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            browser = await create_remote_browser(browser_id)
+        page = await get_new_page(browser)
+        dpage_id = f"{browser_id}--{page.target_id}"
+        logger.info(f"For user {user_id}: using remote browser {browser_id}")
+
+    await zen_navigate_with_retry(page, initial_url)
+    page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
+
+    pending_actions[dpage_id] = {
+        "action": action,
+        "initial_url": initial_url,
+        "timeout": timeout,
+        "page_id": dpage_id,
+        "browser": browser,
+        "dpage_timeout": dpage_timeout,
+    }
+
+    host = headers.get("x-forwarded-host") or headers.get("host")
+    if host is None:
+        logger.warning("Missing Host header; defaulting to localhost")
+        base_url = "http://localhost:23456"
+    else:
+        default_scheme = "http" if is_local_address(host) else "https"
+        scheme = headers.get("x-forwarded-proto", default_scheme)
+        base_url = f"{scheme}://{host}"
+
+    url = f"{base_url}/dpage/{dpage_id}"
+    logger.info(
+        f"remote_zen_dpage_with_action: Continue with sign in at {url}",
+        extra={"url": url, "id": dpage_id},
+    )
+    return {
+        "url": url,
+        "message": f"Continue to sign in in your browser at {url}.",
+        "signin_id": dpage_id,
+        "system_message": (
+            f"Try open the url {url} in a browser with a tool if available. "
+            "Give the url to the user so the user can open it manually in their browser. "
+            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
         ),
     }
