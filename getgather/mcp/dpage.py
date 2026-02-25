@@ -272,7 +272,12 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 action_info = pending_actions[id]
                 logger.info(f"Signin completed for {id}, resuming action...")
 
-                action_result = await zen_dpage_with_action(
+                resume_fn = (
+                    remote_zen_dpage_with_action
+                    if is_remote_browser(id)
+                    else zen_dpage_with_action
+                )
+                action_result = await resume_fn(
                     initial_url=action_info["initial_url"],
                     action=action_info["action"],
                     timeout=action_info["timeout"],
