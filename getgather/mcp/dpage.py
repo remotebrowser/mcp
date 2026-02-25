@@ -525,6 +525,7 @@ async def zen_dpage_with_action(
         except Exception as e:
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
         result = await action(page, action_info["browser"])
+        del pending_actions[_page_id]
         return result
 
     # Step 2: If global_browser_profile exists, try executing action directly
@@ -731,6 +732,7 @@ async def remote_zen_dpage_with_action(
         except Exception as e:
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
         result = await action(page, action_info["browser"])
+        del pending_actions[_page_id]
         return result
 
     # Step 2: Try with existing remote session (no sign-in flow)
