@@ -273,9 +273,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 logger.info(f"Signin completed for {id}, resuming action...")
 
                 resume_fn = (
-                    remote_zen_dpage_with_action
-                    if is_remote_browser(id)
-                    else zen_dpage_with_action
+                    remote_zen_dpage_with_action if is_remote_browser(id) else zen_dpage_with_action
                 )
                 action_result = await resume_fn(
                     initial_url=action_info["initial_url"],
