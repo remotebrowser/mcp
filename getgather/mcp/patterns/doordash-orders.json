@@ -1,0 +1,16 @@
+{
+  "rows": "div[data-testid='OrdersCompletedSection']",
+  "columns": [
+    { "name": "date", "selector": "div:nth-child(1) span" },
+    { "name": "store", "selector": "a[href^='/store/']" },
+    { "name": "store_url", "selector": "a[href^='/store/']", "attribute": "href" },
+    {
+      "name": "summary",
+      "selector": ".order-detail-body-wrapper span:nth-of-type(1)"
+    },
+    {
+      "name": "items",
+      "selector": ".order-detail-body-wrapper span:nth-of-type(2)"
+    }
+  ]
+}

@@ -638,7 +638,7 @@ class Element:
         return await self.element.get_html()
 
     async def inner_text(self) -> str:
-        return self.element.text
+        return self.element.text_all
 
     async def is_visible(self) -> bool:
         try:
