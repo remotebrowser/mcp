@@ -50,6 +50,9 @@ if [ -n "${TAILSCALE_AUTHKEY}" ]; then
     
     TS_IP=$(/usr/local/bin/tailscale ip -4 2>/dev/null || echo "unknown")
     echo "Tailscale started. IP: ${TS_IP}"
+
+    /usr/local/bin/tailscale serve --service svc:${TAILSCALE_SERVICE} --http 4000 http://localhost:${PORT:-23456}
+    echo "Tailscale Service configured."
 else
     echo "TAILSCALE_AUTHKEY not set, skipping Tailscale setup"
 fi
