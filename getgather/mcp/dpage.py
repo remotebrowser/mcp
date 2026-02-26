@@ -629,18 +629,13 @@ async def remote_zen_dpage_mcp_tool(
     page = None
 
     if signin_id:
-        browser_id, page_id = signin_id.split("--")
-        dpage_id = signin_id
+        browser_id, _ = signin_id.split("--")
         browser = await get_remote_browser(browser_id)
         if browser is None:
             raise HTTPException(status_code=400, detail="Remote browser not found")
-        for tab in browser.tabs:
-            if tab.target_id == page_id:
-                page = tab
-                break
-        if page is None:
-            raise HTTPException(status_code=400, detail="Page not found")
-        logger.info(f"Continue with browser {browser_id} and page {page_id}")
+        logger.info(f"Continue with browser {browser_id} (signed in, opening new page")
+        page = await get_new_page(browser)
+        dpage_id = f"{browser_id}--{page.target_id}"
     elif incognito:
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
