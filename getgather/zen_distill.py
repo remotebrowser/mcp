@@ -27,7 +27,6 @@ from getgather.browser.proxy import change_and_validate_proxy, setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
-from getgather.logs import logger
 from getgather.mcp.browser import browser_manager
 from getgather.request_info import request_info
 
