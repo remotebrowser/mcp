@@ -42,7 +42,7 @@ async def _call_chromefleet_api(method: HTTP_METHOD, browser_id: str) -> httpx.R
 
     url = f"{base_url}/api/v1/browsers/{browser_id}"
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.request(method, url)
         response.raise_for_status()
         return response
