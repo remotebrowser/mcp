@@ -1,22 +1,10 @@
 <html gg-domain="ikea">
-  <head>
-    <title>Ikea Favorites</title>
-  </head>
-  <body>
-    <div gg-match="h1[data-testid=list-detail-header]"></div>
-    <div gg-stop gg-match-html="ul#product-list"></div>
-    <script type="application/json" id="favorites">
-      {
-        "rows": "li[data-testid^="item-"]",
-        "columns": [
-          { "name": "name", "selector": ".list-ingka-price-module__name-decorator a h3" },
-          { "name": "description", "selector": ".list-ingka-price-module__description p" },
-          { "name": "price", "selector": ".list-ingka-price-module__current-price .list-ingka-price__sr-text" },
-          { "name": "quantity", "selector": ".list-ingka-quantity-stepper__input" },
-          { "name": "product_id", "selector": "li" },
-          { "name": "product_url", "selector": ".list-ingka-price-module__name-decorator a", "attribute": "href" },
-        ]
-      }
-    </script>
-  </body>
+<head>
+<title>Ikea Favorites</title>
+</head>
+<body>
+<div gg-match="h1[data-testid=list-detail-header]"></div>
+<div gg-convert="ikea-favorites.json" gg-match-html="ul#product-list" gg-stop></div>
+
+</body>
 </html>
