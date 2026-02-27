@@ -1,30 +1,10 @@
 <html gg-domain="blinds" gg-priority="2">
-  <head>
-    <title>Blinds Favorites</title>
-  </head>
-  <body>
-    <div gg-stop gg-match-html="main#my-account-dashboard"></div>
-    <div gg-match="main#my-account-dashboard div[class*='FavoritesPresentation__ProductDiv']"></div>
-    <script type="application/json" id="favorites">
-      {
-        "rows": "div[class*='FavoritesPresentation__ProductDiv']",
-        "columns": [
-          { "name": "url", "selector": "article > a", "attribute": "href" },
-          { "name": "image", "selector": "article > a > img", "attribute": "src" },
-          {
-            "name": "name",
-            "selector": "article > div:nth-of-type(1) > h2[data-test-id='favoriteproductname'] > a"
-          },
-          {
-            "name": "price",
-            "selector": "article > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1)"
-          },
-          {
-            "name": "size",
-            "selector": "article > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2)"
-          }
-        ]
-      }
-    </script>
-  </body>
+<head>
+<title>Blinds Favorites</title>
+</head>
+<body>
+<div gg-convert="blinds-favorites.json" gg-match-html="main#my-account-dashboard" gg-stop></div>
+<div gg-match="main#my-account-dashboard div[class*='FavoritesPresentation__ProductDiv']"></div>
+
+</body>
 </html>
