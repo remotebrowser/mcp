@@ -1,27 +1,9 @@
 <html gg-domain="starbucks">
-  <head>
-    <title>Starbucks Reward</title>
-  </head>
-  <body>
-    <div gg-stop gg-match-html="div[data-e2e='rewardsPage']"></div>
-    <script type="application/json" id="reward">
-      {
-        "rows": "div[data-e2e='rewardsPage']",
-        "columns": [
-          {
-            "name": "star_count",
-            "selector": "div[data-e2e='starCount']"
-          },
-          {
-            "name": "reward_message",
-            "selector": "p[data-e2e='nextRewardMessage']"
-          },
-          {
-            "name": "nudge_text",
-            "selector": "div[data-e2e='nudgeText']"
-          }
-        ]
-      }
-    </script>
-  </body>
+<head>
+<title>Starbucks Reward</title>
+</head>
+<body>
+<div gg-convert="starbucks-reward.json" gg-match-html="div[data-e2e='rewardsPage']" gg-stop></div>
+
+</body>
 </html>
