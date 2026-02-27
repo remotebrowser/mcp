@@ -1,36 +1,9 @@
 <html gg-domain="audible">
-  <body>
-    <div>
-      <div
-        gg-stop
-        gg-match="//a[contains(text(), 'All') and contains(@class, 'bc-tab-active')]"
-      ></div>
-      <div gg-stop gg-match-html="div#adbl-library-content-main"></div>
-    </div>
-    <script type="application/json" id="library">
-      {
-        "rows": ".adbl-library-content-row",
-        "columns": [
-          {
-            "name": "cover",
-            "selector": "img",
-            "attribute": "src"
-          },
-          {
-            "name": "title",
-            "selector": "span.bc-size-headline3"
-          },
-          {
-            "name": "author",
-            "selector": "span.authorLabel a"
-          },
-          {
-            "name": "url",
-            "selector": "a.bc-link",
-            "attribute": "href"
-          }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<div>
+<div gg-convert="audible-library.json" gg-match="//a[contains(text(), 'All') and contains(@class, 'bc-tab-active')]" gg-stop></div>
+<div gg-match-html="div#adbl-library-content-main" gg-stop></div>
+</div>
+
+</body>
 </html>
