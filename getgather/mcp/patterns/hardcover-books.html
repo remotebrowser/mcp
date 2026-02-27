@@ -1,16 +1,8 @@
 <html gg-domain="hardcover" gg-priority="1">
-  <body>
-    <div>
-      <div gg-stop gg-match-html="a[href*='/books/read'] + div"></div>
-    </div>
-    <script type="application/json" id="bookshelf">
-      {
-        "rows": "div",
-        "columns": [
-          { "name": "title_year_author", "selector": "a", "attribute": "data-tooltip-html" },
-          { "name": "url", "selector": "a", "attribute": "href" }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<div>
+<div gg-convert="hardcover-books.json" gg-match-html="a[href*='/books/read'] + div" gg-stop></div>
+</div>
+
+</body>
 </html>
