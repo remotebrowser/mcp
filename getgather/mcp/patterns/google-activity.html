@@ -1,32 +1,11 @@
 <html gg-domain="google">
-  <head>
-    <title>Google Activity</title>
-  </head>
-  <body>
-    <h2 gg-match="//div[contains(normalize-space(.), 'My Google Activity')]"></h2>
-    <p
-      gg-match="//p[contains(normalize-space(.), 'You can see and delete your activity using the controls on this page.')]"
-    ></p>
-    <div gg-stop gg-match-html="body"></div>
+<head>
+<title>Google Activity</title>
+</head>
+<body>
+<h2 gg-match="//div[contains(normalize-space(.), 'My Google Activity')]"></h2>
+<p gg-match="//p[contains(normalize-space(.), 'You can see and delete your activity using the controls on this page.')]"></p>
+<div gg-convert="google-activity.json" gg-match-html="body" gg-stop></div>
 
-    <script type="application/json" id="activity">
-      {
-        "rows": "div[role='listitem']",
-        "columns": [
-          { "name": "image", "selector": "div img", "attribute": "src" },
-          { "name": "source", "selector": "div > div > div > span" },
-          { "name": "activity", "selector": "div > div:nth-of-type(2) > div > div" },
-          {
-            "name": "url",
-            "selector": "div > div:nth-of-type(2) > div > div > a",
-            "attribute": "href"
-          },
-          {
-            "name": "date",
-            "selector": "div > div:nth-of-type(2) > div > div:nth-of-type(2) > div"
-          }
-        ]
-      }
-    </script>
-  </body>
+</body>
 </html>
