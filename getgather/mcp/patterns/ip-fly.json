@@ -1,0 +1,9 @@
+{
+  "rows": "body",
+  "columns": [
+    {
+      "name": "ip_address",
+      "selector": "pre"
+    }
+  ]
+}
