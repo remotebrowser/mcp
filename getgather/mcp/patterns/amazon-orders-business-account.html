@@ -5,11 +5,11 @@
     </div>
     <script type="application/json" id="orders">
       {
-        "rows": "div#orderCard",
+        "rows": "#yourOrderHistorySection div#orderCard",
         "columns": [
           {
             "name": "order_date",
-            "selector": "div#orderCardHeader div.a-column > div:nth-child(2)"
+            "selector": "div#orderCardHeader div.a-column:nth-child(1) > div:nth-child(2)"
           },
           {
             "name": "order_total",
@@ -17,7 +17,7 @@
           },
           {
             "name": "ship_to",
-            "selector": "div#orderCardHeader div.a-column:nth-child(3) > div:nth-child(2)"
+            "selector": "div#orderCardHeader div.a-column:nth-child(3) > div:nth-child(2) .a-popover-preload"
           },
           {
             "name": "order_id",
@@ -25,7 +25,7 @@
           },
           {
             "name": "product_names",
-            "selector": "div#itemDetail div.a-span-last a",
+            "selector": "div#itemDetail div.a-span-last .a-row:nth-of-type(1) a",
             "kind": "list"
           },
           {
@@ -36,13 +36,13 @@
           },
           {
             "name": "product_urls",
-            "selector": "div#itemDetail div.a-span-last a",
+            "selector": "div#itemDetail div.a-span-last .a-row:nth-of-type(1) a",
             "attribute": "href",
             "kind": "list"
           },
           {
             "name": "return_window_dates",
-            "selector": "div#itemDetail div.a-span-last div.a-row:nth-child(2) span",
+            "selector": "div#itemDetail div.a-span-last div.a-row span.a-color-secondary",
             "kind": "list"
           },
           {
@@ -61,7 +61,7 @@
           },
           {
             "name": "product_prices",
-            "selector": "div#itemDetail div.a-span-last div.a-row:nth-child(3) span",
+            "selector": "div#itemDetail div.a-span-last div.a-row span.a-color-price",
             "kind": "list"
           }
         ]
