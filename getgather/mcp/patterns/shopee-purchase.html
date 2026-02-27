@@ -1,24 +1,10 @@
 <html gg-domain="shopee">
-  <head>
-    <title>Shopee Purchase</title>
-  </head>
+<head>
+<title>Shopee Purchase</title>
+</head>
+<body>
+<div gg-match="div.YL_VlX"></div>
+<div gg-convert="shopee-purchase.json" gg-match-html="main" gg-stop></div>
 
-  <body>
-    <div gg-match="div.YL_VlX"></div>
-    <div gg-stop gg-match-html="main"></div>
-    <script type="application/json" id="purchase">
-      {
-        "rows": "div.YL_VlX",
-        "columns": [
-          { "name": "store_name", "selector": "div.UDaMW3" },
-          { "name": "product_name", "selector": "span.DWVWOJ", "kind": "list" },
-          { "name": "product_image", "selector": "img.gQuHsZ", "attribute": "src", "kind": "list" },
-          {
-            "name": "total_price",
-            "selector": "div[aria-label*='Total Pesanan']"
-          }
-        ]
-      }
-    </script>
-  </body>
+</body>
 </html>

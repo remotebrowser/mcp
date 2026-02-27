@@ -1,28 +1,9 @@
 <html gg-domain="shopee" gg-priority="3">
-  <head>
-    <title>Shopee search result</title>
-  </head>
-  <body>
-    <div gg-stop gg-match-html="ul.shopee-search-item-result__items"></div>
-    <script type="application/json" id="search-results">
-      {
-        "rows": "li.shopee-search-item-result__item",
-        "columns": [
-          {
-            "name": "product_name",
-            "selector": "a[class='contents'] > div > div:nth-child(2) > div:nth-child(1) > div:nth-child(1)"
-          },
-          { "name": "product_url", "selector": "a[class='contents']", "attribute": "href" },
-          {
-            "name": "price",
-            "selector": "a[class='contents'] > div > div:nth-child(2) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1)"
-          },
-          {
-            "name": "discount_percentage",
-            "selector": "a[class='contents'] > div > div:nth-child(2) > div:nth-child(1) > div:nth-child(2) > div:nth-child(2)"
-          }
-        ]
-      }
-    </script>
-  </body>
+<head>
+<title>Shopee search result</title>
+</head>
+<body>
+<div gg-convert="shopee-search-results.json" gg-match-html="ul.shopee-search-item-result__items" gg-stop></div>
+
+</body>
 </html>
