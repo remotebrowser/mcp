@@ -1,24 +1,8 @@
 <html gg-domain="zillow">
-  <body>
-    <div>
-      <div gg-stop gg-match-html="div[data-testid='paged-list-card-container']"></div>
-    </div>
-    <script type="application/json" id="favorites">
-      {
-        "rows": "article[class*='StyledPropertyCard']",
-        "columns": [
-          { "name": "price", "selector": "span[data-testid='data-price-row']" },
-          { "name": "address", "selector": "address" },
-          { "name": "details", "selector": "span[class*='StyledPropertyCardHomeDetails']" },
-          { "name": "status", "selector": "span:has(.list-card-status-icon)" },
-          {
-            "name": "image_url",
-            "selector": "div[class*='StyledPropertyCardPhoto'] img[src*='zillowstatic.com']",
-            "attribute": "src"
-          },
-          { "name": "property_url", "selector": "a[href*='/homedetails/']", "attribute": "href" }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<div>
+<div gg-convert="zillow-favorites.json" gg-match-html="div[data-testid='paged-list-card-container']" gg-stop></div>
+</div>
+
+</body>
 </html>
