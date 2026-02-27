@@ -1,26 +1,8 @@
 <html gg-domain="amainhobbies" gg-priority="2">
-  <body>
-    <a gg-match="div#account-menu a[data-event='header-my-account']"></a>
-    <a gg-match="//h1[contains(@class, 'pageHeading') and normalize-space(.) = 'My Cart']"></a>
-    <div gg-stop gg-match-html="div.product-list"></div>
-    <script type="application/json" id="carts">
-      {
-        "rows": "div.product",
-        "columns": [
-          {
-            "name": "description",
-            "selector": "div.description"
-          },
-          {
-            "name": "qty",
-            "selector": "div.quantity"
-          },
-          {
-            "name": "total_price",
-            "selector": "div.total"
-          }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<a gg-match="div#account-menu a[data-event='header-my-account']"></a>
+<a gg-match="//h1[contains(@class, 'pageHeading') and normalize-space(.) = 'My Cart']"></a>
+<div gg-convert="amainhobbies-cart.json" gg-match-html="div.product-list" gg-stop></div>
+
+</body>
 </html>
