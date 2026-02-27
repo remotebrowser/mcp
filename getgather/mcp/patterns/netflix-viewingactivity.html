@@ -4,27 +4,7 @@
   </head>
   <body>
     <div>
-      <div gg-stop gg-match-html="ul.structural.retable"></div>
+      <div gg-stop gg-convert="netflix-viewingactivity.json" gg-match-html="ul.structural.retable"></div>
     </div>
-    <script type="application/json" id="viewing_activity">
-      {
-        "rows": "li.retableRow",
-        "columns": [
-          {
-            "name": "date",
-            "selector": "div.date"
-          },
-          {
-            "name": "title",
-            "selector": "div.title a"
-          },
-          {
-            "name": "url",
-            "selector": "div.title a",
-            "attribute": "href"
-          }
-        ]
-      }
-    </script>
   </body>
 </html>
