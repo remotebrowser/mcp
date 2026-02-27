@@ -1,9 +1,12 @@
 <html gg-domain="audible">
-<body>
-<div>
-<div gg-convert="audible-library.json" gg-match="//a[contains(text(), 'All') and contains(@class, 'bc-tab-active')]" gg-stop></div>
-<div gg-match-html="div#adbl-library-content-main" gg-stop></div>
-</div>
-
-</body>
+  <body>
+    <div>
+      <div
+        gg-convert="audible-library.json"
+        gg-match="//a[contains(text(), 'All') and contains(@class, 'bc-tab-active')]"
+        gg-stop
+      ></div>
+      <div gg-match-html="div#adbl-library-content-main" gg-stop></div>
+    </div>
+  </body>
 </html>

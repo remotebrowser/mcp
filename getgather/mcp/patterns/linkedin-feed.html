@@ -1,11 +1,14 @@
 <html gg-domain="linkedin">
-<head>
-<title>Linkedin Feed</title>
-</head>
-<body>
-<!-- Wait for feed items to load -->
-<div gg-match="div[data-view-name='feed-full-update']"></div>
-<div gg-convert="linkedin-feed.json" gg-match-html="div.scaffold-finite-scroll__content" gg-stop></div>
-
-</body>
+  <head>
+    <title>Linkedin Feed</title>
+  </head>
+  <body>
+    <!-- Wait for feed items to load -->
+    <div gg-match="div[data-view-name='feed-full-update']"></div>
+    <div
+      gg-convert="linkedin-feed.json"
+      gg-match-html="div.scaffold-finite-scroll__content"
+      gg-stop
+    ></div>
+  </body>
 </html>

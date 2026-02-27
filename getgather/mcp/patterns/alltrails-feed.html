@@ -1,10 +1,13 @@
 <html gg-domain="alltrails" priority="2">
-<body>
-<div>
-<div gg-match="div[data-test-id='virtuoso-item-list']"></div>
-<div gg-match="[data-testid='FeedItemWrapper']"></div>
-<div gg-convert="alltrails-feed.json" gg-match-html="div[data-testid='profile-tab-content']" gg-stop></div>
-</div>
-
-</body>
+  <body>
+    <div>
+      <div gg-match="div[data-test-id='virtuoso-item-list']"></div>
+      <div gg-match="[data-testid='FeedItemWrapper']"></div>
+      <div
+        gg-convert="alltrails-feed.json"
+        gg-match-html="div[data-testid='profile-tab-content']"
+        gg-stop
+      ></div>
+    </div>
+  </body>
 </html>

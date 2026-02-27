@@ -1,8 +1,7 @@
 <html gg-domain="amainhobbies" gg-priority="2">
-<body>
-<a gg-match="div#account-menu a[data-event='header-my-account']"></a>
-<a gg-match="//h1[contains(@class, 'pageHeading') and normalize-space(.) = 'My Cart']"></a>
-<div gg-convert="amainhobbies-cart.json" gg-match-html="div.product-list" gg-stop></div>
-
-</body>
+  <body>
+    <a gg-match="div#account-menu a[data-event='header-my-account']"></a>
+    <a gg-match="//h1[contains(@class, 'pageHeading') and normalize-space(.) = 'My Cart']"></a>
+    <div gg-convert="amainhobbies-cart.json" gg-match-html="div.product-list" gg-stop></div>
+  </body>
 </html>
