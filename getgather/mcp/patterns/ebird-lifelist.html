@@ -1,19 +1,9 @@
 <html gg-domain="ebird">
-  <head>
-    <title>eBird Life List</title>
-  </head>
+<head>
+<title>eBird Life List</title>
+</head>
+<body>
+<div gg-convert="ebird-lifelist.json" gg-match-html="div#results" gg-stop></div>
 
-  <body>
-    <div gg-stop gg-match-html="div#results"></div>
-    <script type="application/json" id="lifelist">
-      {
-        "rows": "li.Observation--sightingsList",
-        "columns": [
-          { "name": "species", "selector": ".Observation-species .Heading-main" },
-          { "name": "date", "selector": ".Observation-meta-date a" },
-          { "name": "location", "selector": ".Observation-meta-location span a:first-child" }
-        ]
-      }
-    </script>
-  </body>
+</body>
 </html>
