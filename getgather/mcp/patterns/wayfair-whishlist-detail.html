@@ -1,33 +1,11 @@
 <html gg-domain="wayfair">
-  <body>
-    <div>
-      <div gg-match="a[data-hb-id='Link'][data-enzyme-id='list-items-all-my-lists']"></div>
-      <div gg-match="span.ListItemsPageHeader-secondaryItems"></div>
-      <div gg-match-html="div[data-hb-id='Wrapper'] > div[data-hb-id='BoxV3']:nth-of-type(4)"></div>
-      <div gg-stop gg-match="//button[@data-hb-id='Button'][contains(., 'Settings')]"></div>
-    </div>
-    <script type="application/json" id="cart">
-      {
-        "rows": "div[data-hb-id='Grid.Item']",
-        "columns": [
-          { "name": "url", "selector": "div[data-hb-id='ProductCard'] > a", "attribute": "href" },
-          {
-            "name": "image_url",
-            "selector": "div[data-enzyme-id='FluidImage-wrapper'] img",
-            "attribute": "src"
-          },
-          { "name": "flag", "selector": "div[data-hb-id='Flag']" },
-          { "name": "product_name", "selector": "div[data-enzyme-id='productNameSpacing'] h2" },
-          { "name": "manufacturer_info", "selector": "span.ProductItemCard-manufacturer" },
-          { "name": "product_options", "selector": "div.ProductItemCard-options" },
-          { "name": "price", "selector": "div.ProductPrice div.SFPrice span" },
-          { "name": "price_strikethrough", "selector": "div.ProductPrice div.SFPrice s" },
-          {
-            "name": "review",
-            "selector": "div[data-hb-id='ReviewStars'] > p[data-hb-id='VisuallyHidden']"
-          }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<div>
+<div gg-match="a[data-hb-id='Link'][data-enzyme-id='list-items-all-my-lists']"></div>
+<div gg-match="span.ListItemsPageHeader-secondaryItems"></div>
+<div gg-match-html="div[data-hb-id='Wrapper'] > div[data-hb-id='BoxV3']:nth-of-type(4)"></div>
+<div gg-convert="wayfair-whishlist-detail.json" gg-match="//button[@data-hb-id='Button'][contains(., 'Settings')]" gg-stop></div>
+</div>
+
+</body>
 </html>

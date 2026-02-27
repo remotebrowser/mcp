@@ -1,48 +1,9 @@
 <html gg-domain="wayfair">
-  <body>
-    <div>
-      <div gg-match="button[data-test-id='header-my-account-button']"></div>
-      <div gg-stop gg-match-html="div[data-hypernova-key='invoice_root']"></div>
-    </div>
-    <script type="application/json" id="invoice">
-      {
-        "rows": "table[data-hb-id='TableView'][data-codeception-id='InvoiceShipmentTable-table'] tbody tr",
-        "columns": [
-          {
-            "name": "product_name",
-            "selector": "span.InvoiceShipmentTable-itemName"
-          },
-          {
-            "name": "unit_price",
-            "selector": "td:nth-child(3) p.InvoiceMonetaryAmount-monetaryText"
-          },
-          {
-            "name": "quantity",
-            "selector": "td:nth-child(4)"
-          },
-          {
-            "name": "subtotal",
-            "selector": "td:nth-child(5) p.InvoiceMonetaryAmount-monetaryText"
-          },
-          {
-            "name": "shipping_cost",
-            "selector": "td:nth-child(6) p.InvoiceMonetaryAmount-monetaryText"
-          },
-          {
-            "name": "tax",
-            "selector": "td:nth-child(7) p.InvoiceMonetaryAmount-monetaryText"
-          },
-          {
-            "name": "total",
-            "selector": "td:nth-child(8) p.InvoiceMonetaryAmount-monetaryText"
-          },
-          {
-            "name": "image_url",
-            "selector": "div.ImageComponent img.ImageComponent-image",
-            "attribute": "src"
-          }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<div>
+<div gg-match="button[data-test-id='header-my-account-button']"></div>
+<div gg-convert="wayfair-purchase-detail.json" gg-match-html="div[data-hypernova-key='invoice_root']" gg-stop></div>
+</div>
+
+</body>
 </html>
