@@ -1,53 +1,10 @@
 <html gg-domain="alltrails" priority="2">
-  <body>
-    <div>
-      <div gg-match="div[data-test-id='virtuoso-item-list']"></div>
-      <div gg-match="[data-testid='FeedItemWrapper']"></div>
-      <div gg-stop gg-match-html="div[data-testid='profile-tab-content']"></div>
-    </div>
-    <script type="application/json" id="orders">
-      {
-        "rows": "div[class*='styles_feedItem']",
-        "columns": [
-          {
-            "name": "profile_name",
-            "selector": "[data-testid$='-title'] span"
-          },
-          {
-            "name": "profile_image",
-            "selector": "[data-testid$='-image'] img",
-            "attribute": "src"
-          },
-          {
-            "name": "date",
-            "selector": "[data-testid$='-secondary-text']"
-          },
-          {
-            "name": "activity",
-            "selector": "[data-testid$='-tertiary-text']"
-          },
-          {
-            "name": "title",
-            "selector": "a[data-testid$='OverlayLink']"
-          },
-          {
-            "name": "location",
-            "selector": "[data-testid$='Subtext'] span:nth-of-type(2)"
-          },
-          {
-            "name": "length",
-            "selector": "[data-testid$='Stats'] > div span:nth-of-type(2)"
-          },
-          {
-            "name": "elev_gain",
-            "selector": "[data-testid$='Stats'] > div:nth-child(3) span:nth-of-type(2)"
-          },
-          {
-            "name": "time",
-            "selector": "[data-testid$='Stats'] > div:nth-child(5) span:nth-of-type(2)"
-          }
-        ]
-      }
-    </script>
-  </body>
+<body>
+<div>
+<div gg-match="div[data-test-id='virtuoso-item-list']"></div>
+<div gg-match="[data-testid='FeedItemWrapper']"></div>
+<div gg-convert="alltrails-feed.json" gg-match-html="div[data-testid='profile-tab-content']" gg-stop></div>
+</div>
+
+</body>
 </html>
