@@ -24,7 +24,7 @@ async def _set_proxy_url(
     )
     logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
     async with httpx.AsyncClient() as client:
-        resp = await client.post(configure_url, json={"proxy_url": proxy_url})
+        resp = await client.post(configure_url, json={"proxy_url": proxy_url}, timeout=60.0)
         resp.raise_for_status()
 
 
@@ -34,7 +34,7 @@ async def _set_proxy_location(browser_id: str, proxy_location: dict[str, str]) -
     )
     logger.info(f"Configuring ChromeFleet browser proxy via: {configure_url}")
     async with httpx.AsyncClient() as client:
-        resp = await client.post(configure_url, json={"location": proxy_location})
+        resp = await client.post(configure_url, json={"location": proxy_location}, timeout=60.0)
         resp.raise_for_status()
 
 
