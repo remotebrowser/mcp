@@ -7,7 +7,12 @@ from typing import Any, cast
 import zendriver as zd
 from loguru import logger
 
-from getgather.mcp.dpage import zen_dpage_mcp_tool, zen_dpage_with_action
+from getgather.mcp.dpage import (
+    remote_zen_dpage_mcp_tool,
+    remote_zen_dpage_with_action,
+    zen_dpage_mcp_tool,
+    zen_dpage_with_action,
+)
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_distill import (
     convert,
@@ -18,6 +23,127 @@ from getgather.zen_distill import (
 )
 
 amazonca_mcp = GatherMCP(brand_id="amazonca", name="Amazon CA MCP")
+
+
+async def _amazonca_get_browsing_history_action(page: zd.Tab, _: Any) -> dict[str, Any]:
+    current_url = await get_url(page)
+    logger.info(f"Getting browsing history from {current_url}")
+    if current_url is None or "signin" in current_url:
+        raise Exception("User is not signed in")
+    is_empty = await page_query_selector(
+        page, "//span[contains(., 'You have no recently viewed items.')]"
+    )
+    logger.info(f"is_empty: {is_empty}")
+    if is_empty:
+        logger.info("No browsing history")
+        return {"browsing_history_data": []}
+    logger.info(f"Navigating to {current_url}")
+    await page.send(zd.cdp.page.reload())
+    logger.info("Page reloaded, waiting for browsing-history API response")
+    browsing_history_api_url = None
+    request_headers = None
+    async with page.expect_response(".*browsing-history/.*") as response:
+        logger.info("Waiting for browsing-history API response")
+        response_value = await response.value
+        browsing_history_api_url = response_value.response.url
+        logger.info(f"Found browsing history API URL: {browsing_history_api_url}")
+        request_value = await response.request
+        request_headers = request_value.headers
+        logger.debug(
+            f"Request headers captured: {len(request_headers) if request_headers else 0} headers"
+        )
+    logger.info("Extracting browsing history IDs from data-client-recs-list attribute")
+    raw_attribute = await page.evaluate("""
+        (() => {{
+            const element = document.querySelector('div[data-client-recs-list]');
+            return element ? element.getAttribute('data-client-recs-list') : null;
+        }})()
+    """)
+    logger.info(
+        f"Raw attribute value: {raw_attribute[:200] if raw_attribute and len(str(raw_attribute)) > 200 else raw_attribute}"
+    )
+    raw_attribute_str = str(raw_attribute) if raw_attribute is not None else "[]"
+    output = [json.dumps(item) for item in json.loads(raw_attribute_str)]
+    logger.info(f"Extracted {len(output)} browsing history IDs")
+
+    async def fetch_browsing_batch(start_index: int, end_index: int):  # noqa: B902
+        logger.info(
+            f"Getting browsing history batch: indices {start_index} to {end_index} (batch size: {end_index - start_index})"
+        )
+        headers_js = json.dumps(request_headers or {})
+        ids_js = json.dumps(output[start_index:end_index])
+        logger.info(
+            f"Requesting {len(output[start_index:end_index])} items from API: {browsing_history_api_url}"
+        )
+        try:
+            html = await page.evaluate(
+                f"""
+                (async () => {{
+                    const headers = {headers_js};
+                    const ids = {ids_js};
+                    const res = await fetch('{browsing_history_api_url}', {{
+                        method: 'POST',
+                        headers: headers,
+                        credentials: 'include',
+                        body: JSON.stringify({{"ids": ids}})
+                    }});
+                    if (!res.ok) {{
+                        throw new Error(`HTTP error! status: ${{res.status}}`);
+                    }}
+                    return await res.text();
+                }})()
+            """,
+                True,
+            )
+        except Exception as e:
+            logger.info(f"Error fetching browsing history batch {start_index}-{end_index}: {e}")
+            raise
+        distilled = f"""
+            <html gg-domain="amazon">
+                <body>
+                    {html}
+                </body>
+                <script type="application/json" id="browsing_history">
+                    {{
+                        "rows": "div#gridItemRoot",
+                        "columns": [
+                            {{ "name": "name", "selector": "a.a-link-normal > span > div" }},
+                            {{ "name": "url", "selector": "div[class*='uncoverable-faceout'] > a[class='a-link-normal aok-block']", "attribute": "href" }},
+                            {{ "name": "image_url", "selector": "a > div > img.a-dynamic-image", "attribute": "src" }},
+                            {{ "name": "rating", "selector": "div.a-icon-row > a > i > span" }},
+                            {{ "name": "rating_count", "selector": "div.a-icon-row > a > span" }},
+                            {{ "name": "price", "selector": "span.a-color-price > span" }},
+                            {{ "name": "price_unit", "selector": "span[class='a-size-mini a-color-price aok-nowrap']" }},
+                            {{ "name": "delivery_message", "selector": "div.udm-primary-delivery-message" }}
+                        ]
+                    }}
+                </script>
+            </html>
+        """
+        logger.debug(f"Converting distilled HTML for batch {start_index}-{end_index}")
+        converted = await convert(distilled)
+        if converted is not None:
+            logger.info(f"Converted batch {start_index}-{end_index}: found {len(converted)} items")
+            for item in converted:
+                item["url"] = f"https://www.amazon.ca{item['url']}"
+        else:
+            logger.warning(f"Conversion returned None for batch {start_index}-{end_index}")
+        return converted
+
+    num_batches = (len(output) + 99) // 100
+    logger.info(f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
+    browsing_history_list = await asyncio.gather(*[
+        fetch_browsing_batch(i, i + 100) for i in range(0, len(output), 100)
+    ])
+    flattened_history: list[Any] = []
+    for idx, batch in enumerate(browsing_history_list):
+        if batch is not None:
+            logger.debug(f"Adding batch {idx} with {len(batch)} items to flattened history")
+            flattened_history.extend(batch)
+        else:
+            logger.warning(f"Batch {idx} was None, skipping")
+    logger.info(f"Total browsing history items collected: {len(flattened_history)}")
+    return {"browsing_history_data": flattened_history}
 
 
 def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:
@@ -35,6 +161,15 @@ def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | No
 async def search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
     """Search purchase history from amazon."""
     return await zen_dpage_mcp_tool(
+        f"https://www.amazon.ca/your-orders/search?page={page_number}&search={keyword}",
+        "order_history",
+    )
+
+
+@amazonca_mcp.tool
+async def remote_search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
+    """Search purchase history from amazon."""
+    return await remote_zen_dpage_mcp_tool(
         f"https://www.amazon.ca/your-orders/search?page={page_number}&search={keyword}",
         "order_history",
     )
@@ -67,6 +202,32 @@ async def get_purchase_history(
 
 
 @amazonca_mcp.tool
+async def remote_get_purchase_history(
+    year: str | int | None = None, start_index: int = 0
+) -> dict[str, Any]:
+    """Get purchase/order history of a amazon with dpage."""
+
+    if year is None:
+        target_year = datetime.now().year
+    elif isinstance(year, str):
+        try:
+            target_year = int(year)
+        except ValueError:
+            target_year = datetime.now().year
+    else:
+        target_year = int(year)
+
+    current_year = datetime.now().year
+    if not (1900 <= target_year <= current_year + 1):
+        raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
+
+    return await remote_zen_dpage_mcp_tool(
+        f"https://www.amazon.ca/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
+        "amazon_purchase_history",
+    )
+
+
+@amazonca_mcp.tool
 async def search_product(keyword: str) -> dict[str, Any]:
     """Search product on amazon."""
     return await zen_dpage_mcp_tool(
@@ -76,171 +237,29 @@ async def search_product(keyword: str) -> dict[str, Any]:
 
 
 @amazonca_mcp.tool
+async def remote_search_product(keyword: str) -> dict[str, Any]:
+    """Search product on amazon."""
+    return await remote_zen_dpage_mcp_tool(
+        f"https://www.amazon.ca/s?k={keyword}",
+        "product_list",
+    )
+
+
+@amazonca_mcp.tool
 async def get_browsing_history() -> dict[str, Any]:
     """Get browsing history from amazon."""
-
-    async def get_browsing_history_action(page: zd.Tab, _) -> dict[str, Any]:
-        current_url = await get_url(page)
-        logger.info(f"Getting browsing history from {current_url}")
-        if current_url is None or "signin" in current_url:
-            raise Exception("User is not signed in")
-
-        is_empty = await page_query_selector(
-            page, "//span[contains(., 'You have no recently viewed items.')"
-        )
-        logger.info(f"is_empty: {is_empty}")
-        if is_empty:
-            logger.info(f"No browsing history")
-            return {"browsing_history_data": []}
-
-        logger.info(f"Navigating to {current_url}")
-
-        await page.send(zd.cdp.page.reload())
-        logger.info("Page reloaded, waiting for browsing-history API response")
-
-        browsing_history_api_url = None
-        request_headers = None
-        async with page.expect_response(".*browsing-history/.*") as response:
-            logger.info("Waiting for browsing-history API response")
-            response_value = await response.value
-            browsing_history_api_url = response_value.response.url
-            logger.info(f"Found browsing history API URL: {browsing_history_api_url}")
-            request_value = await response.request
-            request_headers = request_value.headers
-            logger.debug(
-                f"Request headers captured: {len(request_headers) if request_headers else 0} headers"
-            )
-
-        # Extract output from data-client-recs-list attribute
-        logger.info("Extracting browsing history IDs from data-client-recs-list attribute")
-
-        raw_attribute = await page.evaluate("""
-            (() => {{
-                const element = document.querySelector('div[data-client-recs-list]');
-                return element ? element.getAttribute('data-client-recs-list') : null;
-            }})()
-        """)
-        logger.info(
-            f"Raw attribute value: {raw_attribute[:200] if raw_attribute and len(str(raw_attribute)) > 200 else raw_attribute}"
-        )
-        raw_attribute_str = str(raw_attribute) if raw_attribute is not None else "[]"
-        output = [json.dumps(item) for item in json.loads(raw_attribute_str)]
-        logger.info(f"Extracted {len(output)} browsing history IDs")
-
-        async def get_browsing_history(start_index: int, end_index: int):
-            logger.info(
-                f"Getting browsing history batch: indices {start_index} to {end_index} (batch size: {end_index - start_index})"
-            )
-
-            # Convert headers dict to JavaScript object format
-            headers_js = json.dumps(request_headers or {})
-            ids_js = json.dumps(output[start_index:end_index])
-            logger.info(
-                f"Requesting {len(output[start_index:end_index])} items from API: {browsing_history_api_url}"
-            )
-
-            try:
-                html = await page.evaluate(
-                    f"""
-                    (async () => {{
-                        const headers = {headers_js};
-                        const ids = {ids_js};
-                        const res = await fetch('{browsing_history_api_url}', {{
-                            method: 'POST',
-                            headers: headers,
-                            credentials: 'include',
-                            body: JSON.stringify({{"ids": ids}})
-                        }});
-                        if (!res.ok) {{
-                            throw new Error(`HTTP error! status: ${{res.status}}`);
-                        }}
-                        return await res.text();
-                    }})()
-                """,
-                    True,
-                )
-            except Exception as e:
-                logger.info(f"Error fetching browsing history batch {start_index}-{end_index}: {e}")
-                raise
-            distilled = f"""
-                <html gg-domain="amazon">
-                    <body>
-                        {html}
-                    </body>
-                    <script type="application/json" id="browsing_history">
-                        {{
-                            "rows": "div#gridItemRoot",
-                            "columns": [
-                                {{
-                                    "name": "name",
-                                    "selector": "a.a-link-normal > span > div"
-                                }},
-                                {{
-                                    "name": "url",
-                                    "selector": "div[class*='uncoverable-faceout'] > a[class='a-link-normal aok-block']",
-                                    "attribute": "href"
-                                }},
-                                {{
-                                    "name": "image_url",
-                                    "selector": "a > div > img.a-dynamic-image",
-                                    "attribute": "src"
-                                }},
-                                {{
-                                    "name": "rating",
-                                    "selector": "div.a-icon-row > a > i > span"
-                                }},
-                                {{
-                                    "name": "rating_count",
-                                    "selector": "div.a-icon-row > a > span"
-                                }},
-                                {{
-                                    "name": "price",
-                                    "selector": "span.a-color-price > span"
-                                }},
-                                {{
-                                    "name": "price_unit",
-                                    "selector": "span[class='a-size-mini a-color-price aok-nowrap']"
-                                }},
-                                {{
-                                    "name": "delivery_message",
-                                    "selector": "div.udm-primary-delivery-message"
-                                }}
-                            ]
-                        }}
-                    </script>
-                </html>
-            """
-            logger.debug(f"Converting distilled HTML for batch {start_index}-{end_index}")
-            converted = await convert(distilled)
-            if converted is not None:
-                logger.info(
-                    f"Converted batch {start_index}-{end_index}: found {len(converted)} items"
-                )
-                for item in converted:
-                    item["url"] = f"https://www.amazon.ca{item['url']}"
-            else:
-                logger.warning(f"Conversion returned None for batch {start_index}-{end_index}")
-            return converted
-
-        num_batches = (len(output) + 99) // 100
-        logger.info(f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
-        browsing_history_list = await asyncio.gather(*[
-            get_browsing_history(i, i + 100) for i in range(0, len(output), 100)
-        ])
-        flattened_history: list[Any] = []
-        for idx, batch in enumerate(browsing_history_list):
-            if batch is not None:
-                logger.debug(f"Adding batch {idx} with {len(batch)} items to flattened history")
-                flattened_history.extend(batch)
-            else:
-                logger.warning(f"Batch {idx} was None, skipping")
-
-        logger.info(f"Total browsing history items collected: {len(flattened_history)}")
-        return {"browsing_history_data": flattened_history}
-
     return await zen_dpage_with_action(
         "https://www.amazon.ca/gp/history?ref_=nav_AccountFlyout_browsinghistory",
-        action=get_browsing_history_action,
+        action=_amazonca_get_browsing_history_action,
+    )
+
+
+@amazonca_mcp.tool
+async def remote_get_browsing_history() -> dict[str, Any]:
+    """Get browsing history from amazon."""
+    return await remote_zen_dpage_with_action(
+        "https://www.amazon.ca/gp/history?ref_=nav_AccountFlyout_browsinghistory",
+        action=_amazonca_get_browsing_history_action,
     )
 
 
@@ -267,7 +286,14 @@ async def get_purchase_history_with_details(
     if not (1900 <= target_year <= current_year + 1):
         raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
-    async def get_order_details_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
+    return await zen_dpage_with_action(
+        f"https://www.amazon.ca/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
+        action=_make_amazonca_order_details_action(timeFilter, start_index),
+    )
+
+
+def _make_amazonca_order_details_action(time_filter: str, start_index: int):
+    async def order_details_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         current_url = await get_url(page)
         if current_url is None or "signin" in current_url:
             raise Exception("User is not signed in")
@@ -278,7 +304,7 @@ async def get_purchase_history_with_details(
         patterns = load_distillation_patterns(path)
         logger.info(f"Loaded {len(patterns)} patterns")
         _, _, orders = await run_distillation_loop(
-            f"https://www.amazon.ca/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
+            f"https://www.amazon.ca/your-orders/orders?timeFilter={time_filter}&startIndex={start_index}",
             patterns,
             browser=browser,
             interactive=False,
@@ -540,7 +566,33 @@ async def get_purchase_history_with_details(
             pass
         return {"amazon_purchase_history": orders}
 
-    return await zen_dpage_with_action(
+    return order_details_action
+
+
+@amazonca_mcp.tool
+async def remote_get_purchase_history_with_details(
+    year: str | int | None = None, start_index: int = 0, timeFilter: str | None = None
+) -> dict[str, Any]:
+    """Get purchase/order history of a amazon with dpage."""
+
+    if year is None:
+        target_year = datetime.now().year
+    elif isinstance(year, str):
+        try:
+            target_year = int(year)
+        except ValueError:
+            target_year = datetime.now().year
+    else:
+        target_year = int(year)
+
+    if timeFilter is None:
+        timeFilter = f"year-{target_year}"
+
+    current_year = datetime.now().year
+    if not (1900 <= target_year <= current_year + 1):
+        raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
+
+    return await remote_zen_dpage_with_action(
         f"https://www.amazon.ca/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
-        action=get_order_details_action,
+        action=_make_amazonca_order_details_action(timeFilter, start_index),
     )
