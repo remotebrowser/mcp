@@ -68,10 +68,9 @@ async def get_activity_stats(activity_id: str) -> dict[str, Any]:
     def _make_activity_stats_action(aid: str):
         async def action(tab: zd.Tab, _: Any) -> dict[str, Any]:
             try:
+
                 async def get_stats():
-                    async with tab.expect_response(
-                        f".*activity-service/activity/{aid}.*"
-                    ) as resp:
+                    async with tab.expect_response(f".*activity-service/activity/{aid}.*") as resp:
                         data = await parse_response_json(resp, {}, "garmin activity stats")
                     return data
 
@@ -95,13 +94,13 @@ async def get_activity_stats(activity_id: str) -> dict[str, Any]:
 @garmin_mcp.tool
 async def remote_get_activity_stats(activity_id: str) -> dict[str, Any]:
     """Get the stats for a specific activity."""
+
     def _make_activity_stats_action(aid: str):
         async def action(tab: zd.Tab, _: Any) -> dict[str, Any]:
             try:
+
                 async def get_stats():
-                    async with tab.expect_response(
-                        f".*activity-service/activity/{aid}.*"
-                    ) as resp:
+                    async with tab.expect_response(f".*activity-service/activity/{aid}.*") as resp:
                         data = await parse_response_json(resp, {}, "garmin activity stats")
                     return data
 
