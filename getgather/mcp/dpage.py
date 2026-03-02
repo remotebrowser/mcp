@@ -285,7 +285,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
                 distillation_results[id] = action_result
 
-                del pending_actions[id]
+                pending_actions.pop(id, None)
                 await dpage_close(id)
                 if is_remote_browser(id):
                     await safe_close_page(page)
