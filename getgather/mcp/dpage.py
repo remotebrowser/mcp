@@ -285,7 +285,9 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
                 distillation_results[id] = action_result
 
-                del pending_actions[id]
+                not_cleared = pending_actions.pop(id, None) is None
+                if not_cleared:
+                    logger.warning(f"Pending action for {id} was already cleared")
                 await dpage_close(id)
                 if is_remote_browser(id):
                     await safe_close_page(page)
@@ -523,7 +525,9 @@ async def zen_dpage_with_action(
         except Exception as e:
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
         result = await action(page, action_info["browser"])
-        del pending_actions[_page_id]
+        not_cleared = pending_actions.pop(_page_id, None) is None
+        if not_cleared:
+            logger.warning(f"Pending action for {_page_id} was already cleared")
         return result
 
     # Step 2: If global_browser_profile exists, try executing action directly
