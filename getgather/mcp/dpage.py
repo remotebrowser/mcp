@@ -285,8 +285,8 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
                 distillation_results[id] = action_result
 
-                not_cleared = pending_actions.pop(id, None) is None
-                if not_cleared:
+                already_cleared = pending_actions.pop(id, None) is None
+                if already_cleared:
                     logger.warning(f"Pending action for {id} was already cleared")
                 await dpage_close(id)
                 if is_remote_browser(id):
@@ -525,8 +525,8 @@ async def zen_dpage_with_action(
         except Exception as e:
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
         result = await action(page, action_info["browser"])
-        not_cleared = pending_actions.pop(_page_id, None) is None
-        if not_cleared:
+        already_cleared = pending_actions.pop(_page_id, None) is None
+        if already_cleared:
             logger.warning(f"Pending action for {_page_id} was already cleared")
         return result
 
