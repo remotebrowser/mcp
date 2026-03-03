@@ -391,10 +391,11 @@ async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
             raise
     for attempt in range(1, MAX_START_ATTEMPTS + 1):
         try:
+            browser_executable_path = "/Applications/Chromium.app/Contents/MacOS/Chromium"
             browser = await zd.start(
                 user_data_dir=str(user_data_dir),
-                sandbox=False,  # Required when running as root; safer than --no-sandbox arg
                 browser_args=browser_args,
+                browser_executable_path=browser_executable_path,
             )
             browser.id = id  # type: ignore[attr-defined]
             return browser
