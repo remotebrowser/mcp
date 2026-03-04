@@ -1,38 +1,59 @@
-import asyncio
 from typing import Literal, cast
 from urllib.parse import urlparse
 
+import asyncio_atexit
 import httpx
 import zendriver as zd
 from loguru import logger
+from zendriver.core import util
+from zendriver.core._contradict import ContraDict
+from zendriver.core.config import Config
+from zendriver.core.connection import Connection
 
 from getgather.config import settings
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
 
-async def _wait_for_cdp(url: str, timeout_s: float = 60.0) -> None:
-    start_time = asyncio.get_event_loop().time()
-    deadline = start_time + timeout_s
-    last_error: Exception | None = None
-    async with httpx.AsyncClient() as client:
-        while asyncio.get_event_loop().time() < deadline:
-            try:
-                r = await client.get(url, timeout=2.0)
-                if r.status_code == 200:
-                    logger.debug(
-                        f"CDP is ready after {asyncio.get_event_loop().time() - start_time:.2f}s"
-                    )
-                    return
-                logger.debug(f"CDP not ready, status code: {r.status_code}")
-            except Exception as e:
-                last_error = e
-                logger.warning(
-                    f"CDP not ready after {asyncio.get_event_loop().time() - start_time:.2f}s, exception occurred: {e}"
-                )
-                pass
-            await asyncio.sleep(0.25)
-    raise TimeoutError(f"CDP not ready at {url} after {timeout_s}s (last_error={last_error})")
+async def _create_browser_from_cdp_websocket(
+    websocket_url: str, config: Config | None = None
+) -> zd.Browser:
+    parsed = urlparse(websocket_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme in ("wss", "https") else 80)
+
+    if not config:
+        config = Config(host=host, port=port)
+
+    config.host = host
+    config.port = port
+
+    instance = zd.Browser(config)
+    instance.info = ContraDict({"webSocketDebuggerUrl": websocket_url}, silent=True)
+    instance.connection = Connection(websocket_url, _owner=instance)
+
+    if instance.config.autodiscover_targets:
+        instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
+            instance._handle_target_update  # type: ignore[reportPrivateUsage]
+        ]
+        instance.connection.handlers[zd.cdp.target.TargetCreated] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
+        instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
+            instance._handle_target_update  # type: ignore[reportPrivateUsage]
+        ]
+        instance.connection.handlers[zd.cdp.target.TargetCrashed] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
+        await instance.connection.send(zd.cdp.target.set_discover_targets(discover=True))
+
+    await instance.update_targets()
+    util.get_registered_instances().add(instance)
+
+    async def browser_atexit() -> None:
+        if not instance.stopped:
+            await instance.stop()
+        await instance._cleanup_temporary_profile()  # type: ignore[reportPrivateUsage]
+
+    asyncio_atexit.register(browser_atexit)  # type: ignore[reportUnknownMemberType]
+
+    return instance
 
 
 async def _call_chromefleet_api(method: HTTP_METHOD, browser_id: str) -> httpx.Response:
@@ -54,21 +75,13 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
         response = await _call_chromefleet_api("GET", browser_id)
         if response.status_code != 200:
             return None
-        data = response.json()
     except Exception:
         return None
 
-    cdp_url = data.get("cdp_url")
-    await _wait_for_cdp(cdp_url, timeout_s=120.0)
-    cdp = urlparse(cdp_url)  # type: ignore[assignment]
-    hostname = cdp.hostname  # type: ignore[assignment]
-    port = cdp.port  # type: ignore[assignment]
-    assert hostname is not None
-    assert port is not None
-    logger.debug(f"Connecting to ChromeFleet CDP at {hostname}:{port}")
-    # add '[' and ']' for ipv6 address
-    cdp_hostname = f"[{hostname}]" if ":" in hostname and "[" not in hostname else hostname  # type: ignore[assignment]
-    browser = await zd.Browser.create(host=cdp_hostname, port=port)  # type: ignore[arg-type]
+    cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
+    cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
+    logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
+    browser = await _create_browser_from_cdp_websocket(cdp_websocket_url)
     browser.id = browser_id  # type: ignore[attr-defined]
     return browser
 
@@ -79,20 +92,11 @@ async def create_remote_browser(browser_id: str) -> zd.Browser:
     The browser_id must not already be in use.
     """
     logger.info(f"Starting new ChromeFleet browser: {browser_id}")
-    response = await _call_chromefleet_api("POST", browser_id)
-    data = response.json()
-    cdp_url = data.get("cdp_url")
-    await _wait_for_cdp(cdp_url, timeout_s=120.0)
-
-    cdp = urlparse(cdp_url)  # type: ignore[assignment]
-    hostname = cdp.hostname  # type: ignore[assignment]
-    port = cdp.port  # type: ignore[assignment]
-    assert hostname is not None
-    assert port is not None
-    logger.debug(f"Connecting to ChromeFleet CDP at {hostname}:{port}")
-    # add '[' and ']' for ipv6 address
-    cdp_hostname = f"[{hostname}]" if ":" in hostname and "[" not in hostname else hostname  # type: ignore[assignment]
-    browser = await zd.Browser.create(host=cdp_hostname, port=port)  # type: ignore[arg-type]
+    await _call_chromefleet_api("POST", browser_id)
+    cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
+    cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
+    logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
+    browser = await _create_browser_from_cdp_websocket(cdp_websocket_url)
     browser.id = browser_id  # type: ignore[attr-defined]
     return browser
 
