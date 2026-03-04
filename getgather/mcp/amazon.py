@@ -804,12 +804,15 @@ async def remote_get_purchase_history_with_details(
         logger.info(f"Loading patterns from {path}")
         patterns = load_distillation_patterns(path)
         logger.info(f"Loaded {len(patterns)} patterns")
+        page_index = int(
+            (start_index / 10) + 1
+        )  # for business account pagination, it use page_index, not start_index
         _, _, orders = await run_distillation_loop(
-            f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
+            f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
             patterns,
             browser=browser,
             interactive=False,
-            timeout=2,
+            timeout=10,  # need to increase timeout for business account pagination, since its SPA
             page=page,
             close_page=False,
         )
