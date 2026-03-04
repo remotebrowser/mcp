@@ -12,4 +12,6 @@ google_mcp = GatherMCP(brand_id="google", name="Google MCP")
 async def get_activity(ctx: Context) -> dict[str, Any]:
     """Get the list of activity from Google"""
 
-    return await remote_zen_dpage_mcp_tool("https://myactivity.google.com/myactivity", "google_activity")
+    return await remote_zen_dpage_mcp_tool(
+        "https://myactivity.google.com/myactivity", "google_activity"
+    )
