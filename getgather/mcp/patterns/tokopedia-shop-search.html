@@ -3,37 +3,10 @@
     <title>Tokopedia Shop Search</title>
   </head>
   <body>
-    <div gg-stop gg-match-html="div[data-testid='divShopContainer']"></div>
-    <script type="application/json" id="shop-list">
-      {
-        "rows": "div[data-testid='shop-card']",
-        "columns": [
-          { "name": "shop_name", "selector": "span[data-testid=spnSRPShopName]" },
-          { "name": "shop_location", "selector": "div[data-testid=dSRPShopLocation]" },
-          {
-            "name": "shop_url",
-            "selector": "a[data-testid=shop-card-header]",
-            "attribute": "href"
-          },
-          {
-            "name": "shop_highlight_product_urls",
-            "multiple": true,
-            "selector": "a[data-testid=shop-card-product]",
-            "attribute": "href"
-          },
-          {
-            "name": "shop_highlight_product_imgs",
-            "multiple": true,
-            "selector": "a[data-testid=shop-card-product] img",
-            "attribute": "src"
-          },
-          {
-            "name": "shop_highlight_product_prices",
-            "multiple": true,
-            "selector": "a[data-testid=shop-card-product] span"
-          }
-        ]
-      }
-    </script>
+    <div
+      gg-convert="tokopedia-shop-search.json"
+      gg-match-html="div[data-testid='divShopContainer']"
+      gg-stop
+    ></div>
   </body>
 </html>

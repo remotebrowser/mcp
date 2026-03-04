@@ -2,8 +2,11 @@
   <body>
     <div>
       <div gg-match="h1[aria-label='Login & Security']"></div>
-      <div gg-stop gg-match-html="div[data-device='desktop'] > div.a-section"></div>
+      <div
+        gg-convert="amazon-account-manage.json"
+        gg-match-html="div[data-device='desktop'] > div.a-section"
+        gg-stop
+      ></div>
     </div>
-    <script type="application/json" src="amazon-account-manage.json"></script>
   </body>
 </html>

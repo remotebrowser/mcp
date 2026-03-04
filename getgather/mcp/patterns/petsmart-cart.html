@@ -1,35 +1,7 @@
 <html gg-domain="petsmart" gg-priority="1">
   <body>
     <div>
-      <div gg-stop gg-match-html="div.cart-items"></div>
+      <div gg-convert="petsmart-cart.json" gg-match-html="div.cart-items" gg-stop></div>
     </div>
-    <script type="application/json" id="orders">
-      {
-        "rows": "div.cart-item",
-        "columns": [
-          {
-            "name": "product_name",
-            "selector": "[data-testid='details-test__product-name-link']"
-          },
-          {
-            "name": "sale_price",
-            "selector": "div.sparky-c-price--sale"
-          },
-          {
-            "name": "before_sale_price",
-            "selector": "div.sparky-c-price--disabled"
-          },
-          {
-            "name": "normal_price",
-            "selector": "div.sparky-c-price"
-          },
-          {
-            "name": "product_image",
-            "selector": "img.sparky-c-image details__image",
-            "attribute": "src"
-          }
-        ]
-      }
-    </script>
   </body>
 </html>

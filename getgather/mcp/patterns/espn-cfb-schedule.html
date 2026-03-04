@@ -2,23 +2,11 @@
   <head>
     <title>ESPN College Football Schedule</title>
   </head>
-
   <body>
-    <section gg-stop gg-match-html="section:has(.Table)"></section>
-    <script type="application/json" id="cfb-schedule">
-      {
-        "rows": ".Table tbody tr",
-        "columns": [
-          { "name": "away_team", "selector": ".events__col .Table__Team a:last-child" },
-          { "name": "away_rank", "selector": ".events__col .rank" },
-          { "name": "home_team", "selector": ".colspan__col .Table__Team a:last-child" },
-          { "name": "home_rank", "selector": ".colspan__col .rank" },
-          { "name": "time", "selector": "td:nth-child(3)" },
-          { "name": "location", "selector": ".venue__col a" },
-          { "name": "betting_line", "selector": ".odds__col [data-testid='OddsFragmentLine']" },
-          { "name": "over_under", "selector": ".odds__col [data-testid='OddsFragmentOverUnder']" }
-        ]
-      }
-    </script>
+    <section
+      gg-convert="espn-cfb-schedule.json"
+      gg-match-html="section:has(.Table)"
+      gg-stop
+    ></section>
   </body>
 </html>

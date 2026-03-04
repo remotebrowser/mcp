@@ -4,20 +4,11 @@
   </head>
   <body>
     <div class="Lists_list-tiles__GjfIF">
-      <div gg-stop gg-match-html="div[class*='Lists_list-tiles']"></div>
+      <div
+        gg-convert="bedbathandbeyond-favorites.json"
+        gg-match-html="div[class*='Lists_list-tiles']"
+        gg-stop
+      ></div>
     </div>
-    <script type="application/json" id="favorites">
-      {
-        "rows": "div[class*='Lists_list-tiles']",
-        "columns": [
-          {
-            "name": "items",
-            "selector": "div[title]",
-            "attribute": "title",
-            "kind": "list"
-          }
-        ]
-      }
-    </script>
   </body>
 </html>

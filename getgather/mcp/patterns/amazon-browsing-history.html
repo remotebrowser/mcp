@@ -1,32 +1,11 @@
 <html gg-domain="amazon" gg-priority="5">
   <body>
     <div>
-      <div gg-stop gg-match-html="div[class*='desktop-grid']"></div>
+      <div
+        gg-stop
+        gg-convert="amazon-browsing-history.json"
+        gg-match-html="div[class*='desktop-grid']"
+      ></div>
     </div>
-    <script type="application/json" id="browsing_history">
-      {
-        "rows": "div.p13n-grid-content",
-        "columns": [
-          {
-            "name": "product_name",
-            "selector": "span.a-size-base.a-color-base"
-          },
-          {
-            "name": "product_url",
-            "selector": "a[href*='/dp/']",
-            "attribute": "href"
-          },
-          {
-            "name": "image_url",
-            "selector": "img",
-            "attribute": "src"
-          },
-          {
-            "name": "price",
-            "selector": "span.a-price span.a-offscreen"
-          }
-        ]
-      }
-    </script>
   </body>
 </html>

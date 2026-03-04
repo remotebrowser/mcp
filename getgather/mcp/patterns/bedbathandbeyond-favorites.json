@@ -1,0 +1,11 @@
+{
+  "rows": "div[class*='Lists_list-tiles']",
+  "columns": [
+    {
+      "name": "items",
+      "selector": "div[title]",
+      "attribute": "title",
+      "kind": "list"
+    }
+  ]
+}

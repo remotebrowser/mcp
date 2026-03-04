@@ -1,11 +1,5 @@
 <html gg-domain="ip.fly.dev">
   <body>
-    <div gg-stop gg-match-html="body:has(pre)"></div>
+    <div gg-convert="ip-fly.json" gg-match-html="body:has(pre)" gg-stop></div>
   </body>
-  <script type="application/json" id="ip_address">
-    {
-      "rows": "body",
-      "columns": [{ "name": "ip_address", "selector": "pre" }]
-    }
-  </script>
 </html>

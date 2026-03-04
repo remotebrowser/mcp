@@ -1,22 +1,10 @@
 <html gg-domain="youtube" gg-priority="1">
   <body>
-    <div gg-stop gg-match="ytd-guide-entry-renderer a#endpoint[href^='/@']"></div>
-    <div gg-stop gg-match-html="ytd-guide-renderer"></div>
-    <script type="application/json" id="channel_subscriptions">
-      {
-        "rows": "ytd-guide-entry-renderer:has(a[href^='/@'])",
-        "columns": [
-          {
-            "name": "channel",
-            "selector": "yt-formatted-string.title"
-          },
-          {
-            "name": "url",
-            "selector": "a#endpoint",
-            "attribute": "href"
-          }
-        ]
-      }
-    </script>
+    <div
+      gg-convert="youtube-channel-subscriptions.json"
+      gg-match="ytd-guide-entry-renderer a#endpoint[href^='/@']"
+      gg-stop
+    ></div>
+    <div gg-match-html="ytd-guide-renderer" gg-stop></div>
   </body>
 </html>

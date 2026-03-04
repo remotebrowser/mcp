@@ -2,18 +2,11 @@
   <body>
     <div>
       <div gg-match-html="div[data-auid='Header_OdDropdown_Account']"></div>
-      <div gg-stop gg-match-html="div.order-details-shipment"></div>
+      <div
+        gg-convert="officedepot-purchase-details.json"
+        gg-match-html="div.order-details-shipment"
+        gg-stop
+      ></div>
     </div>
-    <script type="application/json" id="purchase_details">
-      {
-        "rows": "div.sku-details-container",
-        "columns": [
-          { "name": "product_name", "selector": "div.sku-title" },
-          { "name": "image_url", "selector": "div.sku-image img", "attribute": "src" },
-          { "name": "quantity", "selector": "div.sku-qty" },
-          { "name": "item_price", "selector": "div.sku-price" }
-        ]
-      }
-    </script>
   </body>
 </html>

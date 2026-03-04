@@ -1,45 +1,7 @@
 <html gg-domain="aliexpress">
   <body>
     <div>
-      <div gg-stop gg-match-html="div.order-content"></div>
+      <div gg-convert="aliexpress-orders.json" gg-match-html="div.order-content" gg-stop></div>
     </div>
-    <script type="application/json" id="orders">
-      {
-        "rows": "div.order-item",
-        "columns": [
-          {
-            "name": "status",
-            "selector": "span.order-item-header-status-text"
-          },
-          {
-            "name": "order_date",
-            "selector": "div.order-item-header-right-info div:nth-of-type(1)"
-          },
-          {
-            "name": "order_id",
-            "selector": "div.order-item-header-right-info div:nth-of-type(2)"
-          },
-          {
-            "name": "store_name",
-            "selector": "span.order-item-store-name"
-          },
-          {
-            "name": "product_names",
-            "selector": "div.order-item-content-info-name",
-            "kind": "list"
-          },
-          {
-            "name": "product_prices",
-            "selector": "div.order-item-content-info-number div",
-            "kind": "list"
-          },
-          {
-            "name": "product_quantities",
-            "selector": "span.order-item-content-info-number-quantity",
-            "kind": "list"
-          }
-        ]
-      }
-    </script>
   </body>
 </html>

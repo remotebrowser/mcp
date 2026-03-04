@@ -1,19 +1,6 @@
 <html gg-domain="ashley">
   <body>
     <h4 gg-match="div.cart-redesign-header"></h4>
-    <div gg-stop gg-match-html="div.cart-wrapper"></div>
-    <script type="application/json">
-      {
-        "rows": "div.cart-row",
-        "columns": [
-          { "name": "product_name", "selector": "div.cart-product-block a" },
-          { "name": "product_url", "selector": "div.cart-product-block a", "attribute": "href" },
-          { "name": "product_image", "selector": "div.item-image-desktop img", "attribute": "src" },
-          { "name": "product_sku", "selector": "span.skuId" },
-          { "name": "product_attribute", "selector": "div.attribute" },
-          { "name": "product_price", "selector": "div.line-item-total" }
-        ]
-      }
-    </script>
+    <div gg-convert="ashley-cart.json" gg-match-html="div.cart-wrapper" gg-stop></div>
   </body>
 </html>

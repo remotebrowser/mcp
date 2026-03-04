@@ -1,0 +1,14 @@
+{
+  "rows": "ytd-guide-entry-renderer:has(a[href^='/@'])",
+  "columns": [
+    {
+      "name": "channel",
+      "selector": "yt-formatted-string.title"
+    },
+    {
+      "name": "url",
+      "selector": "a#endpoint",
+      "attribute": "href"
+    }
+  ]
+}

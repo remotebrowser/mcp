@@ -1,29 +1,10 @@
 <html gg-domain="thriftbooks" gg-priority="1">
   <body>
     <div gg-match=".AccountDetails-content"></div>
-    <div gg-stop gg-match-html=".AccountOrderSummary"></div>
-    <script type="application/json" id="orders">
-      {
-        "rows": ".AccountOrderSummary-orderRow",
-        "columns": [
-          {
-            "name": "order_number",
-            "selector": ".AccountOrderSummary-orderNumber .AccountOrderSummary-orderData"
-          },
-          {
-            "name": "order_date",
-            "selector": ".AccountOrderSummary-orderDate .AccountOrderSummary-orderData"
-          },
-          {
-            "name": "order_num_items",
-            "selector": ".AccountOrderSummary-orderNumItems .AccountOrderSummary-orderData"
-          },
-          {
-            "name": "order_price",
-            "selector": ".AccountOrderSummary-orderPrice .AccountOrderSummary-orderData"
-          }
-        ]
-      }
-    </script>
+    <div
+      gg-convert="thriftbooks-order-summary.json"
+      gg-match-html=".AccountOrderSummary"
+      gg-stop
+    ></div>
   </body>
 </html>

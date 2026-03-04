@@ -4,64 +4,11 @@
   </head>
   <body>
     <div>
-      <div gg-stop gg-match-html="div#scrollableArea.ActivityList_activitiesListItems__lWW3P"></div>
+      <div
+        gg-convert="garmin-activities.json"
+        gg-match-html="div#scrollableArea.ActivityList_activitiesListItems__lWW3P"
+        gg-stop
+      ></div>
     </div>
-    <script type="application/json" id="activities">
-      {
-        "rows": "div.ActivityListItem_listItem__aoJjV",
-        "columns": [
-          {
-            "name": "activity_icon",
-            "selector": "div[class*=\"ActivityListItem_activityIconContainer_\"] i"
-          },
-          {
-            "name": "activity_date",
-            "selector": "span[class*=\"ActivityListItem_activityDate_\"]"
-          },
-          {
-            "name": "activity_year",
-            "selector": "span[class*=\"ActivityListItem_activityDateYear_\"]"
-          },
-          {
-            "name": "activity_name",
-            "selector": "div[class*=\"InlineEditActivityName_activityName_\"] a"
-          },
-          {
-            "name": "activity_url",
-            "selector": "div[class*=\"InlineEditActivityName_activityName_\"] a",
-            "attribute": "href"
-          },
-          {
-            "name": "activity_type",
-            "selector": "span[class*=\"ActivityListItem_activityTypeText_\"]"
-          },
-          {
-            "name": "is_favorite",
-            "selector": "div[class*=\"ActivityListItem_favoritesContainer_\"] i",
-            "attribute": "class"
-          },
-          {
-            "name": "distance",
-            "selector": "div[class*=\"ActivityListItem_metricItem_\"]:nth-of-type(1) div[class*=\"ActivityListItem_metricValue_\"]"
-          },
-          {
-            "name": "time",
-            "selector": "div[class*=\"ActivityListItem_metricItem_\"]:nth-of-type(2) div[class*=\"ActivityListItem_metricValue_\"]"
-          },
-          {
-            "name": "avg_speed",
-            "selector": "div[class*=\"ActivityListItem_metricItem_\"]:nth-of-type(3) div[class*=\"ActivityListItem_metricValue_\"]"
-          },
-          {
-            "name": "total_ascent",
-            "selector": "div[class*=\"ActivityListItem_metricItem_\"]:nth-of-type(4) div[class*=\"ActivityListItem_metricValue_\"]"
-          },
-          {
-            "name": "avg_power",
-            "selector": "div[class*=\"ActivityListItem_metricItem_\"]:nth-of-type(5) div[class*=\"ActivityListItem_metricValue_\"]"
-          }
-        ]
-      }
-    </script>
   </body>
 </html>

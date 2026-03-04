@@ -1,15 +1,5 @@
 <html gg-domain="lenspure" gg-priority="2">
   <body>
-    <div gg-stop gg-match-html="div[id='content']"></div>
-    <script type="application/json" id="orders">
-      {
-        "rows": "tr.order",
-        "columns": [
-          { "name": "order_date", "selector": ".order-date" },
-          { "name": "order_status", "selector": ".order-status" },
-          { "name": "order_total", "selector": ".order-total" }
-        ]
-      }
-    </script>
+    <div gg-convert="lenspure-orders.json" gg-match-html="div[id='content']" gg-stop></div>
   </body>
 </html>

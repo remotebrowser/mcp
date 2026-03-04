@@ -1,26 +1,5 @@
 <html gg-domain="sephora" gg-priority="4">
   <body>
-    <div gg-stop gg-match-html="div[data-comp*='CartLayout']"></div>
-    <script type="application/json" id="carts">
-      {
-        "rows": "div[data-at='product_refinement']",
-        "columns": [
-          {
-            "name": "product_url",
-            "selector": "a[data-at='product_image_link']",
-            "attribute": "href"
-          },
-          {
-            "name": "product_image",
-            "selector": "a[data-at='product_image_link'] img",
-            "attribute": "src"
-          },
-          { "name": "product_name", "selector": "span[data-at='bsk_sku_name']" },
-          { "name": "product_brand", "selector": "strong[data-at='bsk_sku_brand']" },
-          { "name": "product_variant", "selector": "div[data-at='sku_size']" },
-          { "name": "product_price", "selector": "div[data-at='bsk_sku_price']" }
-        ]
-      }
-    </script>
+    <div gg-convert="sephora-cart.json" gg-match-html="div[data-comp*='CartLayout']" gg-stop></div>
   </body>
 </html>

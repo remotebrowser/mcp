@@ -3,17 +3,10 @@
     <title>BBC Saved Articles</title>
   </head>
   <body>
-    <div gg-stop gg-match-html="[data-testid=saved-items-list-section]"></div>
-    <script type="application/json" id="saved-articles">
-      {
-        "rows": "[data-indexcard]",
-        "columns": [
-          { "name": "title", "selector": "[data-testid=card-headline]" },
-          { "name": "url", "selector": "[data-testid=internal-link]", "attribute": "href" },
-          { "name": "summary", "selector": "[data-testid=anchor-inner-wrapper] + div" },
-          { "name": "image", "selector": "img", "attribute": "src" }
-        ]
-      }
-    </script>
+    <div
+      gg-convert="bbc-saved-articles.json"
+      gg-match-html="[data-testid=saved-items-list-section]"
+      gg-stop
+    ></div>
   </body>
 </html>

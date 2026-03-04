@@ -1,0 +1,18 @@
+{
+  "rows": "td > div",
+  "columns": [
+    {
+      "name": "cover",
+      "selector": "div[id^=content-image-] img",
+      "attribute": "src"
+    },
+    {
+      "name": "title",
+      "selector": "div[id^=content-title-]"
+    },
+    {
+      "name": "author",
+      "selector": "div[id^=content-author-]"
+    }
+  ]
+}

@@ -2,17 +2,11 @@
   <body>
     <div>
       <div gg-match-html="div[data-auid='Header_OdDropdown_Account']"></div>
-      <div gg-stop gg-match-html="div#orderHistoryRedesigned.order_list_section"></div>
+      <div
+        gg-convert="officedepot-purchase.json"
+        gg-match-html="div#orderHistoryRedesigned.order_list_section"
+        gg-stop
+      ></div>
     </div>
-    <script type="application/json" id="purchase">
-      {
-        "rows": "section.oh-list-section",
-        "columns": [
-          { "name": "order_date", "selector": "div.oh-list-ordered-date" },
-          { "name": "total_amount", "selector": "div.oh-list-order-total" },
-          { "name": "order_number", "selector": "div.oh-list-order-number a" }
-        ]
-      }
-    </script>
   </body>
 </html>
