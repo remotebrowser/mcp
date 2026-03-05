@@ -50,6 +50,10 @@ distillation_results: dict[str, str | list[dict[str, str | list[str]]] | dict[st
 pending_actions: dict[str, dict[str, Any]] = {}
 element_configs: dict[str, ElementConfig] = {}
 
+# Track which hosts have been successfully signed in
+signed_in_hosts_local: set[str] = set()
+signed_in_hosts_remote: dict[str, set[str]] = {}
+
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
@@ -229,6 +233,8 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     max = TIMEOUT // TICK
 
     current = Match(name="", priority=-1, distilled="")
+    last_render_body: str | None = None
+    last_render_options: dict[str, str] | None = None
 
     if settings.LOG_LEVEL == "DEBUG":
         await zen_capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
@@ -264,6 +270,8 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         action = f"/dpage/{id}"
         options = {"title": title, "action": action}
         inputs = document.find_all("input")
+        last_render_body = str(document.find("body"))
+        last_render_options = options
 
         if match.distilled == current.distilled:
             logger.info(f"Still the same: {match.name}")
@@ -410,6 +418,18 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     hostname_attr: str | None = getattr(page, "hostname", None)  # type: ignore[assignment]
     location = getattr(page, "url", "unknown")  # type: ignore[assignment]
     timeout_error = TimeoutError("Timeout reached in zen_post_dpage")
+
+    if id in pending_actions:
+        logger.warning(
+            "Sign-in flow timeout reached but action is still pending; rendering page instead of failing"
+        )
+        fallback_options = last_render_options or {"title": DEFAULT_TITLE, "action": f"/dpage/{id}"}
+        fallback_body = (
+            last_render_body
+            or "<body><p>Sign in is still in progress. Continue sign in and resubmit this page.</p></body>"
+        )
+        return HTMLResponse(render(fallback_body, fallback_options))
+
     await zen_report_distill_error(
         error=timeout_error,
         page=page,
@@ -495,7 +515,7 @@ async def zen_dpage_with_action(
     initial_url: str,
     action: Any,
     timeout: int = 2,
-    dpage_timeout: int = 15,
+    dpage_timeout: int = 60,
     _signin_completed: bool = False,
     _page_id: str | None = None,
     config: ElementConfig | None = None,
@@ -540,28 +560,54 @@ async def zen_dpage_with_action(
         already_cleared = pending_actions.pop(_page_id, None) is None
         if already_cleared:
             logger.warning(f"Pending action for {_page_id} was already cleared")
+
+        hostname = urllib.parse.urlparse(initial_url).hostname or ""
+        if hostname:
+            signed_in_hosts_local.add(str(hostname))
+
         return result
 
-    # Step 2: If global_browser_profile exists, try executing action directly
-    # This will work if user signed in previously and session is still valid
+    # Step 2: If a signin_id is provided, try executing action using that session only.
+    # This avoids assuming that a shared/global browser session implies sign-in for all brands.
     global_browser = browser_manager.get_global_browser()
-    if (global_browser and not incognito) or signin_id:
-        if global_browser and not incognito:
-            browser = global_browser
-        else:
-            browser = await init_zendriver_browser(signin_id)
+    if signin_id:
+        browser = await init_zendriver_browser(signin_id)
 
         try:
-            logger.info("Trying action with existing global browser session...")
+            logger.info("Trying action with existing signin session (signin_id)...")
             page = await get_new_page(browser)
             await zen_navigate_with_retry(page, initial_url)
             result = await action(page, browser)
             await safe_close_page(page)
-            logger.info("Action succeeded with existing session!")
+            logger.info("Action succeeded with signin_id session!")
+
             return result
         except Exception as e:
             logger.info(
-                f"zen_dpage_with_action failed with existing session (likely not signed in): {e}"
+                f"zen_dpage_with_action failed with signin_id session (likely not signed in): {e}"
+            )
+
+    # Step 2b: If we previously completed a signin flow for this host, try using the
+    # shared global browser session for this specific host only.
+    hostname = urllib.parse.urlparse(initial_url).hostname or ""
+    if global_browser and not incognito and hostname and hostname in signed_in_hosts_local:
+        browser = global_browser
+
+        try:
+            logger.info(
+                "Trying action with existing global browser session for previously signed-in host..."
+            )
+            page = await get_new_page(browser)
+            await zen_navigate_with_retry(page, initial_url)
+            result = await action(page, browser)
+            await safe_close_page(page)
+            logger.info("Action succeeded with existing host-specific session!")
+
+            return result
+        except Exception as e:
+            logger.info(
+                "zen_dpage_with_action failed with host-specific global session "
+                f"(likely not signed in anymore): {e}"
             )
 
     # Step 3: User not signed in - create interactive signin flow with action
@@ -702,7 +748,7 @@ async def remote_zen_dpage_with_action(
     initial_url: str,
     action: Any,
     timeout: int = 2,
-    dpage_timeout: int = 15,
+    dpage_timeout: int = 60,
     _signin_completed: bool = False,
     _page_id: str | None = None,
     config: ElementConfig | None = None,
@@ -711,6 +757,7 @@ async def remote_zen_dpage_with_action(
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
     incognito = headers.get("x-incognito", "0") == "1"
+    hostname = urllib.parse.urlparse(initial_url).hostname or ""
 
     # Step 1: Resuming after signin completion (same as zen_dpage_with_action; supports remote id)
     if _signin_completed and _page_id is not None and _page_id in pending_actions:
@@ -733,9 +780,17 @@ async def remote_zen_dpage_with_action(
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
         result = await action(page, action_info["browser"])
         del pending_actions[_page_id]
+
+        hostname = urllib.parse.urlparse(initial_url).hostname or ""
+        if hostname:
+            user_id = get_auth_user().user_id
+            hosts = signed_in_hosts_remote.setdefault(str(user_id), set())
+            hosts.add(str(hostname))
+
         return result
 
-    # Step 2: Try with existing remote session (no sign-in flow)
+    # Step 2: Try with existing remote session only when a signin_id is provided.
+    # This ensures we don't assume a per-user remote browser is signed in for all brands.
     browser = None
     page = None
     if signin_id and is_remote_browser(signin_id):
@@ -746,28 +801,104 @@ async def remote_zen_dpage_with_action(
                 if tab.target_id == page_id:
                     page = tab
                     break
-    elif not incognito:
-        user_id = get_auth_user().user_id
-        browser = await get_remote_browser(user_id)
-        if browser is not None:
-            page = await get_new_page(browser)
 
     if browser is not None and page is not None:
-        created_new_page = not (signin_id and is_remote_browser(signin_id))
+        created_new_page = False
+
         try:
-            logger.info("Trying remote action with existing session...")
+            logger.info("Trying remote action with existing session using signin_id...")
             await zen_navigate_with_retry(page, initial_url)
             result = await action(page, browser)
             if created_new_page:
                 await safe_close_page(page)
-            logger.info("Remote action succeeded with existing session!")
+            logger.info("Remote action succeeded with existing signin_id session!")
+
             return result
         except Exception as e:
             logger.info(
-                f"remote_zen_dpage_with_action failed with existing session (likely not signed in): {e}"
+                f"remote_zen_dpage_with_action failed with existing signin_id session (likely not signed in): {e}"
             )
+
             if created_new_page:
                 await safe_close_page(page)
+
+    # Step 2a: On fresh process (no in-memory host marks) but with an existing per-user
+    # remote browser session, probe that browser once for this host. If it succeeds,
+    # record the host as signed in and reuse it going forward.
+    if not incognito and not signin_id and hostname:
+        user_id = get_auth_user().user_id
+        hosts = signed_in_hosts_remote.get(str(user_id)) or set()
+        if hostname not in hosts:
+            probe_browser = await get_remote_browser(str(user_id))
+            if probe_browser is not None:
+                probe_page = await get_new_page(probe_browser)
+
+                try:
+                    logger.info(
+                        "Probing existing per-user remote browser session for host before "
+                        "starting a new sign-in flow..."
+                    )
+                    await zen_navigate_with_retry(probe_page, initial_url)
+                    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+                    patterns = load_distillation_patterns(path)
+                    terminated, _distilled, _converted = await zen_run_distillation_loop(
+                        initial_url,
+                        patterns,
+                        probe_browser,
+                        timeout,
+                        interactive=False,
+                        close_page=False,
+                        page=probe_page,
+                    )
+
+                    if terminated:
+                        result = await action(probe_page, probe_browser)
+                        await safe_close_page(probe_page)
+
+                        # Mark host as signed in for this user so future calls go through host reuse
+                        hosts = signed_in_hosts_remote.setdefault(str(user_id), set())
+                        hosts.add(str(hostname))
+
+                        logger.info(
+                            "Probe succeeded; using existing per-user remote browser session "
+                            "without a new sign-in flow."
+                        )
+                        return result
+
+                    await safe_close_page(probe_page)
+                except Exception as e:
+                    logger.info(
+                        "Probe of existing per-user remote browser session failed "
+                        f"(likely not signed in for this host): {e}"
+                    )
+                    await safe_close_page(probe_page)
+
+    # Step 2b: If we previously completed a signin flow for this host for this user, try
+    # reusing the per-user remote browser session for that specific host only.
+    if not incognito and hostname:
+        user_id = get_auth_user().user_id
+        hosts = signed_in_hosts_remote.get(str(user_id)) or set()
+        if hostname in hosts:
+            browser = await get_remote_browser(str(user_id))
+            if browser is not None:
+                page = await get_new_page(browser)
+
+                try:
+                    logger.info(
+                        "Trying remote action with existing per-user browser session for "
+                        "previously signed-in host..."
+                    )
+                    await zen_navigate_with_retry(page, initial_url)
+                    result = await action(page, browser)
+                    await safe_close_page(page)
+                    logger.info("Remote action succeeded with existing host-specific session!")
+
+                    return result
+                except Exception as e:
+                    logger.info(
+                        "remote_zen_dpage_with_action failed with host-specific per-user "
+                        f"session (likely not signed in anymore): {e}"
+                    )
 
     # Step 3: Create interactive sign-in flow with pending action
     if signin_id and is_remote_browser(signin_id):
