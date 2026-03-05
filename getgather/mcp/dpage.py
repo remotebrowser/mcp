@@ -50,15 +50,85 @@ distillation_results: dict[str, str | list[dict[str, str | list[str]]] | dict[st
 pending_actions: dict[str, dict[str, Any]] = {}
 element_configs: dict[str, ElementConfig] = {}
 
-# Track which hosts have been successfully signed in
-signed_in_hosts_local: set[str] = set()
-signed_in_hosts_remote: dict[str, set[str]] = {}
-
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
 def is_remote_browser(dpage_id: str) -> bool:
     return "--" in dpage_id
+
+
+def _find_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
+    """Find a browser tab by its target ID."""
+    for tab in browser.tabs:
+        if tab.target_id == target_id:
+            return tab
+    return None
+
+
+def _get_base_url(headers: dict[str, str]) -> str:
+    """Build the base URL for dpage redirects from request headers."""
+    host = headers.get("x-forwarded-host") or headers.get("host")
+    if host is None:
+        logger.warning("Missing Host header; defaulting to localhost")
+        return "http://localhost:23456"
+    default_scheme = "http" if is_local_address(host) else "https"
+    scheme = headers.get("x-forwarded-proto", default_scheme)
+    return f"{scheme}://{host}"
+
+
+def _signin_flow_response(headers: dict[str, str], dpage_id: str) -> dict[str, Any]:
+    """Build the standard sign-in flow response dict."""
+    base_url = _get_base_url(headers)
+    url = f"{base_url}/dpage/{dpage_id}"
+    return {
+        "url": url,
+        "message": f"Continue to sign in in your browser at {url}.",
+        "signin_id": dpage_id,
+        "system_message": (
+            f"Try open the url {url} in a browser with a tool if available. "
+            "Give the url to the user so the user can open it manually in their browser. "
+            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
+        ),
+    }
+
+
+async def _try_action_with_probe(
+    browser: zd.Browser,
+    initial_url: str,
+    action: Any,
+    timeout: int,
+) -> dict[str, Any] | None:
+    """Probe whether browser is already signed in and run the action if so.
+
+    Opens a new tab, navigates to initial_url, and runs a non-interactive
+    distillation check. If the page looks signed-in (terminated), executes
+    the action and returns the result. Otherwise returns None so the caller
+    can fall through to an interactive sign-in flow.
+    """
+    page = await get_new_page(browser)
+    try:
+        await zen_navigate_with_retry(page, initial_url)
+        path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+        patterns = load_distillation_patterns(path)
+        terminated, _, _ = await zen_run_distillation_loop(
+            initial_url,
+            patterns,
+            browser,
+            timeout,
+            interactive=False,
+            close_page=False,
+            page=page,
+        )
+        if terminated:
+            result = await action(page, browser)
+            await safe_close_page(page)
+            return result
+        await safe_close_page(page)
+        return None
+    except Exception as e:
+        logger.info(f"Stateless probe failed for {initial_url}: {e}")
+        await safe_close_page(page)
+        return None
 
 
 async def dpage_add(
@@ -534,7 +604,6 @@ async def zen_dpage_with_action(
     headers = get_http_headers(include_all=True)
     incognito = headers.get("x-incognito", "0") == "1"
     signin_id = headers.get("x-signin-id") or None
-    hostname = urllib.parse.urlparse(initial_url).hostname or ""
 
     # Step 1: If resuming after signin completion, use the active page directly
     if _signin_completed and _page_id is not None and _page_id in pending_actions:
@@ -546,10 +615,7 @@ async def zen_dpage_with_action(
             browser_id, page_id = _page_id.split("--")
             browser = await get_remote_browser(browser_id)
             if browser is not None:
-                for tab in browser.tabs:
-                    if tab.target_id == page_id:
-                        page = tab
-                        break
+                page = _find_tab(browser, page_id)
         if page is None:
             raise ValueError(f"Page for signin {_page_id} not found")
         logger.info(f"Resuming action after signin with page_id={_page_id}")
@@ -562,29 +628,29 @@ async def zen_dpage_with_action(
         if already_cleared:
             logger.warning(f"Pending action for {_page_id} was already cleared")
 
-        if hostname:
-            signed_in_hosts_local.add(str(hostname))
-
         return result
 
-    # Step 2: Try existing session — either via explicit signin_id or host-specific reuse
+    # Step 2: Try existing session — explicit signin_id, or stateless probe on global browser
     global_browser = browser_manager.get_global_browser()
-    reuse_browser = None
-    if signin_id:
-        reuse_browser = await init_zendriver_browser(signin_id)
-    elif global_browser and not incognito and hostname and hostname in signed_in_hosts_local:
-        reuse_browser = global_browser
 
-    if reuse_browser is not None:
+    # 2a. Explicit signin_id: reuse that session directly.
+    if signin_id:
+        browser = await init_zendriver_browser(signin_id)
         try:
-            page = await get_new_page(reuse_browser)
+            page = await get_new_page(browser)
             await zen_navigate_with_retry(page, initial_url)
-            result = await action(page, reuse_browser)
+            result = await action(page, browser)
             await safe_close_page(page)
-            logger.info("Action succeeded with existing browser session!")
+            logger.info("Action succeeded with existing signin_id session!")
             return result
         except Exception as e:
-            logger.info(f"zen_dpage_with_action failed with existing session: {e}")
+            logger.info(f"zen_dpage_with_action failed with signin_id session: {e}")
+
+    # 2b. Stateless probe on the shared global browser.
+    if not signin_id and global_browser and not incognito:
+        result = await _try_action_with_probe(global_browser, initial_url, action, timeout)
+        if result is not None:
+            return result
 
     # Step 3: User not signed in - create interactive signin flow with action
     browser_instance: zd.Browser
@@ -621,23 +687,12 @@ async def zen_dpage_with_action(
     if incognito:
         browser_manager.set_incognito_browser(id, browser_instance)
 
-    base_url = get_base_url()
-    url = f"{base_url}/dpage/{id}"
+    response = _signin_flow_response(headers, id)
     logger.info(
-        f"zen_dpage_with_action: Continue with sign in at {url}", extra={"url": url, "id": id}
+        f"zen_dpage_with_action: Continue with sign in at {response['url']}",
+        extra={"url": response["url"], "id": id},
     )
-
-    message = "Continue to sign in in your browser"
-    return {
-        "url": url,
-        "message": f"{message} at {url}.",
-        "signin_id": id,
-        "system_message": (
-            f"Try open the url {url} in a browser with a tool if available."
-            "Give the url to the user so the user can open it manually in their browser."
-            f"Then call check_signin tool with the signin_id to check if the sign in process is completed. "
-        ),
-    }
+    return response
 
 
 async def remote_zen_dpage_mcp_tool(
@@ -696,15 +751,7 @@ async def remote_zen_dpage_mcp_tool(
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
     headers = get_http_headers(include_all=True)
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-
+    base_url = _get_base_url(headers)
     url = f"{base_url}/dpage/{dpage_id}"
     logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": dpage_id})
     return {
@@ -712,8 +759,8 @@ async def remote_zen_dpage_mcp_tool(
         "message": f"Continue to sign in in your browser at {url}.",
         "signin_id": dpage_id,
         "system_message": (
-            f"Try open the url {url} in a browser with a tool if available."
-            "Give the url to the user so the user can open it manually in their browser."
+            f"Try open the url {url} in a browser with a tool if available. "
+            "Give the url to the user so the user can open it manually in their browser. "
             "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
             "Once it is completed successfully, then call this tool again to proceed with the action."
         ),
@@ -733,9 +780,8 @@ async def remote_zen_dpage_with_action(
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
     incognito = headers.get("x-incognito", "0") == "1"
-    hostname = urllib.parse.urlparse(initial_url).hostname or ""
 
-    # Step 1: Resuming after signin completion (same as zen_dpage_with_action; supports remote id)
+    # Step 1: Resuming after signin completion
     if _signin_completed and _page_id is not None and _page_id in pending_actions:
         action_info = pending_actions[_page_id]
         page = None
@@ -743,10 +789,7 @@ async def remote_zen_dpage_with_action(
             browser_id, page_id = _page_id.split("--")
             browser = await get_remote_browser(browser_id)
             if browser is not None:
-                for tab in browser.tabs:
-                    if tab.target_id == page_id:
-                        page = tab
-                        break
+                page = _find_tab(browser, page_id)
         if page is None:
             raise ValueError(f"Page for signin {_page_id} not found")
         logger.info(f"Resuming remote action after signin with page_id={_page_id}")
@@ -756,11 +799,6 @@ async def remote_zen_dpage_with_action(
             logger.warning(f"Failed to navigate to {initial_url}: {e}")
         result = await action(page, action_info["browser"])
         del pending_actions[_page_id]
-
-        if hostname:
-            user_id = get_auth_user().user_id
-            signed_in_hosts_remote.setdefault(str(user_id), set()).add(str(hostname))
-
         return result
 
     # Step 2: Try with existing remote session when a signin_id is provided.
@@ -768,63 +806,23 @@ async def remote_zen_dpage_with_action(
         browser_id, page_id = signin_id.split("--")
         browser = await get_remote_browser(browser_id)
         if browser is not None:
-            page = None
-            for tab in browser.tabs:
-                if tab.target_id == page_id:
-                    page = tab
-                    break
+            page = _find_tab(browser, page_id)
             if page is not None:
                 try:
-                    logger.info("Trying remote action with existing session using signin_id...")
                     await zen_navigate_with_retry(page, initial_url)
                     result = await action(page, browser)
-                    logger.info("Remote action succeeded with existing signin_id session!")
                     return result
                 except Exception as e:
-                    logger.info(
-                        f"remote_zen_dpage_with_action failed with existing signin_id session: {e}"
-                    )
+                    logger.info(f"remote_zen_dpage_with_action failed with signin_id session: {e}")
 
-    # Step 2b: Try reusing the per-user remote browser for this specific host.
-    # If the host isn't yet marked as signed-in, probe with a fast distillation check first
-    # to avoid hanging on unauthenticated pages.
-    if not incognito and not signin_id and hostname:
+    # Step 2b: Stateless probe on the per-user remote browser.
+    if not incognito and not signin_id:
         user_id = get_auth_user().user_id
-        hosts = signed_in_hosts_remote.get(str(user_id)) or set()
         reuse_browser = await get_remote_browser(str(user_id))
         if reuse_browser is not None:
-            host_known = hostname in hosts
-            reuse_page = await get_new_page(reuse_browser)
-            try:
-                await zen_navigate_with_retry(reuse_page, initial_url)
-
-                if not host_known:
-                    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
-                    patterns = load_distillation_patterns(path)
-                    terminated, _, _ = await zen_run_distillation_loop(
-                        initial_url,
-                        patterns,
-                        reuse_browser,
-                        timeout,
-                        interactive=False,
-                        close_page=False,
-                        page=reuse_page,
-                    )
-                    if not terminated:
-                        logger.info("Probe shows host is not signed in; will create sign-in flow")
-                        await safe_close_page(reuse_page)
-                        reuse_page = None
-
-                if reuse_page is not None:
-                    result = await action(reuse_page, reuse_browser)
-                    await safe_close_page(reuse_page)
-                    signed_in_hosts_remote.setdefault(str(user_id), set()).add(str(hostname))
-                    logger.info("Remote action succeeded with existing per-user browser session!")
-                    return result
-            except Exception as e:
-                logger.info(f"remote_zen_dpage_with_action failed with per-user session: {e}")
-                if reuse_page is not None:
-                    await safe_close_page(reuse_page)
+            result = await _try_action_with_probe(reuse_browser, initial_url, action, timeout)
+            if result is not None:
+                return result
 
     # Step 3: Create interactive sign-in flow with pending action
     page = None
@@ -834,10 +832,7 @@ async def remote_zen_dpage_with_action(
         browser = await get_remote_browser(browser_id)
         if browser is None:
             raise HTTPException(status_code=400, detail="Remote browser not found")
-        for tab in browser.tabs:
-            if tab.target_id == page_id:
-                page = tab
-                break
+        page = _find_tab(browser, page_id)
         if page is None:
             raise HTTPException(status_code=400, detail="Page not found")
         logger.info(f"Continue with remote browser {browser_id} and page {page_id}")
@@ -870,27 +865,9 @@ async def remote_zen_dpage_with_action(
         "dpage_timeout": dpage_timeout,
     }
 
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-
-    url = f"{base_url}/dpage/{dpage_id}"
+    response = _signin_flow_response(headers, dpage_id)
     logger.info(
-        f"remote_zen_dpage_with_action: Continue with sign in at {url}",
-        extra={"url": url, "id": dpage_id},
+        f"remote_zen_dpage_with_action: Continue with sign in at {response['url']}",
+        extra={"url": response["url"], "id": dpage_id},
     )
-    return {
-        "url": url,
-        "message": f"Continue to sign in in your browser at {url}.",
-        "signin_id": dpage_id,
-        "system_message": (
-            f"Try open the url {url} in a browser with a tool if available. "
-            "Give the url to the user so the user can open it manually in their browser. "
-            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
-        ),
-    }
+    return response
