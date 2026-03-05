@@ -303,8 +303,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     max = TIMEOUT // TICK
 
     current = Match(name="", priority=-1, distilled="")
-    last_render_body: str | None = None
-    last_render_options: dict[str, str] | None = None
 
     if settings.LOG_LEVEL == "DEBUG":
         await zen_capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
@@ -340,8 +338,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         action = f"/dpage/{id}"
         options = {"title": title, "action": action}
         inputs = document.find_all("input")
-        last_render_body = str(document.find("body"))
-        last_render_options = options
 
         if match.distilled == current.distilled:
             logger.info(f"Still the same: {match.name}")
@@ -488,17 +484,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     hostname_attr: str | None = getattr(page, "hostname", None)  # type: ignore[assignment]
     location = getattr(page, "url", "unknown")  # type: ignore[assignment]
     timeout_error = TimeoutError("Timeout reached in zen_post_dpage")
-
-    if id in pending_actions:
-        logger.warning(
-            "Sign-in flow timeout reached but action is still pending; rendering page instead of failing"
-        )
-        fallback_options = last_render_options or {"title": DEFAULT_TITLE, "action": f"/dpage/{id}"}
-        fallback_body = (
-            last_render_body
-            or "<body><p>Sign in is still in progress. Continue sign in and resubmit this page.</p></body>"
-        )
-        return HTMLResponse(render(fallback_body, fallback_options))
 
     await zen_report_distill_error(
         error=timeout_error,
