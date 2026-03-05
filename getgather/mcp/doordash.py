@@ -8,6 +8,7 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
     zen_dpage_mcp_tool,
+    zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.utils import retry_with_navigation
@@ -79,7 +80,24 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
 
 
 @doordash_mcp.tool
-async def remote_get_order_history(page_number: int = 1) -> dict[str, Any]:
+async def get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
+    """Get the order history from a user's Doordash account (remote zen)."""
+
+    async def get_order_details_action(tab: zd.Tab, _) -> dict[str, Any]:
+        """Get the details of an order from Doordash"""
+        logger.info("🔧 Executing get_orders_from_api...")
+        result: dict[str, Any] = await get_orders_from_api(tab, page_number)
+        return {"doordash_orders": result.get("data", {}).get("getConsumerOrdersWithDetails", [])}
+
+    return await zen_dpage_with_action(
+        "https://www.doordash.com/orders",
+        get_order_details_action,
+        dpage_timeout=60,
+    )
+
+
+@doordash_mcp.tool
+async def remote_get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
     """Get the order history from a user's Doordash account (remote zen)."""
 
     async def get_order_details_action(tab: zd.Tab, _) -> dict[str, Any]:
