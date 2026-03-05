@@ -1,0 +1,16 @@
+<html gg-domain="google">
+  <head>
+    <title>Google Activity</title>
+  </head>
+  <body>
+    <span gg-match="//h1[contains(normalize-space(.), 'Verify it')]"></span>
+    <p>Include country code, e.g. +1 (555) 123-4567</p>
+    <input
+      type="tel"
+      name="phone"
+      placeholder="+1234567890"
+      gg-match="//input[@id='phoneNumberId']"
+    />
+    <button type="submit" gg-match="//div[@id='idvanyphonecollectNext']//button">Next</button>
+  </body>
+</html>
