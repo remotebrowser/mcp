@@ -25,6 +25,7 @@ from getgather.zen_distill import (
     ElementConfig,
     Match,
     autoclick as zen_autoclick,
+    batch_fill_inputs,
     capture_page_artifacts as zen_capture_page_artifacts,
     check_error,
     convert,
@@ -199,16 +200,18 @@ def is_local_address(host: str) -> bool:
 
 
 def get_base_url() -> str:
-    headers = get_http_headers()
+    try:
+        headers = get_http_headers()
+    except Exception as e:
+        logger.warning("get_http_headers failed (no request context?): %s", e)
+        return "http://localhost:23456"
     host = headers.get("x-forwarded-host") or headers.get("host")
     if host is None:
         logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-    return base_url
+        return "http://localhost:23456"
+    default_scheme = "http" if is_local_address(host) else "https"
+    scheme = headers.get("x-forwarded-proto", default_scheme)
+    return f"{scheme}://{host}"
 
 
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
@@ -326,30 +329,31 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 await zen_autoclick(page, distilled, f"button[value={fields.get('button')}]")
                 continue
 
+        text_fills: list[tuple[str, str | None, str]] = []
         for input in inputs:
             if isinstance(input, Tag):
                 gg_match = input.get("gg-match")
                 selector, frame_selector = get_selector(
                     str(gg_match) if gg_match is not None else ""
                 )
-                config = element_configs.get(id)
-                element = await page_query_selector(
-                    page,
-                    selector if selector is not None else "",
-                    iframe_selector=frame_selector,
-                    config=config,
-                )
                 name = input.get("name")
                 input_type = input.get("type")
 
-                if element:
-                    if input_type == "checkbox":
-                        if not name:
-                            logger.warning(f"No name for the checkbox {gg_match}")
-                            continue
-                        value = fields.get(str(name))
-                        checked = value and len(str(value)) > 0
-                        names.append(str(name))
+                if input_type == "checkbox":
+                    if not name:
+                        logger.warning(f"No name for the checkbox {gg_match}")
+                        continue
+                    value = fields.get(str(name))
+                    checked = value and len(str(value)) > 0
+                    names.append(str(name))
+                    config = element_configs.get(id)
+                    element = await page_query_selector(
+                        page,
+                        selector if selector else "",
+                        iframe_selector=frame_selector,
+                        config=config,
+                    )
+                    if element:
                         logger.info(f"Status of checkbox {name}={checked}")
                         current_checked_value = (
                             element.element.get("checked") or element.element.get("value") == "true"
@@ -357,53 +361,53 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                         if current_checked_value != checked:
                             logger.info(f"Clicking checkbox {name} to set it to {checked}")
                             await element.click()
-                    elif input_type == "radio":
-                        if name is not None:
-                            name_str = str(name)
-                            value = fields.get(name_str)
-                            if not value or len(value) == 0:
-                                logger.warning(f"No form data found for radio button group {name}")
-                                continue
-                            radio = document.find("input", {"type": "radio", "value": str(value)})
-                            if not radio or not isinstance(radio, Tag):
-                                logger.warning(f"No radio button found with value {value}")
-                                continue
-                            logger.info(f"Handling radio button group {name}")
-                            logger.info(f"Using form data {name}={value}")
-                            radio_gg_match = str(radio.get("gg-match"))
-                            selector, frame_selector = get_selector(radio_gg_match)
-                            config = element_configs.get(id)
-                            radio_element = await page_query_selector(
-                                page,
-                                selector if selector is not None else "",
-                                iframe_selector=frame_selector,
-                                config=config,
-                            )
-                            if radio_element:
-                                await radio_element.click()
-                                radio["checked"] = "checked"
-                                current.distilled = str(document)
-                                names.append(str(input.get("id")) if input.get("id") else "radio")
-                    elif name is not None:
+                elif input_type == "radio":
+                    if name is not None:
                         name_str = str(name)
                         value = fields.get(name_str)
-                        if value and len(value) > 0:
-                            logger.info(f"Using form data {name}")
-                            names.append(name_str)
-                            input["value"] = value
+                        if not value or len(value) == 0:
+                            logger.warning(f"No form data found for radio button group {name}")
+                            continue
+                        radio = document.find("input", {"type": "radio", "value": str(value)})
+                        if not radio or not isinstance(radio, Tag):
+                            logger.warning(f"No radio button found with value {value}")
+                            continue
+                        logger.info(f"Handling radio button group {name}")
+                        radio_gg_match = str(radio.get("gg-match"))
+                        radio_sel, radio_frame = get_selector(radio_gg_match)
+                        config = element_configs.get(id)
+                        radio_element = await page_query_selector(
+                            page,
+                            radio_sel if radio_sel else "",
+                            iframe_selector=radio_frame,
+                            config=config,
+                        )
+                        if radio_element:
+                            await radio_element.click()
+                            radio["checked"] = "checked"
                             current.distilled = str(document)
-                            await element.type_text(value)
-                            del fields[name_str]
-                        else:
-                            logger.info(f"No form data found for {name}")
+                            names.append(str(input.get("id")) if input.get("id") else "radio")
+                elif name is not None and selector:
+                    name_str = str(name)
+                    value = fields.get(name_str)
+                    if value and len(value) > 0:
+                        logger.info(f"Using form data {name}")
+                        names.append(name_str)
+                        input["value"] = value
+                        text_fills.append((selector, frame_selector, value))
+                        del fields[name_str]
 
-        await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
+        if text_fills:
+            current.distilled = str(document)
+            await batch_fill_inputs(page, text_fills)
+
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
+        if document.select(SUBMIT_BUTTON) and len(names) > 0 and len(inputs) == len(names):
+            logger.info("Submitting form, all fields are filled...")
+            await zen_autoclick(page, distilled, ["[gg-autoclick]:not(button)", SUBMIT_BUTTON])
+            continue
+        await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
         if document.select(SUBMIT_BUTTON):
-            if len(names) > 0 and len(inputs) == len(names):
-                logger.info("Submitting form, all fields are filled...")
-                await zen_autoclick(page, distilled, SUBMIT_BUTTON)
-                continue
             logger.warning("Not all form fields are filled")
             return HTMLResponse(render(str(document.find("body")), options))
 
@@ -673,16 +677,7 @@ async def remote_zen_dpage_mcp_tool(
 
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
-    headers = get_http_headers(include_all=True)
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-
+    base_url = get_base_url()
     url = f"{base_url}/dpage/{dpage_id}"
     logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": dpage_id})
     return {
@@ -812,15 +807,7 @@ async def remote_zen_dpage_with_action(
         "dpage_timeout": dpage_timeout,
     }
 
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-
+    base_url = get_base_url()
     url = f"{base_url}/dpage/{dpage_id}"
     logger.info(
         f"remote_zen_dpage_with_action: Continue with sign in at {url}",

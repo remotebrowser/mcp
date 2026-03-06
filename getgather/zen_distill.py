@@ -52,6 +52,9 @@ class ElementConfig:
     typing_clear_delay: float = 0.1
     typing_char_delay_min: float = 0.01
     typing_char_delay_max: float = 0.05
+    # "fast" uses a single JS evaluate to set the full value and fire events.
+    # "human" falls back to per-character send_keys with delays.
+    typing_mode: str = "fast"
 
 
 ConversionResult = list[dict[str, str | list[str]]]
@@ -731,6 +734,73 @@ class Element:
         await asyncio.sleep(0.25)
 
     async def type_text(self, text: str) -> None:
+        # Fast path: a single JS evaluate that sets the full value and
+        # dispatches change/input events, avoiding per-character CDP calls.
+        if self.config.typing_mode == "fast":
+            selector = self.css_selector or self.xpath_selector
+            if not selector:
+                logger.warning("No selector available for fast type_text; falling back to human mode")
+            else:
+                value_js = json.dumps(text)
+                if self.xpath_selector:
+                    escaped_selector = self.xpath_selector.replace("\\", "\\\\").replace('"', '\\"')
+                    js_code = f"""
+                        (() => {{
+                            const xpath = "{escaped_selector}";
+                            const result = document.evaluate(
+                                xpath,
+                                document,
+                                null,
+                                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                                null
+                            );
+                            const el = result.singleNodeValue;
+                            if (!el) return false;
+                            const setValue = (value) => {{
+                                if ("value" in el) {{
+                                    el.value = value;
+                                }} else {{
+                                    el.textContent = value;
+                                }}
+                            }};
+                            setValue("");
+                            setValue({value_js});
+                            const events = ["input", "change"];
+                            for (const type of events) {{
+                                el.dispatchEvent(new Event(type, {{ bubbles: true }}));
+                            }}
+                            return true;
+                        }})()
+                    """
+                else:
+                    escaped_selector = self.css_selector.replace("\\", "\\\\").replace('"', '\\"')  # type: ignore[union-attr]
+                    js_code = f"""
+                        (() => {{
+                            const el = document.querySelector("{escaped_selector}");
+                            if (!el) return false;
+                            const setValue = (value) => {{
+                                if ("value" in el) {{
+                                    el.value = value;
+                                }} else {{
+                                    el.textContent = value;
+                                }}
+                            }};
+                            setValue("");
+                            setValue({value_js});
+                            const events = ["input", "change"];
+                            for (const type of events) {{
+                                el.dispatchEvent(new Event(type, {{ bubbles: true }}));
+                            }}
+                            return true;
+                        }})()
+                    """
+
+                ok = await self.page.evaluate(js_code)
+                if ok:
+                    return
+                logger.warning("Fast type_text JS path failed; falling back to human mode")
+
+        # Human mode: clear and type per character via send_keys.
         await self.element.clear_input_by_deleting()
         await asyncio.sleep(self.config.typing_clear_delay)
         await self.element.clear_input()
@@ -995,7 +1065,6 @@ async def distill(
                         target.string = raw_text.strip()
                     if source.tag in ["input", "textarea", "select"]:
                         target["value"] = source.element.get("value") or ""
-                match_count += 1
             else:
                 if not info["optional"]:
                     found = False
@@ -1034,18 +1103,182 @@ async def distill(
         return match
 
 
-async def autoclick(page: zd.Tab, distilled: str, expr: str):
+async def autoclick(page: zd.Tab, distilled: str, expr: str | list[str]) -> None:
+    """Click all elements matching expr(s). Batches all clicks into a single evaluate."""
+    exprs = [expr] if isinstance(expr, str) else expr
     document = BeautifulSoup(distilled, "html.parser")
-    elements = document.select(expr)
-    for el in elements:
-        selector, iframe_selector = get_selector(str(el.get("gg-match")))
-        if selector:
-            target = await page_query_selector(page, selector, iframe_selector=iframe_selector)
+    selector_infos: list[dict[str, Any]] = []
+    for e in exprs:
+        for el in document.select(e):
+            if not isinstance(el, Tag):
+                continue
+            sel, iframe_sel = get_selector(str(el.get("gg-match", "")))
+            if sel:
+                selector_infos.append({
+                    "selector": sel,
+                    "iframe_selector": iframe_sel,
+                    "is_xpath": sel.startswith("//"),
+                })
+
+    if not selector_infos:
+        return
+
+    selectors_json = json.dumps([s["selector"] for s in selector_infos])
+    is_xpath_json = json.dumps([s["is_xpath"] for s in selector_infos])
+    iframe_selectors_json = json.dumps([s["iframe_selector"] or "" for s in selector_infos])
+
+    js_code = f"""
+        (() => {{
+            const selectors = {selectors_json};
+            const isXpath = {is_xpath_json};
+            const iframeSelectors = {iframe_selectors_json};
+
+            function findElement(doc, selector, isXpath, iframeSel) {{
+                if (iframeSel) {{
+                    const frame = doc.querySelector(iframeSel);
+                    if (!frame || !frame.contentDocument) return null;
+                    doc = frame.contentDocument;
+                }}
+                try {{
+                    if (isXpath) {{
+                        const r = doc.evaluate(selector, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                        return r.singleNodeValue;
+                    }}
+                    return doc.querySelector(selector);
+                }} catch (e) {{ return null; }}
+            }}
+
+            let count = 0;
+            for (let i = 0; i < selectors.length; i++) {{
+                const el = findElement(document, selectors[i], isXpath[i], iframeSelectors[i] || null);
+                if (el) {{
+                    el.scrollIntoView({{ block: "center" }});
+                    el.dispatchEvent(new PointerEvent("pointerdown", {{ bubbles: true }}));
+                    el.dispatchEvent(new PointerEvent("pointerup", {{ bubbles: true }}));
+                    el.dispatchEvent(new MouseEvent("click", {{ bubbles: true, cancelable: true, view: window }}));
+                    count++;
+                }}
+            }}
+            return count;
+        }})()
+    """
+    try:
+        clicked = await page.evaluate(js_code)
+        if isinstance(clicked, (int, float)) and clicked > 0:
+            logger.debug(f"Batch autoclick: {int(clicked)} element(s) clicked")
+    except Exception as e:
+        logger.warning(f"Batch autoclick failed, falling back to per-element: {e}")
+        for info in selector_infos:
+            target = await page_query_selector(
+                page,
+                info["selector"],
+                iframe_selector=info["iframe_selector"] or None,
+            )
             if target:
-                logger.debug(f"Clicking {selector}")
                 await target.click()
-            else:
-                logger.warning(f"Selector {selector} not found, can't click on it")
+
+
+async def batch_fill_inputs(
+    page: zd.Tab,
+    fills: list[tuple[str, str | None, str]],
+) -> None:
+    """Batch fill text inputs in a single evaluate. Each item is (selector, iframe_selector, value)."""
+    if not fills:
+        return
+    selectors = [f[0] for f in fills]
+    iframe_selectors = [f[1] or "" for f in fills]
+    values = [f[2] for f in fills]
+    selectors_json = json.dumps(selectors)
+    iframe_selectors_json = json.dumps(iframe_selectors)
+    values_json = json.dumps(values)
+
+    js_code = f"""
+        (() => {{
+            const selectors = {selectors_json};
+            const iframeSelectors = {iframe_selectors_json};
+            const values = {values_json};
+
+            function findElement(doc, selector, iframeSel) {{
+                if (iframeSel) {{
+                    const frame = doc.querySelector(iframeSel);
+                    if (!frame || !frame.contentDocument) return null;
+                    doc = frame.contentDocument;
+                }}
+                try {{ return doc.querySelector(selector); }} catch (e) {{ return null; }}
+            }}
+
+            for (let i = 0; i < selectors.length; i++) {{
+                const el = findElement(document, selectors[i], iframeSelectors[i] || null);
+                if (el) {{
+                    el.value = values[i];
+                    el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                    el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                }}
+            }}
+            return true;
+        }})()
+    """
+    await page.evaluate(js_code)
+
+
+async def batch_click_selectors(
+    page: zd.Tab,
+    selector_infos: list[dict[str, Any]],
+) -> None:
+    """Click elements by selector infos. Same batch logic as autoclick but without document."""
+    if not selector_infos:
+        return
+    selectors_json = json.dumps([s["selector"] for s in selector_infos])
+    is_xpath_json = json.dumps([s.get("is_xpath", s["selector"].startswith("//")) for s in selector_infos])
+    iframe_selectors_json = json.dumps([s.get("iframe_selector") or "" for s in selector_infos])
+
+    js_code = f"""
+        (() => {{
+            const selectors = {selectors_json};
+            const isXpath = {is_xpath_json};
+            const iframeSelectors = {iframe_selectors_json};
+
+            function findElement(doc, selector, isXpath, iframeSel) {{
+                if (iframeSel) {{
+                    const frame = doc.querySelector(iframeSel);
+                    if (!frame || !frame.contentDocument) return null;
+                    doc = frame.contentDocument;
+                }}
+                try {{
+                    if (isXpath) {{
+                        const r = doc.evaluate(selector, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                        return r.singleNodeValue;
+                    }}
+                    return doc.querySelector(selector);
+                }} catch (e) {{ return null; }}
+            }}
+
+            let count = 0;
+            for (let i = 0; i < selectors.length; i++) {{
+                const el = findElement(document, selectors[i], isXpath[i], iframeSelectors[i] || null);
+                if (el) {{
+                    el.scrollIntoView({{ block: "center" }});
+                    el.dispatchEvent(new PointerEvent("pointerdown", {{ bubbles: true }}));
+                    el.dispatchEvent(new PointerEvent("pointerup", {{ bubbles: true }}));
+                    el.dispatchEvent(new MouseEvent("click", {{ bubbles: true, cancelable: true, view: window }}));
+                    count++;
+                }}
+            }}
+            return count;
+        }})()
+    """
+    try:
+        await page.evaluate(js_code)
+    except Exception as e:
+        logger.warning(f"Batch click failed, falling back to per-element: {e}")
+        for info in selector_infos:
+            target = await page_query_selector(
+                page,
+                info["selector"],
+                iframe_selector=info.get("iframe_selector"),
+            )
+            if target:
+                await target.click()
 
 
 async def get_url(page: zd.Tab) -> str | None:
