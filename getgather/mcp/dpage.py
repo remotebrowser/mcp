@@ -198,6 +198,19 @@ def is_local_address(host: str) -> bool:
         return hostname in ("localhost", "127.0.0.1")
 
 
+def get_base_url() -> str:
+    headers = get_http_headers()
+    host = headers.get("x-forwarded-host") or headers.get("host")
+    if host is None:
+        logger.warning("Missing Host header; defaulting to localhost")
+        base_url = "http://localhost:23456"
+    else:
+        default_scheme = "http" if is_local_address(host) else "https"
+        scheme = headers.get("x-forwarded-proto", default_scheme)
+        base_url = f"{scheme}://{host}"
+    return base_url
+
+
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
     if not is_remote_browser(id):
         browser_manager.update_last_active(id)
@@ -414,7 +427,14 @@ async def zen_dpage_mcp_tool(
     timeout: int = 2,
     config: ElementConfig | None = None,
 ) -> dict[str, Any]:
-    """Generic MCP tool based on distillation with Zendriver"""
+    """Generic MCP tool based on distillation with Zendriver
+
+    Args:
+        initial_url: The starting URL for distillation
+        result_key: Key under which the distillation result will be placed
+        timeout: Timeout for the distillation
+        config: Optional ElementConfig for dpage_add
+    """
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     patterns = load_distillation_patterns(path)
 
@@ -455,15 +475,7 @@ async def zen_dpage_mcp_tool(
     if incognito:
         browser_manager.set_incognito_browser(id, browser)
 
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-
+    base_url = get_base_url()
     url = f"{base_url}/dpage/{id}"
     logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": id})
     return {
@@ -587,22 +599,13 @@ async def zen_dpage_with_action(
     if incognito:
         browser_manager.set_incognito_browser(id, browser_instance)
 
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        base_url = "http://localhost:23456"
-    else:
-        default_scheme = "http" if is_local_address(host) else "https"
-        scheme = headers.get("x-forwarded-proto", default_scheme)
-        base_url = f"{scheme}://{host}"
-
+    base_url = get_base_url()
     url = f"{base_url}/dpage/{id}"
     logger.info(
         f"zen_dpage_with_action: Continue with sign in at {url}", extra={"url": url, "id": id}
     )
 
     message = "Continue to sign in in your browser"
-
     return {
         "url": url,
         "message": f"{message} at {url}.",

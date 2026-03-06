@@ -3,16 +3,33 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
+from getgather.mcp.app_ui_html_renderer import render_app_ui_html
 from getgather.mcp.dpage import (
+    get_base_url,
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
     zen_dpage_mcp_tool,
     zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
+from getgather.mcp.ui import UI_MIME_TYPE, ResourceCSP, ToolUI
 from getgather.zen_distill import page_query_selector
 
-goodreads_mcp = GatherMCP(brand_id="goodreads", name="Goodreads MCP")
+GOODREADS_UI_URI = "ui://list/data?brand=goodreads"
+
+goodreads_app_ui = ToolUI(
+    resourceUri=GOODREADS_UI_URI,
+    csp=ResourceCSP(
+        resourceDomains=["https://i.gr-assets.com"],
+        frameDomains=["self", get_base_url()],
+    ),
+)
+
+goodreads_mcp = GatherMCP(
+    brand_id="goodreads",
+    name="Goodreads MCP",
+    app_ui=goodreads_app_ui,
+)
 
 
 async def _goodreads_book_details_action(tab: zd.Tab, _browser: zd.Browser) -> dict[str, Any]:
@@ -46,15 +63,22 @@ async def _goodreads_book_details_action(tab: zd.Tab, _browser: zd.Browser) -> d
     return {"goodreads_book_details": details}
 
 
-@goodreads_mcp.tool
+@goodreads_mcp.resource(uri=GOODREADS_UI_URI, mime_type=UI_MIME_TYPE)
+async def goodreads_ui_resource() -> str:
+    """Serve the book list app. Host pushes get_book_list result via ontoolresult"""
+    return render_app_ui_html(title="Goodreads MCP App")
+
+
+@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
 async def get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
     return await zen_dpage_mcp_tool(
-        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table", "goodreads_book_list"
+        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
+        "goodreads_book_list",
     )
 
 
-@goodreads_mcp.tool
+@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
 async def remote_get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
     return await remote_zen_dpage_mcp_tool(
