@@ -4,11 +4,12 @@ _SHARED_APP_SCRIPT = r"""
     (function () {
       const loading = document.getElementById("loading");
       const signinView = document.getElementById("signin");
-      const successView = document.getElementById("success");
+      const listView = document.getElementById("list");
+      const listEl = document.getElementById("list-body");
       const errorEl = document.getElementById("error");
 
       function show(view) {
-        [loading, signinView, successView, errorEl].forEach(function (el) {
+        [loading, signinView, listView, errorEl].forEach(function (el) {
           el.classList.toggle("active", el === view);
         });
       }
@@ -42,7 +43,25 @@ _SHARED_APP_SCRIPT = r"""
           show(signinView);
           return;
         }
-        if (successView) show(successView);
+        const listKey = listEl ? listEl.getAttribute("data-list-key") : null;
+        const items = listKey ? data[listKey] : null;
+        if (!Array.isArray(items) || items.length === 0) {
+          listEl.innerHTML = "<p class=\"book-list-empty\">" + escapeHtml(listEl ? (listEl.getAttribute("data-empty-message") || "No items") : "No items") + "</p>";
+          show(listView);
+          return;
+        }
+        const cardHtml = document.getElementById("card-template") ? document.getElementById("card-template").innerHTML : "";
+        const itemToVals = typeof window.__appUiItemMapper__ === "function" ? window.__appUiItemMapper__ : null;
+        listEl.innerHTML = "";
+        items.forEach(function (item) {
+          const vals = itemToVals ? itemToVals(item, escapeHtml) : null;
+          if (!vals || typeof vals !== "object") {
+            return;
+          }
+          const row = cardHtml.replace(/\{\{(\w+)\}\}/g, function (_, key) { return vals[key] !== undefined ? vals[key] : ""; });
+          listEl.insertAdjacentHTML("beforeend", row);
+        });
+        show(listView);
       }
 
       let nextId = 1;
@@ -93,7 +112,7 @@ _SHARED_APP_SCRIPT = r"""
 """
 
 
-def render_app_ui_html(title: str = "MCP GetGather App") -> str:
+def render_app_ui_html(content: str, title: str = "MCP GetGather App") -> str:
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -155,7 +174,6 @@ def render_app_ui_html(title: str = "MCP GetGather App") -> str:
     #signin a {{ color: var(--color-accent); }}
     #signin .signin-iframe {{ width: 100%; min-height: 480px; border: 1px solid var(--color-border); border-radius: 8px; margin-top: 0.5rem; }}
     #error {{ color: var(--color-error); }}
-    .app-ui-success-message {{ color: var(--color-muted); margin: 0; }}
     #loading.view {{ display: none; }}
     #loading.view.active {{
       display: flex;
@@ -188,8 +206,55 @@ def render_app_ui_html(title: str = "MCP GetGather App") -> str:
     <span class="loading-text">Loading…</span>
   </div>
   <div id="signin" class="view"></div>
-  <div id="success" class="view"><p class="app-ui-success-message">You're signed in. Data has been loaded.</p></div>
+    {content}
   <div id="error" class="view"></div>
   <script>{_SHARED_APP_SCRIPT}</script>
 </body>
 </html>"""
+
+
+def book_list_content_template() -> str:
+    return r"""
+  <style>
+    .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; padding: 0; margin: 0; list-style: none; }
+    .book-card { background: var(--color-card-bg); border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-card); transition: box-shadow 0.15s ease; }
+    .book-card:hover { box-shadow: var(--shadow-card-hover); }
+    .book-card__cover { width: 100%; aspect-ratio: 2/3; background: var(--cover-bg); object-fit: cover; display: block; }
+    .book-card__cover--placeholder { background: linear-gradient(145deg, var(--cover-placeholder-start), var(--cover-placeholder-end)); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--color-muted-secondary); }
+    .book-card__body { padding: 0.75rem; }
+    .book-card__title { font-weight: 600; font-size: 0.9rem; line-height: 1.3; margin: 0 0 0.25rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .book-card__author { font-size: 0.8rem; color: var(--color-muted); margin: 0; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .book-list-empty { color: var(--color-muted); margin: 0; }
+  </style>
+  <script>
+    window.__appUiItemMapper__ = function (item, escapeHtml) {
+      const img = item.image_url || item.cover || item.img || item.cover_url || "";
+      const coverHtml = img
+        ? "<img class=\"book-card__cover\" src=\"" + escapeHtml(img) + "\" alt=\"\" loading=\"lazy\">"
+        : "<div class=\"book-card__cover book-card__cover--placeholder\" aria-hidden=\"true\">&#128214;</div>";
+      return {
+        title: escapeHtml(item.title || item.name || ""),
+        author: escapeHtml(item.author || item.authors || ""),
+        cover_html: coverHtml
+      };
+    };
+  </script>
+  <div id="list" class="view">
+    <div
+      id="list-body"
+      class="book-grid"
+      role="list"
+      data-list-key="goodreads_book_list"
+      data-empty-message="No books">
+    </div>
+  </div>
+  <template id="card-template">
+    <div class="book-card" role="listitem">
+      {{cover_html}}
+      <div class="book-card__body">
+        <h3 class="book-card__title">{{title}}</h3>
+        <p class="book-card__author">{{author}}</p>
+      </div>
+    </div>
+  </template>
+"""

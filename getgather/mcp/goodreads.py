@@ -3,7 +3,7 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
-from getgather.mcp.app_ui_html_renderer import render_app_ui_html
+from getgather.mcp.app_ui_html_renderer import book_list_content_template, render_app_ui_html
 from getgather.mcp.dpage import (
     get_base_url,
     remote_zen_dpage_mcp_tool,
@@ -66,7 +66,7 @@ async def _goodreads_book_details_action(tab: zd.Tab, _browser: zd.Browser) -> d
 @goodreads_mcp.resource(uri=GOODREADS_UI_URI, mime_type=UI_MIME_TYPE)
 async def goodreads_ui_resource() -> str:
     """Serve the book list app. Host pushes get_book_list result via ontoolresult"""
-    return render_app_ui_html(title="Goodreads MCP App")
+    return render_app_ui_html(content=book_list_content_template(), title="Goodreads MCP App")
 
 
 @goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
