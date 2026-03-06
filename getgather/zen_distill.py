@@ -739,7 +739,9 @@ class Element:
         if self.config.typing_mode == "fast":
             selector = self.css_selector or self.xpath_selector
             if not selector:
-                logger.warning("No selector available for fast type_text; falling back to human mode")
+                logger.warning(
+                    "No selector available for fast type_text; falling back to human mode"
+                )
             else:
                 value_js = json.dumps(text)
                 if self.xpath_selector:
@@ -1229,7 +1231,9 @@ async def batch_click_selectors(
     if not selector_infos:
         return
     selectors_json = json.dumps([s["selector"] for s in selector_infos])
-    is_xpath_json = json.dumps([s.get("is_xpath", s["selector"].startswith("//")) for s in selector_infos])
+    is_xpath_json = json.dumps([
+        s.get("is_xpath", s["selector"].startswith("//")) for s in selector_infos
+    ])
     iframe_selectors_json = json.dumps([s.get("iframe_selector") or "" for s in selector_infos])
 
     js_code = f"""
