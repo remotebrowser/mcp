@@ -1112,7 +1112,7 @@ async def autoclick(page: zd.Tab, distilled: str, expr: str | list[str]) -> None
     selector_infos: list[dict[str, Any]] = []
     for e in exprs:
         for el in document.select(e):
-            if not isinstance(el, Tag):
+            if not isinstance(el, Tag):  # pyright: ignore[reportUnnecessaryIsInstance]
                 continue
             sel, iframe_sel = get_selector(str(el.get("gg-match", "")))
             if sel:
