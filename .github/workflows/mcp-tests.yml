@@ -12,40 +12,40 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - run: |
+      - name: Download and extract latest Chrome Fleet release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url=$(gh api repos/remotebrowser/chromefleet/releases/latest \
+            --jq '.assets[] | select(.name | endswith("linux-64bit.zip")) | .browser_download_url')
+          curl -fsSL -o release.zip "$url"
+          unzip release.zip -d app
+          chmod +x app/chromefleet/chromefleet
+
+      - name: Run Chrome Fleet
+        run: app/chromefleet/chromefleet 2>&1 | tee chromefleet.log &
+
+      - name: Wait until Chrome Fleet is ready
+        run: while ! curl -s 'http://localhost:8300/health' | grep 'OK'; do sleep 1; done
+        timeout-minutes: 3
+
+      - name: Prepare back-end environment
+        uses: ./.github/actions/prepare-backend
+
+      - name: Create a test Chromium container
+        run: curl -sf -X POST localhost:8300/api/v1/browsers/test123 | tee /dev/stderr | grep -q 'status'
+
+      - name: Build MCP container
+        run: |
           docker container rm -f getgather 2>/dev/null || true
           docker build --network=host -t getgather .
 
-      - name: Load environment variables from Doppler
-        uses: ./.github/actions/download-env
-        with:
-          doppler-token: ${{ secrets.REMOTEBROWSER_CI_DOPPLER_TOKEN }}
-          project: remotebrowser
-          config: ci
-
-      - name: Setup ChromeFleet via WireGuard
-        uses: ./.github/actions/setup-chromefleet
-        with:
-          fly-api-token: ${{ env.FLY_API_TOKEN }}
-          fly-org-slug: ${{ env.FLY_ORG_SLUG }}
-
-      - name: check the health of chromefleet connection
-        run: curl -s "${{ env.CHROMEFLEET_URL }}/health"
-
-      - run: |
+      - name: Run MCP container
+        run: |
           docker run --network host --name getgather -d \
-            -e SENTRY_DSN=${{ secrets.SENTRY_DSN }} \
-            -e ENVIRONMENT=test \
-            -e DEFAULT_PROXY_TYPE=proxy-0 \
-            -e PROXIES_CONFIG="${{ secrets.PROXIES_CONFIG }}" \
-            -e CHROMEFLEET_URL="${{ env.CHROMEFLEET_URL }}" \
-            -e OAUTH_ORIGIN=http://localhost:23456 \
-            -e FIRST_PARTY_OAUTH_PROVIDER_NAME=firstparty \
-            -e FIRST_PARTY_APPS='{"test-key": "test-app"}' \
-            -e OAUTH_GOOGLE_CLIENT_ID=fake-client-id \
-            -e OAUTH_GOOGLE_CLIENT_SECRET=fake-client-secret \
+            -e CHROMEFLEET_URL="http://localhost:8300" \
             getgather
         timeout-minutes: 3
 
@@ -56,9 +56,6 @@ jobs:
       - name: Run the extended health check validation
         run: while ! curl -s 'http://localhost:23456/extended-health' | grep 'OK'; do sleep 1; done
         timeout-minutes: 3
-
-      - name: Prepare back-end environment
-        uses: ./.github/actions/prepare-backend
 
       - name: Install Chromium via Playwright
         run: npx playwright install chromium
@@ -79,12 +76,10 @@ jobs:
           ls -la /usr/bin/chromium-browser
           "$chromium_path" --version
 
-      - name: Run the tests
-        run: xvfb-run -a uv run pytest -m "mcp" -s
+      - name: Run MCP tests
+        run: xvfb-run -a uv run pytest -m "mcp" -s -p no:xdist
         env:
           HOST: http://localhost:23456
-          FIRST_PARTY_OAUTH_PROVIDER_NAME: firstparty
-          FIRST_PARTY_APPS: '{"test-key": "test-app"}'
           BBC_EMAIL: ${{ secrets.BBC_EMAIL }}
           BBC_PASSWORD: ${{ secrets.BBC_PASSWORD }}
           GOODREADS_EMAIL: ${{ secrets.GOODREADS_EMAIL }}
@@ -92,15 +87,6 @@ jobs:
           WAYFAIR_EMAIL: ${{ secrets.WAYFAIR_EMAIL }}
           WAYFAIR_PASSWORD: ${{ secrets.WAYFAIR_PASSWORD }}
 
-      - name: Cleanup WireGuard
-        uses: ./.github/actions/wireguard-teardown
+      - name: Dump getgather container logs
         if: always()
-        with:
-          fly-api-token: ${{ env.FLY_API_TOKEN }}
-          fly-org-slug: ${{ env.FLY_ORG_SLUG }}
-
-      - name: Dump getgather container logs on failure
-        if: failure() || cancelled()
-        run: |-
-          echo "=============== CONTAINER LOGS ===================="
-          docker logs getgather || true
+        run: docker logs getgather || true
