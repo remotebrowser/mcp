@@ -56,23 +56,71 @@ class ElementConfig:
 
 ConversionResult = list[dict[str, str | list[str]]]
 
-_CREDENTIALS_BLOCK_SCRIPT = """\
+_CREDENTIALS_BLOCK_SCRIPT = r"""
 (() => {
-  const reject = (name, msg) =>
-    Promise.reject(new DOMException(msg || "Blocked", name));
-  if (!navigator.credentials) return;
-  CredentialsContainer.prototype.get = function () {
-    return reject("NotAllowedError", "Credentials API blocked");
+  "use strict";
+
+  const state = {
+    installed: true,
+    errors: [],
+    patched: {},
+    descriptors: {},
   };
-  CredentialsContainer.prototype.create = function () {
-    return reject("NotAllowedError", "Credentials API blocked");
-  };
-  CredentialsContainer.prototype.store = function () {
-    return reject("NotAllowedError", "Credentials API blocked");
-  };
-  CredentialsContainer.prototype.preventSilentAccess = function () {
-    return Promise.resolve();
-  };
+
+  window.__credBlockState = state;
+
+  try {
+    if (!window.CredentialsContainer || !navigator.credentials) {
+      state.errors.push("CredentialsContainer or navigator.credentials missing");
+      return;
+    }
+
+    const reject = (msg = "Credentials API blocked") =>
+      Promise.reject(new DOMException(msg, "NotAllowedError"));
+
+    for (const name of ["get", "create", "store"]) {
+      try {
+        const desc = Object.getOwnPropertyDescriptor(CredentialsContainer.prototype, name);
+        state.descriptors[name] = {
+          exists: !!desc,
+          configurable: !!desc?.configurable,
+          writable: !!desc?.writable,
+          hasValue: !!desc?.value,
+        };
+
+        Object.defineProperty(CredentialsContainer.prototype, name, {
+          configurable: true,
+          writable: true,
+          value: function () {
+            return reject();
+          },
+        });
+
+        state.patched[name] =
+          CredentialsContainer.prototype[name] &&
+          CredentialsContainer.prototype[name].toString().includes("return reject()");
+      } catch (e) {
+        state.errors.push(`${name}: ${e && e.message ? e.message : String(e)}`);
+      }
+    }
+
+    try {
+      Object.defineProperty(CredentialsContainer.prototype, "preventSilentAccess", {
+        configurable: true,
+        writable: true,
+        value: function () {
+          return Promise.resolve();
+        },
+      });
+      state.patched.preventSilentAccess = true;
+    } catch (e) {
+      state.errors.push(
+        `preventSilentAccess: ${e && e.message ? e.message : String(e)}`
+      );
+    }
+  } catch (e) {
+    state.errors.push(`top-level: ${e && e.message ? e.message : String(e)}`);
+  }
 })();
 """
 
