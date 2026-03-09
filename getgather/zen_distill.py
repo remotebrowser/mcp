@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlunparse
 
-import nanoid
 import sentry_sdk
 import websockets
 import zendriver as zd
@@ -23,7 +22,7 @@ from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
-from getgather.browser.proxy import change_and_validate_proxy, setup_proxy
+from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
@@ -380,7 +379,7 @@ async def install_proxy_handler(username: str, password: str, page: zd.Tab):
 
 async def _create_zendriver_browser(id: str | None = None) -> zd.Browser:
     if id is None:
-        id = nanoid.generate(FRIENDLY_CHARS, 6)
+        id = generate(FRIENDLY_CHARS, 6)
 
     user_data_dir: Path = settings.profiles_dir / id
     logger.info(
@@ -533,6 +532,10 @@ async def zen_navigate_with_retry(page: zd.Tab, url: str, wait_for_ready: bool =
     raise last_error or Exception(f"Failed to navigate to {url}")
 
 
+def is_local_browser(browser: zd.Browser) -> bool:
+    return browser.config.host is None or browser.config.host in ("127.0.0.1", "localhost")
+
+
 async def get_new_page(browser: zd.Browser) -> zd.Tab:
     page = await browser.get("about:blank", new_tab=True)
 
@@ -604,16 +607,17 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
         )
     )
 
-    id = cast(str, browser.id)  # type: ignore[attr-defined]
-    proxy = await setup_proxy(id, request_info.get())
-    proxy_username = None
-    proxy_password = None
-    if proxy:
-        proxy_username = proxy["username"]
-        proxy_password = proxy["password"]
-        if proxy_username or proxy_password:
-            logger.debug("Setting up proxy authentication...")
-            await install_proxy_handler(proxy_username or "", proxy_password or "", page)
+    if is_local_browser(browser):
+        id = cast(str, browser.id)  # type: ignore[attr-defined]
+        proxy = await setup_proxy(id, request_info.get())
+        proxy_username = None
+        proxy_password = None
+        if proxy:
+            proxy_username = proxy["username"]
+            proxy_password = proxy["password"]
+            if proxy_username or proxy_password:
+                logger.debug("Setting up proxy authentication...")
+                await install_proxy_handler(proxy_username or "", proxy_password or "", page)
 
     return page
 
@@ -1173,86 +1177,13 @@ async def run_distillation_loop(
     return (False, current.distilled, None)
 
 
-async def create_working_random_browser(req_info: Any | None = None) -> zd.Browser:
-    proxy_location = req_info.model_dump() if req_info else None
-
-    async def create_single_browser(proxy_location: Any | None) -> zd.Browser:
-        id = generate(FRIENDLY_CHARS, 6)
-        browser = await create_remote_browser(browser_id=id)
-        await change_and_validate_proxy(browser, location=proxy_location)
-        return browser
-
-    browsers = await asyncio.gather(*[create_single_browser(proxy_location) for _ in range(3)])
-    selected_browser = random.choice(browsers)
-
-    for browser in browsers:
-        if browser is not selected_browser:
-            await terminate_remote_browser(browser)
-
-    return selected_browser
-
-
-async def _score_browser(browser: zd.Browser, ip_check_url: str = "https://ip.fly.dev/ip") -> int:
-    """Returns 1 if browser can reach the IP check URL, 0 otherwise. Will be extended in the future to include more comprehensive checks."""
-    try:
-        page = await get_new_page(browser)
-        await zen_navigate_with_retry(page, ip_check_url, wait_for_ready=False)
-        body = await page.select("body")
-        ip = body.text.strip() if body else None
-        await safe_close_page(page)
-        if ip:
-            logger.info(f"Browser {browser.id} IP: {ip}")  # type: ignore[attr-defined]
-            return 1
-    except Exception as e:
-        logger.warning(f"Browser {browser.id} score failed: {e}")  # type: ignore[attr-defined]
-    return 0
-
-
-async def create_best_browser(
-    req_info: Any | None = None,
-    num_browsers: int = 3,
-) -> zd.Browser:
-    proxy_location = req_info.model_dump() if req_info else None
-
-    async def create_single_browser() -> zd.Browser:
-        id = generate(FRIENDLY_CHARS, 6)
-        browser = await create_remote_browser(browser_id=id)
-        await change_and_validate_proxy(browser, location=proxy_location)
-        return browser
-
-    browsers = list(await asyncio.gather(*[create_single_browser() for _ in range(num_browsers)]))
-    selected_browser: zd.Browser | None = None
-
-    async def _score_with_browser(
-        b: zd.Browser,
-    ) -> tuple[
-        zd.Browser, int
-    ]:  # this allows the browser to be carried along (preventing the need for a separate mapping of tasks to browsers)
-        return b, await _score_browser(b)
-
-    race_tasks = [asyncio.create_task(_score_with_browser(b)) for b in browsers]
-    for coro in asyncio.as_completed(race_tasks):
-        browser, score = await coro
-        if score > 0 and selected_browser is None:
-            selected_browser = browser
-            break
-    if selected_browser is None:
-        raise RuntimeError("No browser passed scoring")
-
-    for browser in browsers:
-        if browser is not selected_browser:
-            await terminate_remote_browser(browser)
-
-    return selected_browser
-
-
 async def short_lived_mcp_tool(
     location: str,
     pattern_wildcard: str,
     result_key: str,
     url_hostname: str,
 ) -> tuple[bool, dict[str, Any]]:
-    browser = await create_best_browser(request_info.get())
+    browser = await create_remote_browser(browser_id=generate(FRIENDLY_CHARS, 6))
 
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
