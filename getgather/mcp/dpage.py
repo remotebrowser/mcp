@@ -65,20 +65,9 @@ def _find_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
     return None
 
 
-def _get_base_url(headers: dict[str, str]) -> str:
-    """Build the base URL for dpage redirects from request headers."""
-    host = headers.get("x-forwarded-host") or headers.get("host")
-    if host is None:
-        logger.warning("Missing Host header; defaulting to localhost")
-        return "http://localhost:23456"
-    default_scheme = "http" if is_local_address(host) else "https"
-    scheme = headers.get("x-forwarded-proto", default_scheme)
-    return f"{scheme}://{host}"
-
-
-def _signin_flow_response(headers: dict[str, str], dpage_id: str) -> dict[str, Any]:
+def _signin_flow_response(dpage_id: str) -> dict[str, Any]:
     """Build the standard sign-in flow response dict."""
-    base_url = _get_base_url(headers)
+    base_url = get_base_url()
     url = f"{base_url}/dpage/{dpage_id}"
     return {
         "url": url,
@@ -672,7 +661,7 @@ async def zen_dpage_with_action(
     if incognito:
         browser_manager.set_incognito_browser(id, browser_instance)
 
-    response = _signin_flow_response(headers, id)
+    response = _signin_flow_response(id)
     logger.info(
         f"zen_dpage_with_action: Continue with sign in at {response['url']}",
         extra={"url": response["url"], "id": id},
@@ -735,8 +724,7 @@ async def remote_zen_dpage_mcp_tool(
 
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
-    headers = get_http_headers(include_all=True)
-    base_url = _get_base_url(headers)
+    base_url = get_base_url()
     url = f"{base_url}/dpage/{dpage_id}"
     logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": dpage_id})
     return {
@@ -850,7 +838,7 @@ async def remote_zen_dpage_with_action(
         "dpage_timeout": dpage_timeout,
     }
 
-    response = _signin_flow_response(headers, dpage_id)
+    response = _signin_flow_response(dpage_id)
     logger.info(
         f"remote_zen_dpage_with_action: Continue with sign in at {response['url']}",
         extra={"url": response["url"], "id": dpage_id},
