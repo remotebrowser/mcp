@@ -1,8 +1,10 @@
+import json
 import traceback
 from typing import Annotated
 
 from cyclopts import App, Parameter
 from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
 from rich import print
 
 app = App(help="Manual end-to-end test of the mcp server.")
@@ -21,12 +23,20 @@ async def call_tool(
     mcp: Annotated[str, Parameter(help="name of the mcp server")] = "media",
     tool: Annotated[str, Parameter(help="name of the tool")] = "get_user_info",
     token: Annotated[str, Parameter(help="OAuth token to skip full auth flow")] | None = None,
+    country: Annotated[str, Parameter(help="Country")] = "us",
+    state: Annotated[str, Parameter(help="State")] = "california",
 ):
     url = f"{server_url}/mcp-{mcp}"
     result = None
     error = None
+    transport = StreamableHttpTransport(
+        url,
+        auth=(token or "oauth"),
+        headers={"x-location": json.dumps({"country": country, "state": state})},
+        sse_read_timeout=180,
+    )
     try:
-        async with Client(url, auth=(token or "oauth"), timeout=180) as client:
+        async with Client(transport) as client:
             result = await client.call_tool_mcp(tool, {})
     except Exception:
         error = traceback.format_exc()

@@ -27,6 +27,7 @@ dependencies = [
   "logfire[fastapi,httpx]>=4.13.2",
   "zendriver>=0.14.2",
   "loguru>=0.7.3",
+  "httpx-retries>=0.4.6",
 ]
 
 [dependency-groups]

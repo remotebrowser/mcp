@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 import asyncio_atexit
 import httpx
 import zendriver as zd
+from fastmcp.server.dependencies import get_http_headers
+from httpx_retries import Retry, RetryTransport
 from loguru import logger
 from zendriver.core import util
 from zendriver.core._contradict import ContraDict
@@ -56,16 +58,50 @@ async def _create_browser_from_cdp_websocket(
     return instance
 
 
-async def _call_chromefleet_api(method: HTTP_METHOD, browser_id: str) -> httpx.Response:
+async def _call_chromefleet_api(
+    method: HTTP_METHOD,
+    browser_id: str,
+    *,
+    timeout: float = 120.0,
+    retries: int = 3,
+    raise_for_status: bool = True,
+) -> httpx.Response:
     base_url = settings.CHROMEFLEET_URL.rstrip("/")
     if not base_url:
         raise ValueError("CHROMEFLEET_URL is not configured")
 
     url = f"{base_url}/api/v1/browsers/{browser_id}"
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.request(method, url)
-        response.raise_for_status()
+    mcp_headers = get_http_headers(include_all=True)
+    headers = {
+        "x-forwarded-for": mcp_headers.get("x-forwarded-for", None),
+        "user-agent": mcp_headers.get("user-agent", None),
+        "sec-ch-ua": mcp_headers.get("sec-ch-ua", None),
+        "sec-ch-ua-mobile": mcp_headers.get("sec-ch-ua-mobile", None),
+        "sec-ch-ua-platform": mcp_headers.get("sec-ch-ua-platform", None),
+        "x-location": mcp_headers.get("x-location", None),
+        "x-proxy-type": mcp_headers.get("x-proxy-type", None),
+    }
+    headers = {k: v for k, v in headers.items() if v is not None}
+
+    async with httpx.AsyncClient(
+        transport=RetryTransport(
+            retry=Retry(
+                total=retries,
+                backoff_factor=1.0,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=[method],
+            )
+        ),
+    ) as client:
+        response = await client.request(
+            method,
+            url,
+            headers=headers,
+            timeout=httpx.Timeout(connect=2.0, pool=None, read=timeout, write=timeout),
+        )
+        if raise_for_status:
+            response.raise_for_status()
         return response
 
 
@@ -105,5 +141,7 @@ async def terminate_remote_browser(browser: zd.Browser) -> None:
     """Terminate an existing remote Chrome via ChromeFleet."""
     browser_id = cast(str, browser.id)  # type: ignore[attr-defined]
     logger.info(f"Terminating ChromeFleet browser: {browser_id}")
-    await _call_chromefleet_api("DELETE", browser_id)
-    logger.info(f"Successfully terminated ChromeFleet browser: {browser_id}")
+    # no need to raise for error (which would fail the whole process)
+    await _call_chromefleet_api(
+        "DELETE", browser_id, timeout=5.0, retries=0, raise_for_status=False
+    )
