@@ -25,7 +25,6 @@ async def _create_browser_from_cdp_websocket(
     if not config:
         config = Config(host=host, port=port)
 
-    logger.info(f"Config: {config}")
     config.host = host
     config.port = port
 
