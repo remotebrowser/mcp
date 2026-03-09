@@ -22,25 +22,46 @@ async def _create_browser_from_cdp_websocket(
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or (443 if parsed.scheme in ("wss", "https") else 80)
 
+    logger.info(f"Creating browser from CDP websocket: {websocket_url}")
+    logger.info(f"Host: {host}")
+    logger.info(f"Port: {port}")
     if not config:
         config = Config(host=host, port=port)
 
+    logger.info(f"Config: {config}")
     config.host = host
     config.port = port
 
     instance = zd.Browser(config)
+    logger.info(f"Instance: {instance}")
     instance.info = ContraDict({"webSocketDebuggerUrl": websocket_url}, silent=True)
     instance.connection = Connection(websocket_url, _owner=instance)
+    logger.info(f"Instance connection: {instance.connection}")
+
+    async def _safe_handle_target_update(event: object) -> None:
+        try:
+            await instance._handle_target_update(event)  # type: ignore[reportPrivateUsage]
+        except RuntimeError as exc:
+            # zendriver may raise "coroutine raised StopIteration" for
+            # out-of-order target lifecycle events in remote CDP sessions.
+            if "StopIteration" in str(exc):
+                logger.debug("Ignored transient target update race: {}", exc)
+                return
+            raise
+        except StopIteration:
+            logger.debug("Ignored transient target update race: StopIteration")
 
     if instance.config.autodiscover_targets:
         instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
-            instance._handle_target_update  # type: ignore[reportPrivateUsage]
+            _safe_handle_target_update
         ]
         instance.connection.handlers[zd.cdp.target.TargetCreated] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
         instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
             instance._handle_target_update  # type: ignore[reportPrivateUsage]
         ]
+
         instance.connection.handlers[zd.cdp.target.TargetCrashed] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
+
         await instance.connection.send(zd.cdp.target.set_discover_targets(discover=True))
 
     await instance.update_targets()
