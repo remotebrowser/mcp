@@ -56,6 +56,24 @@ class ElementConfig:
 
 ConversionResult = list[dict[str, str | list[str]]]
 
+_CREDENTIALS_BLOCK_SCRIPT = r"""
+(() => {
+  "use strict";
+
+  if (!window.CredentialsContainer || !navigator.credentials) return;
+
+  Object.defineProperty(CredentialsContainer.prototype, "get", {
+    configurable: true,
+    writable: true,
+    value: function () {
+      return Promise.reject(
+        new DOMException("Credentials API blocked", "NotAllowedError")
+      );
+    },
+  });
+})();
+"""
+
 NETWORK_ERROR_PATTERNS = (
     "err-timed-out",
     "err-ssl-protocol-error",
@@ -576,6 +594,15 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
     # Enable fetch domain to intercept requests. Will be overridden if proxy auth is set up.
     await page.send(zd.cdp.fetch.enable())
     page.add_handler(zd.cdp.fetch.RequestPaused, handle_request)  # type: ignore[reportUnknownMemberType]
+
+    # Block the entire Credentials API before page for passkeys
+    # Page domain must be enabled before addScriptToEvaluateOnNewDocument, otherwise CDP will reject the script
+    await page.send(zd.cdp.page.enable())
+    await page.send(
+        zd.cdp.page.add_script_to_evaluate_on_new_document(
+            source=_CREDENTIALS_BLOCK_SCRIPT, run_immediately=True
+        )
+    )
 
     id = cast(str, browser.id)  # type: ignore[attr-defined]
     proxy = await setup_proxy(id, request_info.get())
