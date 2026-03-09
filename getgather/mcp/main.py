@@ -203,7 +203,7 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     This performs plugin discovery/registration and mounts brand MCPs.
     """
-    mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP")
+    mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP", stateless_http=True)
     mcp.add_middleware(LocationProxyMiddleware())
 
     @mcp.tool(tags={"general_tool"})

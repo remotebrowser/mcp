@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from fastmcp import Context, FastMCP
 
 # Create a generic calendar MCP
-calendar_mcp = FastMCP[Context](name="Calendar MCP")
+calendar_mcp = FastMCP[Context](name="Calendar MCP", stateless_http=True)
 
 
 def escape_ics_text(value: str) -> str:
