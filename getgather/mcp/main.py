@@ -12,6 +12,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from getgather.auth.auth import get_auth_user
+from getgather.config import settings
 from getgather.mcp.auto_import import auto_import
 from getgather.mcp.calendar_utils import calendar_mcp
 from getgather.mcp.dpage import (
@@ -203,7 +204,9 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     This performs plugin discovery/registration and mounts brand MCPs.
     """
-    mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP")
+    mcp = FastMCP[Context](
+        name=f"Getgather {bundle_name} MCP", stateless_http=settings.STATELESS_MCP
+    )
     mcp.add_middleware(LocationProxyMiddleware())
 
     @mcp.tool(tags={"general_tool"})

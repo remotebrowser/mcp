@@ -19,6 +19,7 @@ class Settings(AuthSettings, BaseSettings):
     GIT_REV: str = ""
 
     DATA_DIR: str = ""
+    STATELESS_MCP: bool = False
 
     CHROMEFLEET_URL: str = ""
     CHROMEFLEET_PROXY_URL: str = ""

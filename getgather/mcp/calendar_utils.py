@@ -6,8 +6,10 @@ from zoneinfo import ZoneInfo
 
 from fastmcp import Context, FastMCP
 
+from getgather.config import settings
+
 # Create a generic calendar MCP
-calendar_mcp = FastMCP[Context](name="Calendar MCP")
+calendar_mcp = FastMCP[Context](name="Calendar MCP", stateless_http=settings.STATELESS_MCP)
 
 
 def escape_ics_text(value: str) -> str:
