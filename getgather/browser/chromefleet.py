@@ -22,6 +22,7 @@ async def _create_browser_from_cdp_websocket(
 ) -> zd.Browser:
     parsed = urlparse(websocket_url)
     host = parsed.hostname or "127.0.0.1"
+    host = f"[{host.strip('[]')}]" if ":" in host else host  # handle ipv6 addresses
     port = parsed.port or (443 if parsed.scheme in ("wss", "https") else 80)
 
     if not config:
