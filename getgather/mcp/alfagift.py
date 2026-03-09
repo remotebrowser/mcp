@@ -2,7 +2,7 @@ from typing import Any
 
 import zendriver as zd
 
-from getgather.mcp.dpage import zen_dpage_with_action
+from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_actions import parse_response_json
 
@@ -21,7 +21,7 @@ async def get_cart() -> dict[str, Any]:
 
         return {"alfagift_cart": results["data"]["listCartDetail"]}
 
-    return await zen_dpage_with_action(
+    return await remote_zen_dpage_with_action(
         "https://alfagift.id",
         action,
     )
@@ -39,7 +39,7 @@ async def get_order_done() -> dict[str, Any]:
 
         return {"alfagift_order_done": results["data"]}
 
-    return await zen_dpage_with_action(
+    return await remote_zen_dpage_with_action(
         "https://alfagift.id",
         action,
     )
