@@ -274,9 +274,9 @@ async def get_purchase_history_with_details(
 
         path = os.path.join(os.path.dirname(__file__), "patterns", "**/amazon-*.html")
 
-        logger.info(f"Loading patterns from {path}")
+        logger.debug(f"Loading patterns from {path}")
         patterns = load_distillation_patterns(path)
-        logger.info(f"Loaded {len(patterns)} patterns")
+        logger.debug(f"Loaded {len(patterns)} patterns")
         page_index = int(
             (start_index / 10) + 1
         )  # for business account pagination, it use page_index, not start_index

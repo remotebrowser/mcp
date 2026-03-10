@@ -1020,7 +1020,7 @@ async def distill(
         for item in result:
             logger.debug(f" - {item.name} with priority {item.priority}")
         match = result[0]
-        logger.info(f"✓ Best match: {match.name}")
+        logger.debug(f"✓ Best match: {match.name}")
 
         if reload_on_error and any(pattern in match.name for pattern in NETWORK_ERROR_PATTERNS):
             logger.info(f"Error pattern detected: {match.name}")
@@ -1100,8 +1100,7 @@ async def run_distillation_loop(
     current = Match(name="", priority=-1, distilled="")
 
     for iteration in range(max):
-        logger.info("")
-        logger.info(f"Iteration {iteration + 1} of {max}")
+        logger.debug(f"Iteration {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
         try:
