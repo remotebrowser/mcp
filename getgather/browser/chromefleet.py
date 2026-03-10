@@ -35,9 +35,22 @@ async def _create_browser_from_cdp_websocket(
     instance.info = ContraDict({"webSocketDebuggerUrl": websocket_url}, silent=True)
     instance.connection = Connection(websocket_url, _owner=instance)
 
+    async def _safe_handle_target_update(event: object) -> None:
+        try:
+            await instance._handle_target_update(event)  # type: ignore[reportPrivateUsage]
+        except RuntimeError as exc:
+            # zendriver may raise "coroutine raised StopIteration" for
+            # out-of-order target lifecycle events in remote CDP sessions.
+            if "StopIteration" in str(exc):
+                logger.debug("Ignored transient target update race: {}", exc)
+                return
+            raise
+        except StopIteration:
+            logger.debug("Ignored transient target update race: StopIteration")
+
     if instance.config.autodiscover_targets:
         instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
-            instance._handle_target_update  # type: ignore[reportPrivateUsage]
+            _safe_handle_target_update
         ]
         instance.connection.handlers[zd.cdp.target.TargetCreated] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
         instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
