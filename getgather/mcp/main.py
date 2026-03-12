@@ -13,7 +13,6 @@ from pydantic import BaseModel
 
 from getgather.auth.auth import get_auth_user
 from getgather.mcp.auto_import import auto_import
-from getgather.mcp.calendar_utils import calendar_mcp
 from getgather.mcp.dpage import (
     dpage_check,
     dpage_finalize,
@@ -75,13 +74,6 @@ def _inject_app_ui_content_meta(
         return mcp.types.ServerResult(mcp.types.ReadResourceResult(contents=new_contents))
 
     mcp_server.request_handlers[mcp.types.ReadResourceRequest] = wrapped
-
-
-# Ensure calendar MCP is registered by importing its module
-try:
-    from getgather.mcp import calendar_utils  # type: ignore
-except Exception as e:
-    logger.warning(f"Failed to register calendar MCP: {e}")
 
 
 class LocationProxyMiddleware(Middleware):
@@ -194,7 +186,6 @@ def create_mcp_apps() -> list[MCPApp]:
         )
         for category in MCP_BUNDLES.keys()
     ])
-
     return apps
 
 
@@ -285,8 +276,6 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     if app_ui_content_meta:
         _inject_app_ui_content_meta(mcp, app_ui_content_meta)
-
-    mcp.mount(server=calendar_mcp, prefix="calendar")
 
     return mcp.http_app(path="/")
 
