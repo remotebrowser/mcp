@@ -54,7 +54,7 @@ def build_proxy_config(
         if temp_config.password:
             result["password"] = temp_config.password
 
-        logger.info(
+        logger.debug(
             f"Built proxy config from url_template - server: {temp_config.server}, "
             f"username: {temp_config.base_username}, has_password: {bool(temp_config.password)}"
         )
@@ -79,7 +79,7 @@ def build_proxy_config(
         username = proxy_config.base_username
 
     if username:
-        logger.info(f"Built proxy username: {username}")
+        logger.debug(f"Built proxy username: {username}")
 
     result = {
         "server": proxy_config.server,
@@ -89,7 +89,7 @@ def build_proxy_config(
     if proxy_config.password:
         result["password"] = proxy_config.password
 
-    logger.info(
+    logger.debug(
         f"Built proxy config - server: {proxy_config.server}, username: {username}, "
         f"has_password: {bool(proxy_config.password)}"
     )

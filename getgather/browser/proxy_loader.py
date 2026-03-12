@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 from typing import Any
 
 import yaml
@@ -8,6 +9,7 @@ from getgather.browser.proxy_types import ProxyConfig
 from getgather.config import settings
 
 
+@lru_cache(maxsize=1)
 def load_proxy_configs() -> dict[str, ProxyConfig]:
     """Load proxy configurations from environment variable or YAML file.
 

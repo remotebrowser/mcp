@@ -40,13 +40,13 @@ async def setup_proxy(
     # Priority 1: Check if request_info specifies a proxy type via header
     if request_info and request_info.proxy_type:
         proxy_type = request_info.proxy_type
-        logger.info(f"Proxy type from header: {proxy_type}")
+        logger.debug(f"Proxy type from header: {proxy_type}")
     # Priority 2: Use DEFAULT_PROXY_TYPE if configured
     elif settings.DEFAULT_PROXY_TYPE:
         proxy_type = settings.DEFAULT_PROXY_TYPE
-        logger.info(f"Using default proxy type: {proxy_type}")
+        logger.debug(f"Using default proxy type: {proxy_type}")
     else:
-        logger.info("No proxy type specified (no header or DEFAULT_PROXY_TYPE)")
+        logger.debug("No proxy type specified (no header or DEFAULT_PROXY_TYPE)")
         return None
 
     # Load proxy configurations
@@ -73,13 +73,13 @@ async def setup_proxy(
         masked_server = re.sub(r":([^:@]+)@", r":***@", server)
 
         if "username" in result:
-            logger.info(
+            logger.debug(
                 f"✓ Proxy configured: type={proxy_type}, "
                 f"server={masked_server}, username={result['username']}"
             )
         else:
-            logger.info(f"✓ Proxy configured: type={proxy_type}, server={masked_server}")
+            logger.debug(f"✓ Proxy configured: type={proxy_type}, server={masked_server}")
     else:
-        logger.info(f"✓ No proxy configured (type={proxy_type} returned None)")
+        logger.debug(f"✓ No proxy configured (type={proxy_type} returned None)")
 
     return result
