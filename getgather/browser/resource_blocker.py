@@ -7,7 +7,7 @@ from loguru import logger
 from getgather.config import PROJECT_DIR
 
 blocked_domains: frozenset[str] | None = None
-allowed_domains: frozenset[str] = frozenset(["amazon.ca", "wayfair.com"])
+allowed_domains: frozenset[str] = frozenset(["amazon.ca", "wayfair.com", "cdn4dd.com"])
 
 
 def _get_domain_variants(domain: str) -> list[str]:
