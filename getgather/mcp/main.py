@@ -5,6 +5,7 @@ from typing import Any, Literal, cast
 
 import mcp.types
 from fastmcp import Context, FastMCP
+from fastmcp.resources.resource import ResourceResult
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
@@ -118,7 +119,7 @@ class LocationProxyMiddleware(Middleware):
 
         tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)  # type: ignore
 
-        if "general_tool" in tool.tags:
+        if "general_tool" in tool.tags:  # pyright: ignore[reportOptionalMemberAccess]
             with logger.contextualize(**log_context):
                 return await call_next(context)
 
@@ -258,9 +259,9 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                 app_ui_content_meta[str(resource_uri)] = {"ui": ui_to_meta_dict(app_ui)}
 
                 def _make_ui_resource(server: GatherMCP, ui_uri: str):
-                    async def _read() -> str | bytes:
+                    async def _read() -> str | bytes | ResourceResult:
                         resource = await server.get_resource(ui_uri)
-                        return await resource.read()
+                        return await resource.read()  # pyright: ignore[reportOptionalMemberAccess]
 
                     return _read
 
