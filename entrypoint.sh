@@ -7,6 +7,9 @@ export SESSION_MANAGER=""
 export DBUS_SESSION_BUS_ADDRESS=""
 export USER=getgather
 
+# Cleanup stale X lock/socket from previous unclean shutdowns
+rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 || true
+
 echo "Starting TigerVNC server on DISPLAY=$DISPLAY..."
 Xvnc -alwaysshared ${DISPLAY} -geometry 1920x1080 -depth 24 -rfbport 5900 -SecurityTypes None &
 
