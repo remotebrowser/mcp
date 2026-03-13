@@ -24,7 +24,7 @@ from getgather.auth.auth import setup_mcp_auth
 from getgather.config import settings
 from getgather.logs import instrument_fastapi
 from getgather.mcp.browser import browser_manager
-from getgather.mcp.dpage import router as dpage_router, zen_dpage_mcp_tool
+from getgather.mcp.dpage import remote_zen_dpage_mcp_tool, router as dpage_router
 from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
 
 # Create MCP apps once and reuse for lifespan and mounting
@@ -196,7 +196,7 @@ IP_CHECK_URL: Final[str] = "https://ip.fly.dev/ip"
 @app.get("/extended-health")
 async def extended_health():
     try:
-        result = await zen_dpage_mcp_tool(
+        result = await remote_zen_dpage_mcp_tool(
             initial_url="https://ip.fly.dev/ip", result_key="ip_address", timeout=3
         )
         ip_text = str(result.get("ip_address", "Unknown"))[:100]
