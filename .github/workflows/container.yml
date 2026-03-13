@@ -14,9 +14,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download and extract latest Chrome Fleet release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url=$(gh api repos/remotebrowser/chromefleet/releases/latest \
+            --jq '.assets[] | select(.name | endswith("linux-64bit.zip")) | .browser_download_url')
+          curl -fsSL -o release.zip "$url"
+          unzip release.zip -d app
+          chmod +x app/chromefleet/chromefleet
+
+      - name: Run Chrome Fleet
+        run: app/chromefleet/chromefleet 2>&1 | tee chromefleet.log &
+
+      - name: Wait until Chrome Fleet is ready
+        run: while ! curl -s 'http://localhost:8300/health' | grep 'OK'; do sleep 1; done
+        timeout-minutes: 3
+
+      - name: Create a test browser container
+        run: curl -s -X POST http://localhost:8300/api/v1/browsers/xyz123
+
       - run: docker build -t getgather .
 
-      - run: docker run -p 23456:23456 --name getgather -d getgather
+      - run: docker run -d --network host --name getgather -e CHROMEFLEET_URL getgather
+        env:
+          CHROMEFLEET_URL: http://localhost:8300
         timeout-minutes: 3
 
       - name: Run the health check validation
@@ -29,4 +51,8 @@ jobs:
 
       - name: Get the container logs
         run: docker logs --details getgather
+        if: always()
+
+      - name: Show Chrome Fleet logs
+        run: cat chromefleet.log
         if: always()
