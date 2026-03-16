@@ -135,7 +135,7 @@ async def get_browsing_history() -> dict[str, Any]:
             raise Exception("User is not signed in")
 
         is_empty = await page_query_selector(
-            page, "//span[contains(., 'You have no recently viewed items.')"
+            page, "//span[contains(., 'You have no recently viewed items.')]"
         )
         logger.info(f"is_empty: {is_empty}")
         if is_empty:
@@ -304,7 +304,7 @@ async def remote_get_browsing_history() -> dict[str, Any]:
             raise Exception("User is not signed in")
 
         is_empty = await page_query_selector(
-            page, "//span[contains(., 'You have no recently viewed items.')"
+            page, "//span[contains(., 'You have no recently viewed items.')]"
         )
         logger.info(f"is_empty: {is_empty}")
         if is_empty:
