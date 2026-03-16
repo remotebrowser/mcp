@@ -34,9 +34,11 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
     logger.info(f"Starting get_orders_from_api (page_number={page_number})")
 
     async def fetch_orders() -> dict[str, Any]:
-        await zen_navigate_with_retry(tab, "https://www.doordash.com/orders", wait_for_ready=False)
         orders = None
         async with tab.expect_response(".*/getConsumerOrdersWithDetails.*") as response:
+            await zen_navigate_with_retry(
+                tab, "https://www.doordash.com/orders", wait_for_ready=False
+            )
             logger.info("Response listener active.")
             response_value = await response.value
             order_details_url = response_value.response.url
@@ -75,6 +77,7 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
         max_retries=3,
         exceptions=(Exception,),
         re_raise_on_max_retries=True,
+        timeout_seconds=10,
         operation_name=f"get_orders_from_api (page_number={page_number})",
     )
 
