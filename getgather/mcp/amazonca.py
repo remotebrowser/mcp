@@ -72,7 +72,8 @@ async def get_purchase_history(
 
     current_year = datetime.now().year
     if not (1900 <= target_year <= current_year + 1):
-        raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
+        raise ValueError(
+            f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     return await zen_dpage_mcp_tool(
         f"https://www.amazon.ca/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
@@ -98,7 +99,8 @@ async def remote_get_purchase_history(
 
     current_year = datetime.now().year
     if not (1900 <= target_year <= current_year + 1):
-        raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
+        raise ValueError(
+            f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     return await remote_zen_dpage_mcp_tool(
         f"https://www.amazon.ca/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
@@ -153,7 +155,8 @@ async def get_browsing_history() -> dict[str, Any]:
             logger.info("Waiting for browsing-history API response")
             response_value = await response.value
             browsing_history_api_url = response_value.response.url
-            logger.info(f"Found browsing history API URL: {browsing_history_api_url}")
+            logger.info(
+                f"Found browsing history API URL: {browsing_history_api_url}")
             request_value = await response.request
             request_headers = request_value.headers
             logger.debug(
@@ -161,7 +164,8 @@ async def get_browsing_history() -> dict[str, Any]:
             )
 
         # Extract output from data-client-recs-list attribute
-        logger.info("Extracting browsing history IDs from data-client-recs-list attribute")
+        logger.info(
+            "Extracting browsing history IDs from data-client-recs-list attribute")
 
         raw_attribute = await page.evaluate("""
             (() => {{
@@ -172,7 +176,8 @@ async def get_browsing_history() -> dict[str, Any]:
         logger.info(
             f"Raw attribute value: {raw_attribute[:200] if raw_attribute and len(str(raw_attribute)) > 200 else raw_attribute}"
         )
-        raw_attribute_str = str(raw_attribute) if raw_attribute is not None else "[]"
+        raw_attribute_str = str(
+            raw_attribute) if raw_attribute is not None else "[]"
         output = [json.dumps(item) for item in json.loads(raw_attribute_str)]
         logger.info(f"Extracted {len(output)} browsing history IDs")
 
@@ -209,7 +214,8 @@ async def get_browsing_history() -> dict[str, Any]:
                     True,
                 )
             except Exception as e:
-                logger.info(f"Error fetching browsing history batch {start_index}-{end_index}: {e}")
+                logger.info(
+                    f"Error fetching browsing history batch {start_index}-{end_index}: {e}")
                 raise
             distilled = f"""
                 <html gg-domain="amazon">
@@ -259,7 +265,8 @@ async def get_browsing_history() -> dict[str, Any]:
                     </script>
                 </html>
             """
-            logger.debug(f"Converting distilled HTML for batch {start_index}-{end_index}")
+            logger.debug(
+                f"Converting distilled HTML for batch {start_index}-{end_index}")
             converted = await convert(distilled)
             if converted is not None:
                 logger.info(
@@ -268,23 +275,27 @@ async def get_browsing_history() -> dict[str, Any]:
                 for item in converted:
                     item["url"] = f"https://www.amazon.ca{item['url']}"
             else:
-                logger.warning(f"Conversion returned None for batch {start_index}-{end_index}")
+                logger.warning(
+                    f"Conversion returned None for batch {start_index}-{end_index}")
             return converted
 
         num_batches = (len(output) + 99) // 100
-        logger.info(f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
+        logger.info(
+            f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
         browsing_history_list = await asyncio.gather(*[
             get_browsing_history(i, i + 100) for i in range(0, len(output), 100)
         ])
         flattened_history: list[Any] = []
         for idx, batch in enumerate(browsing_history_list):
             if batch is not None:
-                logger.debug(f"Adding batch {idx} with {len(batch)} items to flattened history")
+                logger.debug(
+                    f"Adding batch {idx} with {len(batch)} items to flattened history")
                 flattened_history.extend(batch)
             else:
                 logger.warning(f"Batch {idx} was None, skipping")
 
-        logger.info(f"Total browsing history items collected: {len(flattened_history)}")
+        logger.info(
+            f"Total browsing history items collected: {len(flattened_history)}")
         return {"browsing_history_data": flattened_history}
 
     return await zen_dpage_with_action(
@@ -304,7 +315,7 @@ async def remote_get_browsing_history() -> dict[str, Any]:
             raise Exception("User is not signed in")
 
         is_empty = await page_query_selector(
-            page, "//span[contains(., 'You have no recently viewed items.')"
+            page, "//span[contains(., 'You have no recently viewed items.')]"
         )
         logger.info(f"is_empty: {is_empty}")
         if is_empty:
@@ -322,7 +333,8 @@ async def remote_get_browsing_history() -> dict[str, Any]:
             logger.info("Waiting for browsing-history API response")
             response_value = await response.value
             browsing_history_api_url = response_value.response.url
-            logger.info(f"Found browsing history API URL: {browsing_history_api_url}")
+            logger.info(
+                f"Found browsing history API URL: {browsing_history_api_url}")
             request_value = await response.request
             request_headers = request_value.headers
             logger.debug(
@@ -330,7 +342,8 @@ async def remote_get_browsing_history() -> dict[str, Any]:
             )
 
         # Extract output from data-client-recs-list attribute
-        logger.info("Extracting browsing history IDs from data-client-recs-list attribute")
+        logger.info(
+            "Extracting browsing history IDs from data-client-recs-list attribute")
 
         raw_attribute = await page.evaluate("""
             (() => {{
@@ -341,7 +354,8 @@ async def remote_get_browsing_history() -> dict[str, Any]:
         logger.info(
             f"Raw attribute value: {raw_attribute[:200] if raw_attribute and len(str(raw_attribute)) > 200 else raw_attribute}"
         )
-        raw_attribute_str = str(raw_attribute) if raw_attribute is not None else "[]"
+        raw_attribute_str = str(
+            raw_attribute) if raw_attribute is not None else "[]"
         output = [json.dumps(item) for item in json.loads(raw_attribute_str)]
         logger.info(f"Extracted {len(output)} browsing history IDs")
 
@@ -378,7 +392,8 @@ async def remote_get_browsing_history() -> dict[str, Any]:
                     True,
                 )
             except Exception as e:
-                logger.info(f"Error fetching browsing history batch {start_index}-{end_index}: {e}")
+                logger.info(
+                    f"Error fetching browsing history batch {start_index}-{end_index}: {e}")
                 raise
             distilled = f"""
                 <html gg-domain="amazon">
@@ -428,7 +443,8 @@ async def remote_get_browsing_history() -> dict[str, Any]:
                     </script>
                 </html>
             """
-            logger.debug(f"Converting distilled HTML for batch {start_index}-{end_index}")
+            logger.debug(
+                f"Converting distilled HTML for batch {start_index}-{end_index}")
             converted = await convert(distilled)
             if converted is not None:
                 logger.info(
@@ -437,23 +453,27 @@ async def remote_get_browsing_history() -> dict[str, Any]:
                 for item in converted:
                     item["url"] = f"https://www.amazon.ca{item['url']}"
             else:
-                logger.warning(f"Conversion returned None for batch {start_index}-{end_index}")
+                logger.warning(
+                    f"Conversion returned None for batch {start_index}-{end_index}")
             return converted
 
         num_batches = (len(output) + 99) // 100
-        logger.info(f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
+        logger.info(
+            f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
         browsing_history_list = await asyncio.gather(*[
             get_browsing_history(i, i + 100) for i in range(0, len(output), 100)
         ])
         flattened_history: list[Any] = []
         for idx, batch in enumerate(browsing_history_list):
             if batch is not None:
-                logger.debug(f"Adding batch {idx} with {len(batch)} items to flattened history")
+                logger.debug(
+                    f"Adding batch {idx} with {len(batch)} items to flattened history")
                 flattened_history.extend(batch)
             else:
                 logger.warning(f"Batch {idx} was None, skipping")
 
-        logger.info(f"Total browsing history items collected: {len(flattened_history)}")
+        logger.info(
+            f"Total browsing history items collected: {len(flattened_history)}")
         return {"browsing_history_data": flattened_history}
 
     return await remote_zen_dpage_with_action(
@@ -483,14 +503,16 @@ async def get_purchase_history_with_details(
 
     current_year = datetime.now().year
     if not (1900 <= target_year <= current_year + 1):
-        raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
+        raise ValueError(
+            f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     async def get_order_details_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         current_url = await get_url(page)
         if current_url is None or "signin" in current_url:
             raise Exception("User is not signed in")
 
-        path = os.path.join(os.path.dirname(__file__), "patterns", "**/amazon-*.html")
+        path = os.path.join(os.path.dirname(__file__),
+                            "patterns", "**/amazon-*.html")
 
         logger.debug(f"Loading patterns from {path}")
         patterns = load_distillation_patterns(path)
@@ -734,7 +756,8 @@ async def get_purchase_history_with_details(
             for i, item in enumerate(order_details_list):
                 if isinstance(item, BaseException):
                     order_id = orders[i]["order_id"]
-                    logger.warning(f"Error getting order details for order: {order_id}: {item}")
+                    logger.warning(
+                        f"Error getting order details for order: {order_id}: {item}")
 
             order_details = {
                 item["order_id"]: item
@@ -753,9 +776,11 @@ async def get_purchase_history_with_details(
                     order["product_urls"] = details["productUrls"]
                     order["image_urls"] = details["imageUrls"]
                 order["payment_info"] = details.get("paymentInfo") or ""
-                order["payment_info_detail"] = details.get("paymentInfoDetail") or ""
+                order["payment_info_detail"] = details.get(
+                    "paymentInfoDetail") or ""
                 order["payment_method"] = details.get("paymentMethod") or ""
-                order["payment_gift_card_amount"] = details.get("paymentGiftCardAmount") or ""
+                order["payment_gift_card_amount"] = details.get(
+                    "paymentGiftCardAmount") or ""
         except Exception as e:
             logger.error(f"Error getting order details for order: {e}")
             pass
@@ -788,14 +813,16 @@ async def remote_get_purchase_history_with_details(
 
     current_year = datetime.now().year
     if not (1900 <= target_year <= current_year + 1):
-        raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
+        raise ValueError(
+            f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     async def get_order_details_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
         current_url = await get_url(page)
         if current_url is None or "signin" in current_url:
             raise Exception("User is not signed in")
 
-        path = os.path.join(os.path.dirname(__file__), "patterns", "**/amazon-*.html")
+        path = os.path.join(os.path.dirname(__file__),
+                            "patterns", "**/amazon-*.html")
 
         logger.debug(f"Loading patterns from {path}")
         patterns = load_distillation_patterns(path)
@@ -1039,7 +1066,8 @@ async def remote_get_purchase_history_with_details(
             for i, item in enumerate(order_details_list):
                 if isinstance(item, BaseException):
                     order_id = orders[i]["order_id"]
-                    logger.warning(f"Error getting order details for order: {order_id}: {item}")
+                    logger.warning(
+                        f"Error getting order details for order: {order_id}: {item}")
 
             order_details = {
                 item["order_id"]: item
@@ -1058,9 +1086,11 @@ async def remote_get_purchase_history_with_details(
                     order["product_urls"] = details["productUrls"]
                     order["image_urls"] = details["imageUrls"]
                 order["payment_info"] = details.get("paymentInfo") or ""
-                order["payment_info_detail"] = details.get("paymentInfoDetail") or ""
+                order["payment_info_detail"] = details.get(
+                    "paymentInfoDetail") or ""
                 order["payment_method"] = details.get("paymentMethod") or ""
-                order["payment_gift_card_amount"] = details.get("paymentGiftCardAmount") or ""
+                order["payment_gift_card_amount"] = details.get(
+                    "paymentGiftCardAmount") or ""
         except Exception as e:
             logger.error(f"Error getting order details for order: {e}")
             pass
