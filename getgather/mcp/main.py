@@ -5,6 +5,7 @@ from typing import Any, Literal, cast
 
 import mcp.types
 from fastmcp import Context, FastMCP
+from fastmcp.resources.resource import ResourceResult
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
@@ -118,12 +119,12 @@ class LocationProxyMiddleware(Middleware):
 
         tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)  # type: ignore
 
-        if "general_tool" in tool.tags:
+        if "general_tool" in tool.tags:  # pyright: ignore[reportOptionalMemberAccess]
             with logger.contextualize(**log_context):
                 return await call_next(context)
 
         brand_id = context.message.name.split("_")[0]
-        context.fastmcp_context.set_state("brand_id", brand_id)
+        await context.fastmcp_context.set_state("brand_id", brand_id)
 
         # Use contextualize to set context for all logs during tool execution
         with logger.contextualize(**log_context):
@@ -194,7 +195,7 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     This performs plugin discovery/registration and mounts brand MCPs.
     """
-    mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP", stateless_http=True)
+    mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP")
     mcp.add_middleware(LocationProxyMiddleware())
 
     @mcp.tool(tags={"general_tool"})
@@ -258,9 +259,9 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                 app_ui_content_meta[str(resource_uri)] = {"ui": ui_to_meta_dict(app_ui)}
 
                 def _make_ui_resource(server: GatherMCP, ui_uri: str):
-                    async def _read() -> str | bytes:
+                    async def _read() -> str | bytes | ResourceResult:
                         resource = await server.get_resource(ui_uri)
-                        return await resource.read()
+                        return await resource.read()  # pyright: ignore[reportOptionalMemberAccess]
 
                     return _read
 
@@ -272,12 +273,12 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                 logger.info(
                     f"MCP App UI for {brand_id_str} uses dynamic resource, registered on parent"
                 )
-            mcp.mount(server=gather_mcp, prefix=gather_mcp.brand_id)
+            mcp.mount(server=gather_mcp, namespace=gather_mcp.brand_id)
 
     if app_ui_content_meta:
         _inject_app_ui_content_meta(mcp, app_ui_content_meta)
 
-    return mcp.http_app(path="/")
+    return mcp.http_app(path="/", stateless_http=True)
 
 
 class MCPToolDoc(BaseModel):
@@ -302,6 +303,6 @@ async def mcp_app_docs(mcp_app: MCPApp) -> MCPDoc:
                 name=tool.name,
                 description=tool.description or "No description provided",
             )
-            for tool in (await mcp_app.app.state.fastmcp_server.get_tools()).values()
+            for tool in await mcp_app.app.state.fastmcp_server.list_tools()
         ],
     )
