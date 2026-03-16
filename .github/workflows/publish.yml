@@ -18,9 +18,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Run Chrome Fleet
+        uses: ./.github/actions/run-chromefleet
+        timeout-minutes: 5
+
       - run: docker build -t getgather .
 
-      - run: docker run -p 23456:23456 --name getgather -d getgather
+      - run: docker run -d --network host --name getgather -e CHROMEFLEET_URL getgather
+        env:
+          CHROMEFLEET_URL: http://localhost:8300
         timeout-minutes: 3
 
       - name: Run the health check validation
@@ -33,6 +39,10 @@ jobs:
 
       - name: Get the container logs
         run: docker logs --details getgather
+        if: always()
+
+      - name: Show Chrome Fleet logs
+        run: cat chromefleet.log
         if: always()
 
   build-and-publish:
@@ -74,8 +84,18 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Chrome Fleet
+        uses: ./.github/actions/run-chromefleet
+        timeout-minutes: 5
+
       - name: Run the container
-        run: docker run -d --rm --name getgather -p 23456:23456 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: docker run -d --rm --network host --name getgather -e CHROMEFLEET_URL ${{ env.REGISTRY }}/${{ env.IMAGE_NAME
+          }}:latest
+        env:
+          CHROMEFLEET_URL: http://localhost:8300
 
       - name: Run the health check validation
         run: while ! curl -s 'http://localhost:23456/health' | grep 'OK'; do sleep 1; done
@@ -87,4 +107,8 @@ jobs:
 
       - name: Get the container logs
         run: docker logs --details getgather
+        if: always()
+
+      - name: Show Chrome Fleet logs
+        run: cat chromefleet.log
         if: always()

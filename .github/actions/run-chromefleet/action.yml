@@ -1,0 +1,33 @@
+name: Run Chrome Fleet
+description: Download and run the latest Chrome Fleet release
+
+runs:
+  using: composite
+  steps:
+    - name: Download and extract latest Chrome Fleet release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        url=$(gh api repos/remotebrowser/chromefleet/releases/latest \
+          --jq '.assets[] | select(.name | endswith("linux-64bit.zip")) | .browser_download_url')
+        curl -fsSL -o release.zip "$url"
+        unzip release.zip -d app
+        chmod +x app/chromefleet/chromefleet
+
+    - name: Run Chrome Fleet
+      shell: bash
+      run: app/chromefleet/chromefleet 2>&1 | tee chromefleet.log &
+
+    - name: Wait until Chrome Fleet is ready
+      shell: bash
+      run: |
+        deadline=$((SECONDS + 180))
+        until curl -s 'http://localhost:8300/health' | grep -q 'OK'; do
+          [ $SECONDS -ge $deadline ] && echo "Timed out waiting for Chrome Fleet" && exit 1
+          sleep 1
+        done
+
+    - name: Create a test browser container
+      shell: bash
+      run: curl -sf -X POST localhost:8300/api/v1/browsers/test123 | tee /dev/stderr | grep -q 'status'

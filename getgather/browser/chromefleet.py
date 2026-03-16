@@ -52,11 +52,15 @@ async def _create_browser_from_cdp_websocket(
         instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
             _safe_handle_target_update
         ]
-        instance.connection.handlers[zd.cdp.target.TargetCreated] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
-        instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
-            instance._handle_target_update  # type: ignore[reportPrivateUsage]
+        instance.connection.handlers[zd.cdp.target.TargetCreated] = [  # type: ignore[reportUnknownMemberType]
+            _safe_handle_target_update
         ]
-        instance.connection.handlers[zd.cdp.target.TargetCrashed] = [instance._handle_target_update]  # type: ignore[reportUnknownMemberType,reportPrivateUsage]
+        instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
+            _safe_handle_target_update
+        ]
+        instance.connection.handlers[zd.cdp.target.TargetCrashed] = [  # type: ignore[reportUnknownMemberType]
+            _safe_handle_target_update
+        ]
         await instance.connection.send(zd.cdp.target.set_discover_targets(discover=True))
 
     await instance.update_targets()
