@@ -9,6 +9,7 @@ from fastmcp.resources.resource import ResourceResult
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.http import StarletteWithLifespan
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from fastmcp.server.providers.fastmcp_provider import FastMCPProviderTool
 from loguru import logger
 from pydantic import BaseModel
 
@@ -22,6 +23,27 @@ from getgather.mcp.dpage import (
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
 from getgather.request_info import RequestInfo, request_info
+
+
+def _patch_mounted_tool_execution_advertisement() -> None:
+    """Ensure mounted task-enabled tools advertise execution.taskSupport.
+
+    FastMCPProviderTool wraps mounted tools and carries task_config, but on current
+    FastMCP versions it may still emit execution=None in list_tools(). Some MCP
+    clients rely on execution.taskSupport to allow background task invocation.
+    """
+    if getattr(FastMCPProviderTool, "_getgather_execution_patch", False):
+        return
+
+    original_to_mcp_tool = FastMCPProviderTool.to_mcp_tool
+
+    def patched_to_mcp_tool(self: FastMCPProviderTool, **overrides: Any):
+        if self.task_config.supports_tasks() and overrides.get("execution") is None:
+            overrides["execution"] = mcp.types.ToolExecution(taskSupport=self.task_config.mode)
+        return original_to_mcp_tool(self, **overrides)
+
+    FastMCPProviderTool.to_mcp_tool = patched_to_mcp_tool  # type: ignore[method-assign]
+    setattr(FastMCPProviderTool, "_getgather_execution_patch", True)
 
 
 def _inject_app_ui_content_meta(
@@ -195,6 +217,8 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     This performs plugin discovery/registration and mounts brand MCPs.
     """
+    _patch_mounted_tool_execution_advertisement()
+
     mcp = FastMCP[Context](name=f"Getgather {bundle_name} MCP")
     mcp.add_middleware(LocationProxyMiddleware())
 
@@ -278,7 +302,7 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
     if app_ui_content_meta:
         _inject_app_ui_content_meta(mcp, app_ui_content_meta)
 
-    return mcp.http_app(path="/", stateless_http=True)
+    return mcp.http_app(path="/")
 
 
 class MCPToolDoc(BaseModel):
