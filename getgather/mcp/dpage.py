@@ -262,7 +262,7 @@ def is_local_address(host: str) -> bool:
 
 
 def get_base_url() -> str:
-    headers = get_http_headers()
+    headers = get_http_headers(include_all=True)
     host = headers.get("x-forwarded-host") or headers.get("host")
     if host is None:
         logger.warning("Missing Host header; defaulting to localhost")
