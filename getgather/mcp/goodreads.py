@@ -1,6 +1,8 @@
+from datetime import timedelta
 from typing import Any
 
 import zendriver as zd
+from fastmcp.server.tasks import TaskConfig
 from loguru import logger
 
 from getgather.mcp.app_ui_html_renderer import book_list_content_template, render_app_ui_html
@@ -69,7 +71,10 @@ async def goodreads_ui_resource() -> str:
     return render_app_ui_html(content=book_list_content_template(), title="Goodreads MCP App")
 
 
-@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
+@goodreads_mcp.tool(
+    meta=goodreads_mcp.app_ui_tool_meta(),
+    task=TaskConfig(mode="optional", poll_interval=timedelta(seconds=10)),
+)
 async def get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
     return await zen_dpage_mcp_tool(
@@ -78,7 +83,10 @@ async def get_book_list() -> dict[str, Any]:
     )
 
 
-@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
+@goodreads_mcp.tool(
+    meta=goodreads_mcp.app_ui_tool_meta(),
+    task=TaskConfig(mode="optional", poll_interval=timedelta(seconds=10)),
+)
 async def remote_get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
     return await remote_zen_dpage_mcp_tool(
@@ -86,7 +94,9 @@ async def remote_get_book_list() -> dict[str, Any]:
     )
 
 
-@goodreads_mcp.tool
+@goodreads_mcp.tool(
+    task=TaskConfig(mode="optional", poll_interval=timedelta(seconds=5)),
+)
 async def get_book_details(book_url: str) -> dict[str, Any]:
     """Get details (title, author, rating, description) of a book on Goodreads.
 
@@ -99,7 +109,9 @@ async def get_book_details(book_url: str) -> dict[str, Any]:
     )
 
 
-@goodreads_mcp.tool
+@goodreads_mcp.tool(
+    task=TaskConfig(mode="optional", poll_interval=timedelta(seconds=5)),
+)
 async def remote_get_book_details(book_url: str) -> dict[str, Any]:
     """Get details (title, author, rating, description) of a book on Goodreads.
 
