@@ -24,6 +24,35 @@ from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
 from getgather.request_info import RequestInfo, request_info
 
 
+def _parse_location_header(
+    location: str | None, log_context: dict[str, str]
+) -> dict[str, str | None]:
+    if location is None:
+        return {}
+
+    location = location.strip()
+    if not location:
+        return {}
+
+    try:
+        location_data = json.loads(location)
+    except json.JSONDecodeError:
+        with logger.contextualize(**log_context):
+            logger.warning(f"Failed to parse x-location header as JSON, {location}")
+        return {}
+
+    if not isinstance(location_data, dict):
+        with logger.contextualize(**log_context):
+            logger.warning(f"Failed to parse x-location header as JSON, {location}")
+        return {}
+
+    parsed_location: dict[str, str | None] = {}
+    for key, value in location_data.items():
+        if isinstance(key, str) and (isinstance(value, str) or value is None):
+            parsed_location[key] = value
+    return parsed_location
+
+
 def _inject_app_ui_content_meta(
     fastmcp_server: FastMCP,
     uri_to_meta: dict[str, dict[str, Any]],
@@ -99,14 +128,9 @@ class LocationProxyMiddleware(Middleware):
         info_data: dict[str, str | None] = {}
 
         # Handle x-location header (contains city, state, country, postal_code)
-        location = headers.get("x-location", None)
-        if location is not None:
-            try:
-                location_data: dict[str, str | None] = json.loads(location)
-                info_data.update(location_data)
-            except json.JSONDecodeError:
-                with logger.contextualize(**log_context):
-                    logger.warning(f"Failed to parse x-location header as JSON, {location}")
+        location_data = _parse_location_header(headers.get("x-location", None), log_context)
+        if location_data:
+            info_data.update(location_data)
 
         # Handle x-proxy-type header (e.g., "proxy-0", "proxy-1", etc.)
         proxy_type = headers.get("x-proxy-type", None)
