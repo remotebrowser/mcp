@@ -76,7 +76,7 @@ async def get_purchase_history(
 
     return await zen_dpage_mcp_tool(
         f"https://www.amazon.ca/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
-        "amazon_purchase_history",
+        "amazonca_purchase_history",
     )
 
 
@@ -102,7 +102,7 @@ async def remote_get_purchase_history(
 
     return await remote_zen_dpage_mcp_tool(
         f"https://www.amazon.ca/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
-        "amazon_purchase_history",
+        "amazonca_purchase_history",
     )
 
 
@@ -508,7 +508,7 @@ async def get_purchase_history_with_details(
             close_page=False,
         )
         if orders is None:
-            return {"amazon_purchase_history": []}
+            return {"amazonca_purchase_history": []}
 
         for order in orders:
             order["order_id"] = normalize_order_id(order.get("order_id")) or ""
@@ -759,7 +759,7 @@ async def get_purchase_history_with_details(
         except Exception as e:
             logger.error(f"Error getting order details for order: {e}")
             pass
-        return {"amazon_purchase_history": orders}
+        return {"amazonca_purchase_history": orders}
 
     return await zen_dpage_with_action(
         f"https://www.amazon.ca/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
@@ -813,7 +813,7 @@ async def remote_get_purchase_history_with_details(
             close_page=False,
         )
         if orders is None:
-            return {"amazon_purchase_history": []}
+            return {"amazonca_purchase_history": []}
 
         for order in orders:
             order["order_id"] = normalize_order_id(order.get("order_id")) or ""
@@ -1064,7 +1064,7 @@ async def remote_get_purchase_history_with_details(
         except Exception as e:
             logger.error(f"Error getting order details for order: {e}")
             pass
-        return {"amazon_purchase_history": orders}
+        return {"amazonca_purchase_history": orders}
 
     return await remote_zen_dpage_with_action(
         f"https://www.amazon.ca/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
