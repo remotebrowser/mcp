@@ -24,7 +24,7 @@ from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
 from getgather.request_info import RequestInfo, request_info
 
 
-def _parse_location_header(
+def parse_location_header(
     location: str | None, log_context: dict[str, str]
 ) -> dict[str, str | None]:
     if location is None:
@@ -35,7 +35,7 @@ def _parse_location_header(
         return {}
 
     try:
-        location_data = json.loads(location)
+        location_data: object = json.loads(location)
     except json.JSONDecodeError:
         with logger.contextualize(**log_context):
             logger.warning(f"Failed to parse x-location header as JSON, {location}")
@@ -46,8 +46,9 @@ def _parse_location_header(
             logger.warning(f"Failed to parse x-location header as JSON, {location}")
         return {}
 
+    raw_location_data = cast(dict[object, object], location_data)
     parsed_location: dict[str, str | None] = {}
-    for key, value in location_data.items():
+    for key, value in raw_location_data.items():
         if isinstance(key, str) and (isinstance(value, str) or value is None):
             parsed_location[key] = value
     return parsed_location
@@ -115,7 +116,7 @@ class LocationProxyMiddleware(Middleware):
         headers = get_http_headers(include_all=True)
 
         # Build logging context with session IDs
-        log_context = {}
+        log_context: dict[str, str] = {}
         mcp_session_id = headers.get("mcp-session-id")
         browser_session_id = headers.get("x-browser-session-id")
 
@@ -128,7 +129,7 @@ class LocationProxyMiddleware(Middleware):
         info_data: dict[str, str | None] = {}
 
         # Handle x-location header (contains city, state, country, postal_code)
-        location_data = _parse_location_header(headers.get("x-location", None), log_context)
+        location_data = parse_location_header(headers.get("x-location", None), log_context)
         if location_data:
             info_data.update(location_data)
 
