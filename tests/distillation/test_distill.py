@@ -14,12 +14,13 @@ from pytest import MonkeyPatch
 
 ACME_HOSTNAME = "https://acme.fly.dev"
 
-from getgather.config import settings
-from getgather.mcp.browser import terminate_zendriver_browser
+from nanoid import generate
+
+from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
+from getgather.config import FRIENDLY_CHARS, settings
 from getgather.zen_distill import (
     distill,
     get_new_page,
-    init_zendriver_browser,
     load_distillation_patterns,
     run_distillation_loop,
 )
@@ -54,7 +55,7 @@ async def test_distill_form_fields(location: str):
     assert patterns, "No patterns found to begin matching."
 
     url = f"{ACME_HOSTNAME}{location}"
-    browser = await init_zendriver_browser()
+    browser = await create_remote_browser(browser_id=generate(FRIENDLY_CHARS, 6))
     try:
         page = await get_new_page(browser)
         hostname = urllib.parse.urlparse(url).hostname
@@ -67,7 +68,7 @@ async def test_distill_form_fields(location: str):
             "Incorrect match name found."
         )
     finally:
-        await terminate_zendriver_browser(browser)
+        await terminate_remote_browser(browser)
 
 
 @pytest.mark.asyncio
@@ -79,7 +80,7 @@ async def test_distillation_loop(location: str):
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    browser = await init_zendriver_browser()
+    browser = await create_remote_browser(browser_id=generate(FRIENDLY_CHARS, 6))
     try:
         _terminated, distilled, converted = await run_distillation_loop(
             location=f"{ACME_HOSTNAME}{location}",
@@ -91,7 +92,7 @@ async def test_distillation_loop(location: str):
         result = converted if converted else distilled
         assert result, "No result found when one was expected."
     finally:
-        await terminate_zendriver_browser(browser)
+        await terminate_remote_browser(browser)
 
 
 # Map error endpoints to expected pattern names (production patterns)
@@ -119,7 +120,7 @@ async def test_distillation_captures_screenshot_without_pattern(
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
-    browser = await init_zendriver_browser()
+    browser = await create_remote_browser(browser_id=generate(FRIENDLY_CHARS, 6))
     try:
         terminated, _distilled, _converted = await run_distillation_loop(
             location=f"{ACME_HOSTNAME}/random-info-page",
@@ -136,7 +137,7 @@ async def test_distillation_captures_screenshot_without_pattern(
         assert new_files, "Expected a distillation screenshot to be captured."
         assert all(file.stat().st_size > 0 for file in new_files)
     finally:
-        await terminate_zendriver_browser(browser)
+        await terminate_remote_browser(browser)
 
 
 @pytest.mark.asyncio
@@ -157,7 +158,7 @@ async def test_browser_error_patterns(location: str):
     assert patterns, "No patterns found"
 
     url = f"{ACME_HOSTNAME}{location}"
-    browser = await init_zendriver_browser()
+    browser = await create_remote_browser(browser_id=generate(FRIENDLY_CHARS, 6))
     try:
         page = await get_new_page(browser)
         hostname = urllib.parse.urlparse(url).hostname
@@ -171,4 +172,4 @@ async def test_browser_error_patterns(location: str):
             f"Expected pattern {BROWSER_ERROR_ENDPOINTS[location]}, got {match.name}"
         )
     finally:
-        await terminate_zendriver_browser(browser)
+        await terminate_remote_browser(browser)
