@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from typing import TypedDict, cast
 
 import zendriver as zd
-from websockets.exceptions import ConnectionClosed
 from loguru import logger
+from websockets.exceptions import ConnectionClosed
 from zendriver.core.browser import shutil
 
 from getgather.config import settings
