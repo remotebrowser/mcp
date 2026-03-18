@@ -1,8 +1,0 @@
-VALID_EMAIL = "joe@example.com"
-VALID_USERNAME = "joe.sixpack"
-VALID_PASSWORD = "trustno1"
-VALID_OTP = "123456"
-VALID_LASTNAME = "Sixpack"
-VALID_MFA_CODE = "123456"
-MIN_TIME_DELAY = 2
-MAX_TIME_DELAY = 5

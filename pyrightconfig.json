@@ -1,5 +1,4 @@
 {
-  "ignore": ["tests/acme_corp/*"],
   "include": ["getgather", "tests"],
   "reportGeneralTypeIssues": "error",
   "reportMissingImports": "error",
