@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import TypedDict, cast
 
 import zendriver as zd
+from websockets.exceptions import ConnectionClosed
 from loguru import logger
 from zendriver.core.browser import shutil
 
@@ -9,8 +10,14 @@ from getgather.config import settings
 
 
 async def terminate_zendriver_browser(browser: zd.Browser):
-    await browser.stop()
     browser_id = cast(str, browser.id)  # type: ignore[attr-defined]
+    try:
+        await browser.stop()
+    except ConnectionClosed as e:
+        logger.info(
+            f"Browser websocket was already closed during shutdown for {browser_id}: {e}",
+            extra={"profile_id": browser_id},
+        )
     user_data_dir = settings.profiles_dir / browser_id
     logger.info(
         f"Terminating Zendriver browser with user_data_dir: {user_data_dir}",
