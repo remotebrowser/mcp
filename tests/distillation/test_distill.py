@@ -12,6 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 from pytest import MonkeyPatch
 
+ACME_HOSTNAME = "https://acme.fly.dev"
+
 from getgather.config import settings
 from getgather.mcp.browser import terminate_zendriver_browser
 from getgather.zen_distill import (
@@ -23,19 +25,19 @@ from getgather.zen_distill import (
 )
 
 DISTILL_PATTERN_LOCATIONS = {
-    "http://localhost:5001": "acme_home_page.html",
-    "http://localhost:5001/auth/email-and-password": "acme_email_and_password.html",
-    "http://localhost:5001/auth/email-then-password": "acme_email_only.html",
-    "http://localhost:5001/auth/email-and-password-checkbox": "acme_email_and_password_checkbox.html",
-    "http://localhost:5001/universal-error-test": "acme_universal_error_test.html",
+    "/": "acme_home_page.html",
+    "/auth/email-and-password": "acme_email_and_password.html",
+    "/auth/email-then-password": "acme_email_only.html",
+    "/auth/email-and-password-checkbox": "acme_email_and_password_checkbox.html",
+    "/universal-error-test": "acme_universal_error_test.html",
 }
 
 SIGN_IN_PATTERN_ENDPOINTS = [
-    "http://localhost:5001/auth/email-and-password",
-    "http://localhost:5001/auth/email-and-password-checkbox",
-    "http://localhost:5001/auth/email-then-password",
-    "http://localhost:5001/auth/email-then-otp",
-    "http://localhost:5001/auth/email-and-password-then-mfa",
+    "/auth/email-and-password",
+    "/auth/email-and-password-checkbox",
+    "/auth/email-then-password",
+    "/auth/email-then-otp",
+    "/auth/email-and-password-then-mfa",
 ]
 
 
@@ -51,11 +53,12 @@ async def test_distill_form_fields(location: str):
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found to begin matching."
 
+    url = f"{ACME_HOSTNAME}{location}"
     browser = await init_zendriver_browser()
     try:
         page = await get_new_page(browser)
-        hostname = urllib.parse.urlparse(location).hostname
-        await page.get(location)
+        hostname = urllib.parse.urlparse(url).hostname
+        await page.get(url)
         await page.wait(3)
 
         match = await distill(hostname, page, patterns)
@@ -79,7 +82,7 @@ async def test_distillation_loop(location: str):
     browser = await init_zendriver_browser()
     try:
         _terminated, distilled, converted = await run_distillation_loop(
-            location=location,
+            location=f"{ACME_HOSTNAME}{location}",
             patterns=patterns,
             browser=browser,
             timeout=30,
@@ -93,10 +96,10 @@ async def test_distillation_loop(location: str):
 
 # Map error endpoints to expected pattern names (production patterns)
 BROWSER_ERROR_ENDPOINTS = {
-    "http://localhost:5001/error/timed-out": "err-timed-out.html",
-    "http://localhost:5001/error/ssl-protocol-error": "err-ssl-protocol-error.html",
-    "http://localhost:5001/error/tunnel-connection-failed": "err-tunnel-connection-failed.html",
-    "http://localhost:5001/error/proxy-connection-failed": "err-proxy-connection-failed.html",
+    "/error/timed-out": "err-timed-out.html",
+    "/error/ssl-protocol-error": "err-ssl-protocol-error.html",
+    "/error/tunnel-connection-failed": "err-tunnel-connection-failed.html",
+    "/error/proxy-connection-failed": "err-proxy-connection-failed.html",
 }
 
 
@@ -119,7 +122,7 @@ async def test_distillation_captures_screenshot_without_pattern(
     browser = await init_zendriver_browser()
     try:
         terminated, _distilled, _converted = await run_distillation_loop(
-            location="http://localhost:5001/random-info-page",
+            location=f"{ACME_HOSTNAME}/random-info-page",
             patterns=patterns,
             browser=browser,
             timeout=2,
@@ -153,16 +156,17 @@ async def test_browser_error_patterns(location: str):
     patterns = load_distillation_patterns(path)
     assert patterns, "No patterns found"
 
+    url = f"{ACME_HOSTNAME}{location}"
     browser = await init_zendriver_browser()
     try:
         page = await get_new_page(browser)
-        hostname = urllib.parse.urlparse(location).hostname
+        hostname = urllib.parse.urlparse(url).hostname
 
-        await page.get(location)
+        await page.get(url)
         await page.wait(1)
 
         match = await distill(hostname, page, patterns, reload_on_error=False)
-        assert match, f"No match found for {location}"
+        assert match, f"No match found for {url}"
         assert match.name.endswith(BROWSER_ERROR_ENDPOINTS[location]), (
             f"Expected pattern {BROWSER_ERROR_ENDPOINTS[location]}, got {match.name}"
         )
