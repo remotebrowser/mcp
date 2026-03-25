@@ -8,8 +8,6 @@ from getgather.mcp.dpage import (
     get_base_url,
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
-    zen_dpage_mcp_tool,
-    zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ResourceCSP, ToolUI
@@ -72,7 +70,7 @@ async def goodreads_ui_resource() -> str:
 @goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
 async def get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
-    return await zen_dpage_mcp_tool(
+    return await remote_zen_dpage_mcp_tool(
         "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
         "goodreads_book_list",
     )
@@ -93,7 +91,7 @@ async def get_book_details(book_url: str) -> dict[str, Any]:
     Args:
         book_url: Full Goodreads book URL, e.g. https://www.goodreads.com/book/show/12345
     """
-    return await zen_dpage_with_action(
+    return await remote_zen_dpage_with_action(
         initial_url=book_url,
         action=_goodreads_book_details_action,
     )
