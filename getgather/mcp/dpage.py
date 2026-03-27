@@ -807,8 +807,11 @@ async def remote_zen_dpage_with_action(
             raise HTTPException(status_code=400, detail="Remote browser not found")
         page = _find_tab(browser, page_id)
         if page is None:
-            raise HTTPException(status_code=400, detail="Page not found")
-        logger.info(f"Continue with remote browser {browser_id} and page {page_id}")
+            logger.info(f"Tab {page_id} no longer exists, opening new tab on browser {browser_id}")
+            page = await get_new_page(browser)
+            dpage_id = f"{browser_id}--{page.target_id}"
+        else:
+            logger.info(f"Continue with remote browser {browser_id} and page {page_id}")
     elif incognito:
         prefix = "E"
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
