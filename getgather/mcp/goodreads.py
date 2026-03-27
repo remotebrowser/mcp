@@ -14,6 +14,7 @@ from getgather.mcp.ui import UI_MIME_TYPE, ResourceCSP, ToolUI
 from getgather.zen_distill import page_query_selector
 
 GOODREADS_UI_URI = "ui://list/data?brand=goodreads"
+GOODREADS_BOOK_LIST_TIMEOUT_SECONDS = 15
 
 goodreads_app_ui = ToolUI(
     resourceUri=GOODREADS_UI_URI,
@@ -73,6 +74,7 @@ async def get_book_list() -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool(
         "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
         "goodreads_book_list",
+        timeout=GOODREADS_BOOK_LIST_TIMEOUT_SECONDS,
     )
 
 
@@ -80,7 +82,9 @@ async def get_book_list() -> dict[str, Any]:
 async def remote_get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
     return await remote_zen_dpage_mcp_tool(
-        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table", "goodreads_book_list"
+        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
+        "goodreads_book_list",
+        timeout=GOODREADS_BOOK_LIST_TIMEOUT_SECONDS,
     )
 
 
