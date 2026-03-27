@@ -73,6 +73,7 @@ async def get_book_list() -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool(
         "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
         "goodreads_book_list",
+        timeout=15,
     )
 
 
@@ -80,7 +81,9 @@ async def get_book_list() -> dict[str, Any]:
 async def remote_get_book_list() -> dict[str, Any]:
     """Get the book list from a user's Goodreads account."""
     return await remote_zen_dpage_mcp_tool(
-        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table", "goodreads_book_list"
+        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
+        "goodreads_book_list",
+        timeout=15,
     )
 
 
