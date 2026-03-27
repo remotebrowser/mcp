@@ -1,0 +1,26 @@
+<html gg-domain="doordash">
+  <head>
+    <title>Doordash Sign In with Phone Number</title>
+  </head>
+  <body>
+    <p
+      id="message"
+      gg-optional
+      gg-match="//form[@id='guided-email-phone-form']//span[contains(text(), 'Enter the phone')]"
+    />
+    <input
+      autofocus
+      id="doordash-phonenumber"
+      name="phonenumber"
+      type="tel"
+      placeholder="Phone Number"
+      gg-match="form#guided-email-phone-form input[type=tel]"
+    />
+    <button
+      type="submit"
+      gg-match="//form[@id='guided-email-phone-form']//button[normalize-space(.)='Continue']"
+    >
+      Continue
+    </button>
+  </body>
+</html>
