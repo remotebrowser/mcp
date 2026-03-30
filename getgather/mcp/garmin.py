@@ -5,10 +5,12 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
-from getgather.mcp.dpage import remote_zen_dpage_with_action, zen_dpage_with_action
+from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_actions import parse_response_json
 from getgather.zen_distill import load_distillation_patterns, run_distillation_loop
+
+GARMIN_TIMEOUT_SECONDS = 15
 
 garmin_mcp = GatherMCP(brand_id="garmin", name="Garmin MCP")
 
@@ -43,81 +45,44 @@ async def _garmin_add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> d
     return {"garmin_activity_history": activities}
 
 
+def _make_activity_stats_action(aid: str):
+    async def action(tab: zd.Tab, _: Any) -> dict[str, Any]:
+        try:
+
+            async def get_stats():
+                async with tab.expect_response(f".*activity-service/activity/{aid}.*") as resp:
+                    data = await parse_response_json(resp, {}, "garmin activity stats")
+                return data
+
+            data = await asyncio.wait_for(get_stats(), timeout=30)
+            return {"garmin_activity_stats": data}
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Timeout waiting for activity stats API response for activity {aid}. "
+                "The API request may not have been triggered or the endpoint pattern doesn't match."
+            )
+            return {"garmin_activity_stats": {}}
+
+    return action
+
+
 @garmin_mcp.tool
 async def get_activities() -> dict[str, Any]:
-    """Get the activity history from a user's account."""
-    return await zen_dpage_with_action(
-        "https://connect.garmin.com/modern/activities",
-        action=_garmin_add_activity_ids_action,
-    )
-
-
-@garmin_mcp.tool
-async def remote_get_activities() -> dict[str, Any]:
     """Get the activity history from a user's account."""
     return await remote_zen_dpage_with_action(
         "https://connect.garmin.com/modern/activities",
         action=_garmin_add_activity_ids_action,
+        timeout=GARMIN_TIMEOUT_SECONDS,
     )
 
 
 @garmin_mcp.tool
 async def get_activity_stats(activity_id: str) -> dict[str, Any]:
     """Get the stats for a specific activity."""
-
-    def _make_activity_stats_action(aid: str):
-        async def action(tab: zd.Tab, _: Any) -> dict[str, Any]:
-            try:
-
-                async def get_stats():
-                    async with tab.expect_response(f".*activity-service/activity/{aid}.*") as resp:
-                        data = await parse_response_json(resp, {}, "garmin activity stats")
-                    return data
-
-                data = await asyncio.wait_for(get_stats(), timeout=30)
-                return {"garmin_activity_stats": data}
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"Timeout waiting for activity stats API response for activity {aid}. "
-                    "The API request may not have been triggered or the endpoint pattern doesn't match."
-                )
-                return {"garmin_activity_stats": {}}
-
-        return action
-
-    return await zen_dpage_with_action(
-        f"https://connect.garmin.com/modern/activity/{activity_id}",
-        _make_activity_stats_action(activity_id),
-    )
-
-
-@garmin_mcp.tool
-async def remote_get_activity_stats(activity_id: str) -> dict[str, Any]:
-    """Get the stats for a specific activity."""
-
-    def _make_activity_stats_action(aid: str):
-        async def action(tab: zd.Tab, _: Any) -> dict[str, Any]:
-            try:
-
-                async def get_stats():
-                    async with tab.expect_response(f".*activity-service/activity/{aid}.*") as resp:
-                        data = await parse_response_json(resp, {}, "garmin activity stats")
-                    return data
-
-                data = await asyncio.wait_for(get_stats(), timeout=30)
-                return {"garmin_activity_stats": data}
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"Timeout waiting for activity stats API response for activity {aid}. "
-                    "The API request may not have been triggered or the endpoint pattern doesn't match."
-                )
-                return {"garmin_activity_stats": {}}
-
-        return action
-
     return await remote_zen_dpage_with_action(
         f"https://connect.garmin.com/modern/activity/{activity_id}",
         _make_activity_stats_action(activity_id),
+        timeout=GARMIN_TIMEOUT_SECONDS,
     )
 
 
