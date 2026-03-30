@@ -7,8 +7,6 @@ from loguru import logger
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
-    zen_dpage_mcp_tool,
-    zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.utils import retry_with_navigation
@@ -20,7 +18,7 @@ doordash_mcp = GatherMCP(brand_id="doordash", name="Doordash MCP")
 @doordash_mcp.tool
 async def get_orders() -> dict[str, Any]:
     """Get the orders from a user's Doordash account (local zen)."""
-    return await zen_dpage_mcp_tool("https://www.doordash.com/orders", "doordash_orders")
+    return await remote_zen_dpage_mcp_tool("https://www.doordash.com/orders", "doordash_orders")
 
 
 @doordash_mcp.tool
@@ -92,7 +90,7 @@ async def get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
         result: dict[str, Any] = await get_orders_from_api(tab, page_number)
         return {"doordash_orders": result.get("data", {}).get("getConsumerOrdersWithDetails", [])}
 
-    return await zen_dpage_with_action(
+    return await remote_zen_dpage_with_action(
         "https://www.doordash.com/orders",
         get_order_details_action,
         dpage_timeout=60,
