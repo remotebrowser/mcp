@@ -75,7 +75,7 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
         max_retries=3,
         exceptions=(Exception,),
         re_raise_on_max_retries=True,
-        timeout_seconds=10,
+        timeout_seconds=120,
         operation_name=f"get_orders_from_api (page_number={page_number})",
     )
 
@@ -93,7 +93,7 @@ async def get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
     return await remote_zen_dpage_with_action(
         "https://www.doordash.com/orders",
         get_order_details_action,
-        dpage_timeout=60,
+        dpage_timeout=120,
     )
 
 
@@ -110,5 +110,5 @@ async def remote_get_orders_with_pagination(page_number: int = 1) -> dict[str, A
     return await remote_zen_dpage_with_action(
         "https://www.doordash.com/orders",
         get_order_details_action,
-        dpage_timeout=60,
+        dpage_timeout=120,
     )
