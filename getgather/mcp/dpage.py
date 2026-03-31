@@ -774,33 +774,16 @@ async def remote_zen_dpage_with_action(
         del pending_actions[_page_id]
         return result
 
-    # Step 2: Try with existing remote session when a signin_id is provided.
+    # Step 2: Probe any existing browser for an authenticated session before opening dpage.
+    probe_browser = None
     if signin_id and is_remote_browser(signin_id):
-        browser_id, page_id = signin_id.split("--")
-        browser = await get_remote_browser(browser_id)
-        if browser is not None:
-            page = _find_tab(browser, page_id)
-            if page is not None:
-                try:
-                    await zen_navigate_with_retry(page, initial_url)
-                    result = await action(page, browser)
-                    return result
-                except Exception as e:
-                    logger.info(f"remote_zen_dpage_with_action failed with signin_id session: {e}")
-            else:
-                # Tab closed but browser may still be authenticated; probe to avoid a new sign-in loop.
-                result = await _try_action_with_probe(browser, initial_url, action, timeout)
-                if result is not None:
-                    return result
-
-    # Step 2b: Stateless probe on the per-user remote browser.
-    if not incognito and not signin_id:
-        user_id = get_auth_user().user_id
-        reuse_browser = await get_remote_browser(str(user_id))
-        if reuse_browser is not None:
-            result = await _try_action_with_probe(reuse_browser, initial_url, action, timeout)
-            if result is not None:
-                return result
+        probe_browser = await get_remote_browser(signin_id.split("--")[0])
+    elif not incognito:
+        probe_browser = await get_remote_browser(str(get_auth_user().user_id))
+    if probe_browser is not None:
+        result = await _try_action_with_probe(probe_browser, initial_url, action, timeout)
+        if result is not None:
+            return result
 
     # Step 3: Create interactive sign-in flow with pending action
     page = None
