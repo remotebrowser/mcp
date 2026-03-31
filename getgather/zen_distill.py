@@ -884,6 +884,68 @@ async def page_query_selector(
         return None
 
 
+async def batch_check_visibility(
+    page: zd.Tab, selectors: list[dict[str, str | bool]]
+) -> list[bool]:
+    if len(selectors) == 0:
+        return []
+
+    selectors_list = [item.get("selector", "") for item in selectors]
+    is_xpath_list = [item.get("is_xpath") is True for item in selectors]
+    js_code = f"""
+    (() => {{
+        const selectors = {json.dumps(selectors_list)};
+        const isXpath = {json.dumps(is_xpath_list)};
+        const results = [];
+
+        for (let i = 0; i < selectors.length; i++) {{
+            let element = null;
+            try {{
+                if (isXpath[i]) {{
+                    element = document.evaluate(
+                        selectors[i],
+                        document,
+                        null,
+                        XPathResult.FIRST_ORDERED_NODE_TYPE,
+                        null
+                    ).singleNodeValue;
+                }} else {{
+                    element = document.querySelector(selectors[i]);
+                }}
+            }} catch (error) {{
+                results.push(false);
+                continue;
+            }}
+
+            if (!element) {{
+                results.push(false);
+                continue;
+            }}
+
+            const style = window.getComputedStyle(element);
+            const visible = (
+                style.visibility !== "hidden" &&
+                style.display !== "none" &&
+                element.getBoundingClientRect().width > 0 &&
+                element.getBoundingClientRect().height > 0
+            );
+
+            results.push(visible);
+        }}
+
+        return results;
+    }})()
+    """
+
+    try:
+        result = await page.evaluate(js_code)
+        if isinstance(result, list):
+            return [bool(item) if item is not None else False for item in cast(list[Any], result)]
+    except Exception as error:
+        logger.debug(f"Batch visibility check failed: {error}")
+    return [False] * len(selectors)
+
+
 async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
@@ -936,78 +998,45 @@ async def distill(
             continue
 
         # Batch check visibility for all selectors in one evaluate() call
-        selectors_list = [info["selector"] for info in selector_info]
-        is_xpath_list = [info["selector"].startswith("//") for info in selector_info]
-
-        # Batch visibility check - ONE page.evaluate() call for all selectors!
-        # Returns array of booleans indicating visibility
-        visibility_results_raw = await page.evaluate(f"""
-            (() => {{
-                const selectors = {json.dumps(selectors_list)};
-                const isXpath = {json.dumps(is_xpath_list)};
-                const results = [];
-                
-                for (let i = 0; i < selectors.length; i++) {{
-                    let el = null;
-                    try {{
-                        if (isXpath[i]) {{
-                            el = document.evaluate(selectors[i], document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                        }} else {{
-                            el = document.querySelector(selectors[i]);
-                        }}
-                    }} catch (e) {{
-                        results.push(false);
-                        continue;
-                    }}
-                    
-                    if (!el) {{
-                        results.push(false);
-                        continue;
-                    }}
-                    
-                    const s = window.getComputedStyle(el);
-                    const visible = s.visibility !== "hidden" && s.display !== "none" && 
-                                   el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
-                    
-                    results.push(visible);
-                }}
-                
-                return results;
-            }})()
-        """)
-
-        # Handle potential None or invalid results
-        visibility_results: list[bool] = []
-        if isinstance(visibility_results_raw, list):
-            try:
-                raw_list = cast(list[Any], visibility_results_raw)
-                visibility_results = [bool(r) if r is not None else False for r in raw_list]
-            except (TypeError, ValueError):
-                visibility_results = [False] * len(selector_info)
-        else:
-            # Fallback: all false if evaluation failed
-            visibility_results = [False] * len(selector_info)
+        visibility_results = await batch_check_visibility(
+            page,
+            [
+                {
+                    "selector": cast(str, info["selector"]),
+                    "is_xpath": cast(str, info["selector"]).startswith("//"),
+                }
+                for info in selector_info
+            ],
+        )
 
         # Process results and extract data for visible elements
         for idx, info in enumerate(selector_info):
             if not found:
                 break
 
-            is_visible = visibility_results[idx] if idx < len(visibility_results) else False
+            source: Element | None = None
+            if info["iframe_selector"] is not None:
+                source = await page_query_selector(
+                    page,
+                    info["selector"],
+                    iframe_selector=info["iframe_selector"],
+                )
+            else:
+                is_visible = visibility_results[idx] if idx < len(visibility_results) else False
 
-            if not is_visible:
-                if not info["optional"]:
-                    found = False
-                continue
+                if not is_visible:
+                    if not info["optional"]:
+                        found = False
+                    continue
 
-            # Element is visible - now query it to get the Element object for data extraction
-            # Skip visibility check since we already verified it in the batch check
-            source = await page_query_selector(
-                page,
-                info["selector"],
-                iframe_selector=info["iframe_selector"],
-                skip_visibility_check=True,
-            )
+                # Element is visible - now query it to get the Element object for data extraction
+                # Skip visibility check since we already verified it in the batch check
+                source = await page_query_selector(
+                    page,
+                    info["selector"],
+                    iframe_selector=info["iframe_selector"],
+                    skip_visibility_check=True,
+                )
             if source:
                 match_count += 1
                 target = info["target"]

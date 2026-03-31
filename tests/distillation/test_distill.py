@@ -5,6 +5,7 @@ from typing import Any, cast
 
 import pytest
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -19,6 +20,8 @@ from nanoid import generate
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.zen_distill import (
+    Pattern,
+    batch_check_visibility,
     distill,
     get_new_page,
     load_distillation_patterns,
@@ -102,6 +105,97 @@ BROWSER_ERROR_ENDPOINTS = {
     "/error/tunnel-connection-failed": "err-tunnel-connection-failed.html",
     "/error/proxy-connection-failed": "err-proxy-connection-failed.html",
 }
+
+
+class StubPage:
+    def __init__(self, result: object):
+        self.result = result
+        self.calls: list[str] = []
+
+    async def evaluate(self, js_code: str):
+        self.calls.append(js_code)
+        return self.result
+
+
+@pytest.mark.asyncio
+async def test_batch_check_visibility_returns_boolean_results():
+    page = StubPage([True, None, False, 1, 0])
+
+    result = await batch_check_visibility(
+        cast(Any, page),
+        [
+            {"selector": "h1", "is_xpath": False},
+            {"selector": "p", "is_xpath": False},
+            {"selector": "//div", "is_xpath": True},
+            {"selector": "input", "is_xpath": False},
+            {"selector": "", "is_xpath": False},
+        ],
+    )
+
+    assert result == [True, False, False, True, False]
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_check_visibility_falls_back_to_all_false_on_invalid_result():
+    page = StubPage(None)
+
+    result = await batch_check_visibility(
+        cast(Any, page),
+        [
+            {"selector": "h1", "is_xpath": False},
+            {"selector": "//div", "is_xpath": True},
+        ],
+    )
+
+    assert result == [False, False]
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_distill_preserves_iframe_selector_lookup(monkeypatch: MonkeyPatch):
+    class StubElement:
+        tag = "div"
+        element = {}
+
+        async def inner_text(self) -> str:
+            return "Sign in"
+
+    async def stub_batch_check_visibility(
+        page: Any, selectors: list[dict[str, str | bool]]
+    ) -> list[bool]:
+        return [False] * len(selectors)
+
+    async def stub_page_query_selector(
+        page: Any,
+        selector: str,
+        timeout: float = 0,
+        iframe_selector: str | None = None,
+        skip_visibility_check: bool = False,
+        config: Any = None,
+    ) -> StubElement | None:
+        if selector == "button.login" and iframe_selector == "iframe.auth":
+            return StubElement()
+        return None
+
+    monkeypatch.setattr(
+        "getgather.zen_distill.batch_check_visibility", stub_batch_check_visibility
+    )
+    monkeypatch.setattr("getgather.zen_distill.page_query_selector", stub_page_query_selector)
+
+    pattern = Pattern(
+        name="iframe-login.html",
+        pattern=BeautifulSoup(
+            '<html gg-priority="1"><button gg-match="iframe.auth button.login"></button></html>',
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is not None
+    assert match.name == "iframe-login.html"
+    assert "Sign in" in match.distilled
 
 
 @pytest.mark.asyncio
