@@ -787,6 +787,11 @@ async def remote_zen_dpage_with_action(
                     return result
                 except Exception as e:
                     logger.info(f"remote_zen_dpage_with_action failed with signin_id session: {e}")
+            else:
+                # Tab closed but browser may still be authenticated; probe to avoid a new sign-in loop.
+                result = await _try_action_with_probe(browser, initial_url, action, timeout)
+                if result is not None:
+                    return result
 
     # Step 2b: Stateless probe on the per-user remote browser.
     if not incognito and not signin_id:
