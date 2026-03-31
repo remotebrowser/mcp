@@ -9,8 +9,6 @@ from getgather.logs import logger
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
-    # zen_dpage_mcp_tool,
-    # zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.utils import retry_with_navigation
@@ -21,14 +19,6 @@ blindster_mcp = GatherMCP(brand_id="blindster", name="Blindster MCP")
 
 @blindster_mcp.tool
 async def get_carts() -> dict[str, Any]:
-    """Get carts of blindster."""
-    return await remote_zen_dpage_mcp_tool(
-        f"https://www.blindster.com/cart", "blindster_cart", timeout=60
-    )
-
-
-@blindster_mcp.tool
-async def remote_get_carts() -> dict[str, Any]:
     """Get carts of blindster."""
     return await remote_zen_dpage_mcp_tool(
         f"https://www.blindster.com/cart", "blindster_cart", timeout=60
@@ -97,17 +87,6 @@ async def get_orders_action(page: zd.Tab, browser: zd.Browser) -> dict[str, Any]
 
 @blindster_mcp.tool
 async def get_orders() -> dict[str, Any]:
-    """Get orders of blinds."""
-
-    return await remote_zen_dpage_with_action(
-        f"https://www.blindster.com/account/orders",
-        action=get_orders_action,
-        dpage_timeout=60,
-    )
-
-
-@blindster_mcp.tool
-async def remote_get_orders() -> dict[str, Any]:
     """Get orders of blinds."""
 
     return await remote_zen_dpage_with_action(
