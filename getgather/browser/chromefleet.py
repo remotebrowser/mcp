@@ -16,6 +16,36 @@ from getgather.config import settings
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
+# Persistent client — reuses TCP/TLS connections across ChromeFleet API calls.
+# Process-local singleton; safe for concurrent async use and horizontal scaling.
+_chromefleet_client: httpx.AsyncClient | None = None
+
+
+def _get_chromefleet_client() -> httpx.AsyncClient:
+    global _chromefleet_client
+    if _chromefleet_client is None or _chromefleet_client.is_closed:
+        _chromefleet_client = httpx.AsyncClient(
+            transport=RetryTransport(
+                retry=Retry(
+                    total=3,
+                    backoff_factor=1.0,
+                    status_forcelist=[429, 500, 502, 503, 504],
+                    allowed_methods=["GET", "POST", "DELETE"],
+                )
+            )
+        )
+    return _chromefleet_client
+
+
+async def _close_chromefleet_client() -> None:
+    global _chromefleet_client
+    if _chromefleet_client is not None and not _chromefleet_client.is_closed:
+        await _chromefleet_client.aclose()
+        _chromefleet_client = None
+
+
+asyncio_atexit.register(_close_chromefleet_client)  # type: ignore[reportUnknownMemberType]
+
 
 async def _create_browser_from_cdp_websocket(
     websocket_url: str, config: Config | None = None
@@ -104,25 +134,26 @@ async def _call_chromefleet_api(
     }
     headers = {k: v for k, v in headers.items() if v is not None}
 
-    async with httpx.AsyncClient(
-        transport=RetryTransport(
-            retry=Retry(
-                total=retries,
-                backoff_factor=1.0,
-                status_forcelist=[429, 500, 502, 503, 504],
-                allowed_methods=[method],
+    if retries == 0:
+        # One-off client for fire-and-forget calls (e.g. browser termination)
+        async with httpx.AsyncClient() as one_off:
+            response = await one_off.request(
+                method,
+                url,
+                headers=headers,
+                timeout=httpx.Timeout(connect=2.0, pool=None, read=timeout, write=timeout),
             )
-        ),
-    ) as client:
-        response = await client.request(
+    else:
+        response = await _get_chromefleet_client().request(
             method,
             url,
             headers=headers,
             timeout=httpx.Timeout(connect=2.0, pool=None, read=timeout, write=timeout),
         )
-        if raise_for_status:
-            response.raise_for_status()
-        return response
+
+    if raise_for_status:
+        response.raise_for_status()
+    return response
 
 
 async def get_remote_browser(browser_id: str) -> zd.Browser | None:

@@ -164,11 +164,12 @@ async def dpage_check(id: str):
 
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
-        await asyncio.sleep(TICK)
 
         # Check if signin completed
         if id in distillation_results:
             return distillation_results[id]
+
+        await asyncio.sleep(TICK)
 
     return None
 

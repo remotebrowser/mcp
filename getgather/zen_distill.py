@@ -1125,14 +1125,13 @@ async def run_distillation_loop(
             )
             raise ValueError(f"Failed to navigate to {location}: {error}")
 
-    TICK = 1  # seconds
-    max = timeout // TICK
+    TICK = 0.5  # seconds
+    max = int(timeout / TICK)
 
     current = Match(name="", priority=-1, distilled="")
 
     for iteration in range(max):
         logger.debug(f"Iteration {iteration + 1} of {max}")
-        await asyncio.sleep(TICK)
 
         try:
             current_url = str(await page.evaluate("window.location.href", await_promise=True))
@@ -1162,6 +1161,8 @@ async def run_distillation_loop(
 
         else:
             logger.debug(f"No matched pattern found")
+
+        await asyncio.sleep(TICK)
 
     await zen_report_distill_error(
         error=ValueError("No matched pattern found"),
