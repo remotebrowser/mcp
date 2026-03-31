@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from dotenv import load_dotenv
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -22,6 +22,7 @@ from getgather.config import FRIENDLY_CHARS, settings
 from getgather.zen_distill import (
     Pattern,
     batch_check_visibility,
+    collect_distill_targets,
     distill,
     get_new_page,
     load_distillation_patterns,
@@ -152,6 +153,39 @@ async def test_batch_check_visibility_falls_back_to_all_false_on_invalid_result(
     assert len(page.calls) == 1
 
 
+def test_collect_distill_targets_extracts_selector_metadata():
+    pattern = BeautifulSoup(
+        """
+        <html gg-priority="1">
+            <button gg-match="button.login"></button>
+            <input gg-match="iframe.auth input[type='email']" gg-optional />
+            <div gg-match-html="//section[@data-role='content']"></div>
+            <span></span>
+        </html>
+        """,
+        "html.parser",
+    )
+
+    targets = collect_distill_targets(pattern)
+
+    assert len(targets) == 3
+
+    assert targets[0].selector == "button.login"
+    assert targets[0].iframe_selector is None
+    assert targets[0].is_html is False
+    assert targets[0].optional is False
+
+    assert targets[1].selector == "input[type='email']"
+    assert targets[1].iframe_selector == "iframe.auth"
+    assert targets[1].is_html is False
+    assert targets[1].optional is True
+
+    assert targets[2].selector == "//section[@data-role='content']"
+    assert targets[2].iframe_selector is None
+    assert targets[2].is_html is True
+    assert targets[2].optional is False
+
+
 @pytest.mark.asyncio
 async def test_distill_preserves_iframe_selector_lookup(monkeypatch: MonkeyPatch):
     class StubElement:
@@ -178,9 +212,7 @@ async def test_distill_preserves_iframe_selector_lookup(monkeypatch: MonkeyPatch
             return StubElement()
         return None
 
-    monkeypatch.setattr(
-        "getgather.zen_distill.batch_check_visibility", stub_batch_check_visibility
-    )
+    monkeypatch.setattr("getgather.zen_distill.batch_check_visibility", stub_batch_check_visibility)
     monkeypatch.setattr("getgather.zen_distill.page_query_selector", stub_page_query_selector)
 
     pattern = Pattern(

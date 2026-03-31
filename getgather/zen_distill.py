@@ -44,6 +44,15 @@ class Match:
 
 
 @dataclass
+class DistillTarget:
+    target: Tag
+    selector: str
+    iframe_selector: str | None
+    is_html: bool
+    optional: bool
+
+
+@dataclass
 class ElementConfig:
     """Configuration for element typing operations."""
 
@@ -946,6 +955,31 @@ async def batch_check_visibility(
     return [False] * len(selectors)
 
 
+def collect_distill_targets(pattern: BeautifulSoup) -> list[DistillTarget]:
+    targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
+        attrs={"gg-match-html": True}
+    )
+
+    selector_info: list[DistillTarget] = []
+    for target in targets:
+        if not isinstance(target, Tag):
+            continue
+        html = target.get("gg-match-html")
+        selector, iframe_selector = get_selector(str(html if html else target.get("gg-match")))
+        if selector:
+            selector_info.append(
+                DistillTarget(
+                    target=target,
+                    selector=selector,
+                    iframe_selector=iframe_selector,
+                    is_html=bool(html),
+                    optional=target.get("gg-optional") is not None,
+                )
+            )
+
+    return selector_info
+
+
 async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
@@ -973,74 +1007,51 @@ async def distill(
 
         found = True
         match_count = 0
-
-        targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
-            attrs={"gg-match-html": True}
-        )
-
-        # Collect all selectors for batch processing
-        selector_info: list[dict[str, Any]] = []
-        for target in targets:
-            if not isinstance(target, Tag):
-                continue
-            html = target.get("gg-match-html")
-            selector, iframe_selector = get_selector(str(html if html else target.get("gg-match")))
-            if selector:
-                selector_info.append({
-                    "target": target,
-                    "selector": selector,
-                    "iframe_selector": iframe_selector,
-                    "is_html": bool(html),
-                    "optional": target.get("gg-optional") is not None,
-                })
+        selector_info = collect_distill_targets(pattern)
 
         if not selector_info:
             continue
 
-        # Batch check visibility for all selectors in one evaluate() call
         visibility_results = await batch_check_visibility(
             page,
             [
                 {
-                    "selector": cast(str, info["selector"]),
-                    "is_xpath": cast(str, info["selector"]).startswith("//"),
+                    "selector": info.selector,
+                    "is_xpath": info.selector.startswith("//"),
                 }
                 for info in selector_info
             ],
         )
 
-        # Process results and extract data for visible elements
         for idx, info in enumerate(selector_info):
             if not found:
                 break
 
             source: Element | None = None
-            if info["iframe_selector"] is not None:
+            if info.iframe_selector is not None:
                 source = await page_query_selector(
                     page,
-                    info["selector"],
-                    iframe_selector=info["iframe_selector"],
+                    info.selector,
+                    iframe_selector=info.iframe_selector,
                 )
             else:
                 is_visible = visibility_results[idx] if idx < len(visibility_results) else False
 
                 if not is_visible:
-                    if not info["optional"]:
+                    if not info.optional:
                         found = False
                     continue
 
-                # Element is visible - now query it to get the Element object for data extraction
-                # Skip visibility check since we already verified it in the batch check
                 source = await page_query_selector(
                     page,
-                    info["selector"],
-                    iframe_selector=info["iframe_selector"],
+                    info.selector,
+                    iframe_selector=info.iframe_selector,
                     skip_visibility_check=True,
                 )
             if source:
                 match_count += 1
-                target = info["target"]
-                if info["is_html"]:
+                target = info.target
+                if info.is_html:
                     target.clear()
                     fragment = BeautifulSoup(
                         "<div>" + await source.inner_html() + "</div>", "html.parser"
@@ -1057,7 +1068,7 @@ async def distill(
                         target["value"] = source.element.get("value") or ""
                 match_count += 1
             else:
-                if not info["optional"]:
+                if not info.optional:
                     found = False
 
         if found and match_count > 0:
