@@ -6,22 +6,21 @@ from typing import Any, cast
 import pytest
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from nanoid import generate
+from pytest import MonkeyPatch
 
 load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-from pytest import MonkeyPatch
-
 ACME_HOSTNAME = "https://acme.fly.dev"
-
-from nanoid import generate
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.zen_distill import (
     Pattern,
     batch_check_visibility,
+    batch_extract_distill_targets,
     collect_distill_targets,
     distill,
     get_new_page,
@@ -150,6 +149,177 @@ async def test_batch_check_visibility_falls_back_to_all_false_on_invalid_result(
     )
 
     assert result == [False, False]
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_extract_distill_targets_returns_css_and_xpath_payloads():
+    page = StubPage(
+        [
+            {
+                "found": True,
+                "visible": True,
+                "tag": "h1",
+                "text": "Welcome",
+                "html": "<span>Welcome</span>",
+                "value": "",
+            },
+            {
+                "found": True,
+                "visible": True,
+                "tag": "section",
+                "text": "Account",
+                "html": "<p>Account</p>",
+                "value": "",
+            },
+        ]
+    )
+
+    result = await batch_extract_distill_targets(
+        cast(Any, page),
+        [
+            {"selector": "h1", "is_xpath": False},
+            {"selector": "//section[@data-role='account']", "is_xpath": True},
+        ],
+    )
+
+    assert result == [
+        {
+            "found": True,
+            "visible": True,
+            "tag": "h1",
+            "text": "Welcome",
+            "html": "<span>Welcome</span>",
+            "value": "",
+        },
+        {
+            "found": True,
+            "visible": True,
+            "tag": "section",
+            "text": "Account",
+            "html": "<p>Account</p>",
+            "value": "",
+        },
+    ]
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_extract_distill_targets_preserves_missing_and_hidden_payloads():
+    page = StubPage(
+        [
+            {
+                "found": False,
+                "visible": False,
+                "tag": "",
+                "text": "",
+                "html": "",
+                "value": "",
+            },
+            {
+                "found": True,
+                "visible": False,
+                "tag": "div",
+                "text": "Hidden",
+                "html": "<span>Hidden</span>",
+                "value": "",
+            },
+        ]
+    )
+
+    result = await batch_extract_distill_targets(
+        cast(Any, page),
+        [
+            {"selector": ".missing", "is_xpath": False},
+            {"selector": ".hidden", "is_xpath": False},
+        ],
+    )
+
+    assert result == [
+        {
+            "found": False,
+            "visible": False,
+            "tag": "",
+            "text": "",
+            "html": "",
+            "value": "",
+        },
+        {
+            "found": True,
+            "visible": False,
+            "tag": "div",
+            "text": "Hidden",
+            "html": "<span>Hidden</span>",
+            "value": "",
+        },
+    ]
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tag_name", ["input", "select", "textarea"])
+async def test_batch_extract_distill_targets_preserves_form_values(tag_name: str):
+    page = StubPage(
+        [
+            {
+                "found": True,
+                "visible": True,
+                "tag": tag_name,
+                "text": "",
+                "html": "",
+                "value": "prefilled",
+            }
+        ]
+    )
+
+    result = await batch_extract_distill_targets(
+        cast(Any, page),
+        [{"selector": tag_name, "is_xpath": False}],
+    )
+
+    assert result == [
+        {
+            "found": True,
+            "visible": True,
+            "tag": tag_name,
+            "text": "",
+            "html": "",
+            "value": "prefilled",
+        }
+    ]
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_extract_distill_targets_falls_back_on_invalid_result():
+    page = StubPage({"found": True})
+
+    result = await batch_extract_distill_targets(
+        cast(Any, page),
+        [
+            {"selector": "h1", "is_xpath": False},
+            {"selector": "//div", "is_xpath": True},
+        ],
+    )
+
+    assert result == [
+        {
+            "found": False,
+            "visible": False,
+            "tag": "",
+            "text": "",
+            "html": "",
+            "value": "",
+        },
+        {
+            "found": False,
+            "visible": False,
+            "tag": "",
+            "text": "",
+            "html": "",
+            "value": "",
+        },
+    ]
     assert len(page.calls) == 1
 
 

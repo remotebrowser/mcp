@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 from urllib.parse import urlunparse
 
 import sentry_sdk
@@ -50,6 +50,20 @@ class DistillTarget:
     iframe_selector: str | None
     is_html: bool
     optional: bool
+
+
+class BatchSelector(TypedDict):
+    selector: str
+    is_xpath: bool
+
+
+class BatchExtractedTarget(TypedDict):
+    found: bool
+    visible: bool
+    tag: str
+    text: str
+    html: str
+    value: str
 
 
 @dataclass
@@ -894,7 +908,7 @@ async def page_query_selector(
 
 
 async def batch_check_visibility(
-    page: zd.Tab, selectors: list[dict[str, str | bool]]
+    page: zd.Tab, selectors: list[BatchSelector]
 ) -> list[bool]:
     if len(selectors) == 0:
         return []
@@ -953,6 +967,121 @@ async def batch_check_visibility(
     except Exception as error:
         logger.debug(f"Batch visibility check failed: {error}")
     return [False] * len(selectors)
+
+
+async def batch_extract_distill_targets(
+    page: zd.Tab, selectors: list[BatchSelector]
+) -> list[BatchExtractedTarget]:
+    if len(selectors) == 0:
+        return []
+
+    empty_result: BatchExtractedTarget = {
+        "found": False,
+        "visible": False,
+        "tag": "",
+        "text": "",
+        "html": "",
+        "value": "",
+    }
+    selectors_list = [item["selector"] for item in selectors]
+    is_xpath_list = [item["is_xpath"] for item in selectors]
+    js_code = f"""
+    (() => {{
+        const selectors = {json.dumps(selectors_list)};
+        const isXpath = {json.dumps(is_xpath_list)};
+        const results = [];
+
+        for (let i = 0; i < selectors.length; i++) {{
+            const empty = {{
+                found: false,
+                visible: false,
+                tag: "",
+                text: "",
+                html: "",
+                value: "",
+            }};
+            let element = null;
+            try {{
+                if (isXpath[i]) {{
+                    element = document.evaluate(
+                        selectors[i],
+                        document,
+                        null,
+                        XPathResult.FIRST_ORDERED_NODE_TYPE,
+                        null
+                    ).singleNodeValue;
+                }} else {{
+                    element = document.querySelector(selectors[i]);
+                }}
+            }} catch (error) {{
+                results.push(empty);
+                continue;
+            }}
+
+            if (!element) {{
+                results.push(empty);
+                continue;
+            }}
+
+            const style = window.getComputedStyle(element);
+            const visible = (
+                style.visibility !== "hidden" &&
+                style.display !== "none" &&
+                element.getBoundingClientRect().width > 0 &&
+                element.getBoundingClientRect().height > 0
+            );
+            const tag = typeof element.tagName === "string" ? element.tagName.toLowerCase() : "";
+            const text = typeof element.innerText === "string"
+                ? element.innerText
+                : (typeof element.textContent === "string" ? element.textContent : "");
+            const html = typeof element.innerHTML === "string" ? element.innerHTML : "";
+            const value = (
+                element instanceof HTMLInputElement ||
+                element instanceof HTMLTextAreaElement ||
+                element instanceof HTMLSelectElement
+            ) ? (element.value ?? "") : "";
+
+            results.push({{
+                found: true,
+                visible,
+                tag,
+                text,
+                html,
+                value,
+            }});
+        }}
+
+        return results;
+    }})()
+    """
+
+    try:
+        result = await page.evaluate(js_code)
+        if not isinstance(result, list):
+            return [empty_result.copy() for _ in selectors]
+
+        sanitized_results: list[BatchExtractedTarget] = []
+        for item in cast(list[Any], result):
+            if not isinstance(item, dict):
+                sanitized_results.append(empty_result.copy())
+                continue
+            sanitized_results.append(
+                {
+                    "found": bool(item.get("found")),
+                    "visible": bool(item.get("visible")),
+                    "tag": str(item.get("tag") or ""),
+                    "text": str(item.get("text") or ""),
+                    "html": str(item.get("html") or ""),
+                    "value": str(item.get("value") or ""),
+                }
+            )
+
+        if len(sanitized_results) < len(selectors):
+            sanitized_results.extend(empty_result.copy() for _ in range(len(selectors) - len(sanitized_results)))
+        return sanitized_results[: len(selectors)]
+    except Exception as error:
+        logger.debug(f"Batch distill extraction failed: {error}")
+    return [empty_result.copy() for _ in selectors]
 
 
 def collect_distill_targets(pattern: BeautifulSoup) -> list[DistillTarget]:
