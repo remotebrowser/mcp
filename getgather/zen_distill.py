@@ -1063,13 +1063,14 @@ async def batch_extract_distill_targets(
             if not isinstance(item, dict):
                 sanitized_results.append(empty_result.copy())
                 continue
+            item_dict = cast(dict[str, Any], item)
             sanitized_results.append({
-                "found": bool(item.get("found")),
-                "visible": bool(item.get("visible")),
-                "tag": str(item.get("tag") or ""),
-                "text": str(item.get("text") or ""),
-                "html": str(item.get("html") or ""),
-                "value": str(item.get("value") or ""),
+                "found": bool(item_dict.get("found")),
+                "visible": bool(item_dict.get("visible")),
+                "tag": str(item_dict.get("tag") or ""),
+                "text": str(item_dict.get("text") or ""),
+                "html": str(item_dict.get("html") or ""),
+                "value": str(item_dict.get("value") or ""),
             })
 
         if len(sanitized_results) < len(selectors):
