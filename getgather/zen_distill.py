@@ -1113,6 +1113,14 @@ async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
     result: list[Match] = []
+    empty_extracted_target: BatchExtractedTarget = {
+        "found": False,
+        "visible": False,
+        "tag": "",
+        "text": "",
+        "html": "",
+        "value": "",
+    }
 
     for item in patterns:
         name = item.name
@@ -1141,7 +1149,7 @@ async def distill(
         if not selector_info:
             continue
 
-        visibility_results = await batch_check_visibility(
+        batch_results = await batch_extract_distill_targets(
             page,
             [
                 {
@@ -1149,56 +1157,74 @@ async def distill(
                     "is_xpath": info.selector.startswith("//"),
                 }
                 for info in selector_info
+                if info.iframe_selector is None
             ],
         )
+        batch_result_idx = 0
 
-        for idx, info in enumerate(selector_info):
+        for info in selector_info:
             if not found:
                 break
 
-            source: Element | None = None
             if info.iframe_selector is not None:
                 source = await page_query_selector(
                     page,
                     info.selector,
                     iframe_selector=info.iframe_selector,
                 )
-            else:
-                is_visible = visibility_results[idx] if idx < len(visibility_results) else False
 
-                if not is_visible:
-                    if not info.optional:
-                        found = False
+                match_count += 1
+                if source:
+                    target = info.target
+                    if info.is_html:
+                        target.clear()
+                        fragment = BeautifulSoup(
+                            "<div>" + await source.inner_html() + "</div>", "html.parser"
+                        )
+                        if fragment.div:
+                            for child in list(fragment.div.children):
+                                child.extract()
+                                target.append(child)
+                    else:
+                        raw_text = await source.inner_text()
+                        if raw_text:
+                            target.string = raw_text.strip()
+                        if source.tag in ["input", "textarea", "select"]:
+                            target["value"] = source.element.get("value") or ""
+                    match_count += 1
                     continue
-
-                source = await page_query_selector(
-                    page,
-                    info.selector,
-                    iframe_selector=info.iframe_selector,
-                    skip_visibility_check=True,
-                )
-            if source:
-                match_count += 1
-                target = info.target
-                if info.is_html:
-                    target.clear()
-                    fragment = BeautifulSoup(
-                        "<div>" + await source.inner_html() + "</div>", "html.parser"
-                    )
-                    if fragment.div:
-                        for child in list(fragment.div.children):
-                            child.extract()
-                            target.append(child)
-                else:
-                    raw_text = await source.inner_text()
-                    if raw_text:
-                        target.string = raw_text.strip()
-                    if source.tag in ["input", "textarea", "select"]:
-                        target["value"] = source.element.get("value") or ""
-                match_count += 1
-            else:
                 if not info.optional:
                     found = False
+                continue
+
+            payload = (
+                batch_results[batch_result_idx]
+                if batch_result_idx < len(batch_results)
+                else empty_extracted_target
+            )
+            batch_result_idx += 1
+
+            if not payload["found"] or not payload["visible"]:
+                if not info.optional:
+                    found = False
+                continue
+
+            match_count += 1
+            target = info.target
+            if info.is_html:
+                target.clear()
+                fragment = BeautifulSoup("<div>" + payload["html"] + "</div>", "html.parser")
+                if fragment.div:
+                    for child in list(fragment.div.children):
+                        child.extract()
+                        target.append(child)
+            else:
+                raw_text = payload["text"]
+                if raw_text:
+                    target.string = raw_text.strip()
+                if payload["tag"] in ["input", "textarea", "select"]:
+                    target["value"] = payload["value"]
+            match_count += 1
 
         if found and match_count > 0:
             distilled = str(pattern)

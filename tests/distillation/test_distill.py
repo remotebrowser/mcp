@@ -365,10 +365,10 @@ async def test_distill_preserves_iframe_selector_lookup(monkeypatch: MonkeyPatch
         async def inner_text(self) -> str:
             return "Sign in"
 
-    async def stub_batch_check_visibility(
+    async def stub_batch_extract_distill_targets(
         page: Any, selectors: list[dict[str, str | bool]]
-    ) -> list[bool]:
-        return [False] * len(selectors)
+    ) -> list[dict[str, str | bool]]:
+        return []
 
     async def stub_page_query_selector(
         page: Any,
@@ -382,7 +382,9 @@ async def test_distill_preserves_iframe_selector_lookup(monkeypatch: MonkeyPatch
             return StubElement()
         return None
 
-    monkeypatch.setattr("getgather.zen_distill.batch_check_visibility", stub_batch_check_visibility)
+    monkeypatch.setattr(
+        "getgather.zen_distill.batch_extract_distill_targets", stub_batch_extract_distill_targets
+    )
     monkeypatch.setattr("getgather.zen_distill.page_query_selector", stub_page_query_selector)
 
     pattern = Pattern(
@@ -397,6 +399,160 @@ async def test_distill_preserves_iframe_selector_lookup(monkeypatch: MonkeyPatch
 
     assert match is not None
     assert match.name == "iframe-login.html"
+    assert "Sign in" in match.distilled
+
+
+@pytest.mark.asyncio
+async def test_distill_uses_batch_extract_for_non_iframe_targets(monkeypatch: MonkeyPatch):
+    async def stub_batch_extract_distill_targets(
+        page: Any, selectors: list[dict[str, str | bool]]
+    ) -> list[dict[str, str | bool]]:
+        assert selectors == [
+            {"selector": "button.login", "is_xpath": False},
+            {"selector": "input[name='email']", "is_xpath": False},
+            {"selector": "//section[@data-role='content']", "is_xpath": True},
+        ]
+        return [
+            {
+                "found": True,
+                "visible": True,
+                "tag": "button",
+                "text": "Sign in",
+                "html": "",
+                "value": "",
+            },
+            {
+                "found": True,
+                "visible": True,
+                "tag": "input",
+                "text": "",
+                "html": "",
+                "value": "person@example.com",
+            },
+            {
+                "found": True,
+                "visible": True,
+                "tag": "section",
+                "text": "Ignored",
+                "html": "<p>Account details</p>",
+                "value": "",
+            },
+        ]
+
+    async def fail_page_query_selector(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("page_query_selector should not run for non-iframe selectors")
+
+    monkeypatch.setattr(
+        "getgather.zen_distill.batch_extract_distill_targets", stub_batch_extract_distill_targets
+    )
+    monkeypatch.setattr("getgather.zen_distill.page_query_selector", fail_page_query_selector)
+
+    pattern = Pattern(
+        name="batched-login.html",
+        pattern=BeautifulSoup(
+            """
+            <html gg-priority="1">
+                <button gg-match="button.login"></button>
+                <div gg-match-html="//section[@data-role='content']"></div>
+                <input gg-match="input[name='email']" />
+            </html>
+            """,
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is not None
+    assert "Sign in" in match.distilled
+    assert "<p>Account details</p>" in match.distilled
+    assert 'value="person@example.com"' in match.distilled
+
+
+@pytest.mark.asyncio
+async def test_distill_rejects_pattern_when_required_batched_target_missing(
+    monkeypatch: MonkeyPatch,
+):
+    async def stub_batch_extract_distill_targets(
+        page: Any, selectors: list[dict[str, str | bool]]
+    ) -> list[dict[str, str | bool]]:
+        assert selectors == [{"selector": "button.login", "is_xpath": False}]
+        return [
+            {
+                "found": False,
+                "visible": False,
+                "tag": "",
+                "text": "",
+                "html": "",
+                "value": "",
+            }
+        ]
+
+    monkeypatch.setattr(
+        "getgather.zen_distill.batch_extract_distill_targets", stub_batch_extract_distill_targets
+    )
+
+    pattern = Pattern(
+        name="required-login.html",
+        pattern=BeautifulSoup(
+            '<html gg-priority="1"><button gg-match="button.login"></button></html>',
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is None
+
+
+@pytest.mark.asyncio
+async def test_distill_allows_optional_batched_target_to_be_missing(monkeypatch: MonkeyPatch):
+    async def stub_batch_extract_distill_targets(
+        page: Any, selectors: list[dict[str, str | bool]]
+    ) -> list[dict[str, str | bool]]:
+        assert selectors == [
+            {"selector": "button.login", "is_xpath": False},
+            {"selector": ".helper", "is_xpath": False},
+        ]
+        return [
+            {
+                "found": True,
+                "visible": True,
+                "tag": "button",
+                "text": "Sign in",
+                "html": "",
+                "value": "",
+            },
+            {
+                "found": False,
+                "visible": False,
+                "tag": "",
+                "text": "",
+                "html": "",
+                "value": "",
+            },
+        ]
+
+    monkeypatch.setattr(
+        "getgather.zen_distill.batch_extract_distill_targets", stub_batch_extract_distill_targets
+    )
+
+    pattern = Pattern(
+        name="optional-helper.html",
+        pattern=BeautifulSoup(
+            """
+            <html gg-priority="1">
+                <button gg-match="button.login"></button>
+                <span gg-match=".helper" gg-optional></span>
+            </html>
+            """,
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is not None
     assert "Sign in" in match.distilled
 
 
