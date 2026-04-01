@@ -154,26 +154,24 @@ async def test_batch_check_visibility_falls_back_to_all_false_on_invalid_result(
 
 @pytest.mark.asyncio
 async def test_batch_extract_distill_targets_returns_css_and_xpath_payloads():
-    page = StubPage(
-        [
-            {
-                "found": True,
-                "visible": True,
-                "tag": "h1",
-                "text": "Welcome",
-                "html": "<span>Welcome</span>",
-                "value": "",
-            },
-            {
-                "found": True,
-                "visible": True,
-                "tag": "section",
-                "text": "Account",
-                "html": "<p>Account</p>",
-                "value": "",
-            },
-        ]
-    )
+    page = StubPage([
+        {
+            "found": True,
+            "visible": True,
+            "tag": "h1",
+            "text": "Welcome",
+            "html": "<span>Welcome</span>",
+            "value": "",
+        },
+        {
+            "found": True,
+            "visible": True,
+            "tag": "section",
+            "text": "Account",
+            "html": "<p>Account</p>",
+            "value": "",
+        },
+    ])
 
     result = await batch_extract_distill_targets(
         cast(Any, page),
@@ -206,26 +204,24 @@ async def test_batch_extract_distill_targets_returns_css_and_xpath_payloads():
 
 @pytest.mark.asyncio
 async def test_batch_extract_distill_targets_preserves_missing_and_hidden_payloads():
-    page = StubPage(
-        [
-            {
-                "found": False,
-                "visible": False,
-                "tag": "",
-                "text": "",
-                "html": "",
-                "value": "",
-            },
-            {
-                "found": True,
-                "visible": False,
-                "tag": "div",
-                "text": "Hidden",
-                "html": "<span>Hidden</span>",
-                "value": "",
-            },
-        ]
-    )
+    page = StubPage([
+        {
+            "found": False,
+            "visible": False,
+            "tag": "",
+            "text": "",
+            "html": "",
+            "value": "",
+        },
+        {
+            "found": True,
+            "visible": False,
+            "tag": "div",
+            "text": "Hidden",
+            "html": "<span>Hidden</span>",
+            "value": "",
+        },
+    ])
 
     result = await batch_extract_distill_targets(
         cast(Any, page),
@@ -259,18 +255,16 @@ async def test_batch_extract_distill_targets_preserves_missing_and_hidden_payloa
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tag_name", ["input", "select", "textarea"])
 async def test_batch_extract_distill_targets_preserves_form_values(tag_name: str):
-    page = StubPage(
-        [
-            {
-                "found": True,
-                "visible": True,
-                "tag": tag_name,
-                "text": "",
-                "html": "",
-                "value": "prefilled",
-            }
-        ]
-    )
+    page = StubPage([
+        {
+            "found": True,
+            "visible": True,
+            "tag": tag_name,
+            "text": "",
+            "html": "",
+            "value": "prefilled",
+        }
+    ])
 
     result = await batch_extract_distill_targets(
         cast(Any, page),

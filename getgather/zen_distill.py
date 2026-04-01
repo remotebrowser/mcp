@@ -907,9 +907,7 @@ async def page_query_selector(
         return None
 
 
-async def batch_check_visibility(
-    page: zd.Tab, selectors: list[BatchSelector]
-) -> list[bool]:
+async def batch_check_visibility(page: zd.Tab, selectors: list[BatchSelector]) -> list[bool]:
     if len(selectors) == 0:
         return []
 
@@ -1065,19 +1063,19 @@ async def batch_extract_distill_targets(
             if not isinstance(item, dict):
                 sanitized_results.append(empty_result.copy())
                 continue
-            sanitized_results.append(
-                {
-                    "found": bool(item.get("found")),
-                    "visible": bool(item.get("visible")),
-                    "tag": str(item.get("tag") or ""),
-                    "text": str(item.get("text") or ""),
-                    "html": str(item.get("html") or ""),
-                    "value": str(item.get("value") or ""),
-                }
-            )
+            sanitized_results.append({
+                "found": bool(item.get("found")),
+                "visible": bool(item.get("visible")),
+                "tag": str(item.get("tag") or ""),
+                "text": str(item.get("text") or ""),
+                "html": str(item.get("html") or ""),
+                "value": str(item.get("value") or ""),
+            })
 
         if len(sanitized_results) < len(selectors):
-            sanitized_results.extend(empty_result.copy() for _ in range(len(selectors) - len(sanitized_results)))
+            sanitized_results.extend(
+                empty_result.copy() for _ in range(len(selectors) - len(sanitized_results))
+            )
         return sanitized_results[: len(selectors)]
     except Exception as error:
         logger.debug(f"Batch distill extraction failed: {error}")
