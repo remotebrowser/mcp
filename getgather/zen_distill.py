@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 from urllib.parse import urlunparse
 
 import sentry_sdk
@@ -41,29 +41,6 @@ class Match:
     name: str
     priority: int
     distilled: str
-
-
-@dataclass
-class DistillTarget:
-    target: Tag
-    selector: str
-    iframe_selector: str | None
-    is_html: bool
-    optional: bool
-
-
-class BatchSelector(TypedDict):
-    selector: str
-    is_xpath: bool
-
-
-class BatchExtractedTarget(TypedDict):
-    found: bool
-    visible: bool
-    tag: str
-    text: str
-    html: str
-    value: str
 
 
 @dataclass
@@ -907,219 +884,143 @@ async def page_query_selector(
         return None
 
 
-async def batch_check_visibility(page: zd.Tab, selectors: list[BatchSelector]) -> list[bool]:
-    if len(selectors) == 0:
-        return []
+async def page_batch_extract(
+    page: zd.Tab, queries: list[dict[str, object]]
+) -> dict[str, dict[str, object]] | None:
+    if len(queries) == 0:
+        return {}
 
-    selectors_list = [item.get("selector", "") for item in selectors]
-    is_xpath_list = [item.get("is_xpath") is True for item in selectors]
+    payload = json.dumps(queries)
     js_code = f"""
     (() => {{
-        const selectors = {json.dumps(selectors_list)};
-        const isXpath = {json.dumps(is_xpath_list)};
-        const results = [];
+        const queries = {payload};
+        const output = {{}};
 
-        for (let i = 0; i < selectors.length; i++) {{
-            let element = null;
+        function isVisible(element) {{
+            const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return (
+                style.visibility !== "hidden" &&
+                style.display !== "none" &&
+                rect.width > 0 &&
+                rect.height > 0
+            );
+        }}
+
+        function findCss(selector, doc, iframeSelector) {{
             try {{
-                if (isXpath[i]) {{
+                if (iframeSelector) {{
+                    const iframe = doc.querySelector(iframeSelector);
+                    if (iframe) {{
+                        const childDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        const directIframeMatch = childDoc.querySelector(selector);
+                        if (directIframeMatch) {{
+                            return directIframeMatch;
+                        }}
+                        return findCss(selector, childDoc, null);
+                    }}
+                }}
+            }} catch (error) {{
+                return null;
+            }}
+
+            try {{
+                const direct = doc.querySelector(selector);
+                if (direct) return direct;
+            }} catch (error) {{
+                return null;
+            }}
+
+            const iframes = doc.querySelectorAll("iframe");
+            for (const iframe of iframes) {{
+                try {{
+                    const childDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    const nested = findCss(selector, childDoc, null);
+                    if (nested) return nested;
+                }} catch (error) {{}}
+            }}
+
+            return null;
+        }}
+
+        for (const query of queries) {{
+            const selector = query?.selector;
+            const iframeSelector = query?.iframe_selector;
+            const queryKey = query?.query_key;
+            if (typeof selector !== "string" || selector.length === 0) {{
+                continue;
+            }}
+            if (typeof queryKey !== "string" || queryKey.length === 0) {{
+                continue;
+            }}
+
+            let element = null;
+
+            if (selector.startsWith("//")) {{
+                try {{
                     element = document.evaluate(
-                        selectors[i],
+                        selector,
                         document,
                         null,
                         XPathResult.FIRST_ORDERED_NODE_TYPE,
                         null
                     ).singleNodeValue;
-                }} else {{
-                    element = document.querySelector(selectors[i]);
+                }} catch (error) {{
+                    element = null;
                 }}
-            }} catch (error) {{
-                results.push(false);
+            }} else {{
+                const resolvedIframeSelector = typeof iframeSelector === "string" &&
+                    iframeSelector.length > 0
+                    ? iframeSelector
+                    : null;
+                element = findCss(selector, document, resolvedIframeSelector);
+            }}
+
+            if (!element || !isVisible(element)) {{
+                output[queryKey] = {{ found: false }};
                 continue;
             }}
 
-            if (!element) {{
-                results.push(false);
-                continue;
+            const tag = String(element.tagName || "").toLowerCase();
+            const item = {{ found: true, tag }};
+
+            if (query?.wants_html) {{
+                item.html = element.innerHTML || "";
+            }}
+            if (query?.wants_text) {{
+                item.text = element.innerText || "";
+            }}
+            if (query?.wants_value && ["input", "textarea", "select"].includes(tag)) {{
+                const value = element.value;
+                if (typeof value === "string") {{
+                    item.value = value;
+                }} else if (value == null) {{
+                    item.value = "";
+                }} else {{
+                    item.value = String(value);
+                }}
             }}
 
-            const style = window.getComputedStyle(element);
-            const visible = (
-                style.visibility !== "hidden" &&
-                style.display !== "none" &&
-                element.getBoundingClientRect().width > 0 &&
-                element.getBoundingClientRect().height > 0
-            );
-
-            results.push(visible);
+            output[queryKey] = item;
         }}
 
-        return results;
+        return output;
     }})()
     """
 
     try:
         result = await page.evaluate(js_code)
-        if isinstance(result, list):
-            return [bool(item) if item is not None else False for item in cast(list[Any], result)]
+        if isinstance(result, dict):
+            return cast(dict[str, dict[str, object]], result)
     except Exception as error:
-        logger.debug(f"Batch visibility check failed: {error}")
-    return [False] * len(selectors)
-
-
-async def batch_extract_distill_targets(
-    page: zd.Tab, selectors: list[BatchSelector]
-) -> list[BatchExtractedTarget]:
-    if len(selectors) == 0:
-        return []
-
-    empty_result: BatchExtractedTarget = {
-        "found": False,
-        "visible": False,
-        "tag": "",
-        "text": "",
-        "html": "",
-        "value": "",
-    }
-    selectors_list = [item["selector"] for item in selectors]
-    is_xpath_list = [item["is_xpath"] for item in selectors]
-    js_code = f"""
-    (() => {{
-        const selectors = {json.dumps(selectors_list)};
-        const isXpath = {json.dumps(is_xpath_list)};
-        const results = [];
-
-        for (let i = 0; i < selectors.length; i++) {{
-            const empty = {{
-                found: false,
-                visible: false,
-                tag: "",
-                text: "",
-                html: "",
-                value: "",
-            }};
-            let element = null;
-            try {{
-                if (isXpath[i]) {{
-                    element = document.evaluate(
-                        selectors[i],
-                        document,
-                        null,
-                        XPathResult.FIRST_ORDERED_NODE_TYPE,
-                        null
-                    ).singleNodeValue;
-                }} else {{
-                    element = document.querySelector(selectors[i]);
-                }}
-            }} catch (error) {{
-                results.push(empty);
-                continue;
-            }}
-
-            if (!element) {{
-                results.push(empty);
-                continue;
-            }}
-
-            const style = window.getComputedStyle(element);
-            const visible = (
-                style.visibility !== "hidden" &&
-                style.display !== "none" &&
-                element.getBoundingClientRect().width > 0 &&
-                element.getBoundingClientRect().height > 0
-            );
-            const tag = typeof element.tagName === "string" ? element.tagName.toLowerCase() : "";
-            const text = typeof element.innerText === "string"
-                ? element.innerText
-                : (typeof element.textContent === "string" ? element.textContent : "");
-            const html = typeof element.innerHTML === "string" ? element.innerHTML : "";
-            const value = (
-                element instanceof HTMLInputElement ||
-                element instanceof HTMLTextAreaElement ||
-                element instanceof HTMLSelectElement
-            ) ? (element.value ?? "") : "";
-
-            results.push({{
-                found: true,
-                visible,
-                tag,
-                text,
-                html,
-                value,
-            }});
-        }}
-
-        return results;
-    }})()
-    """
-
-    try:
-        result = await page.evaluate(js_code)
-        if not isinstance(result, list):
-            return [empty_result.copy() for _ in selectors]
-
-        sanitized_results: list[BatchExtractedTarget] = []
-        for item in cast(list[Any], result):
-            if not isinstance(item, dict):
-                sanitized_results.append(empty_result.copy())
-                continue
-            item_dict = cast(dict[str, Any], item)
-            sanitized_results.append({
-                "found": bool(item_dict.get("found")),
-                "visible": bool(item_dict.get("visible")),
-                "tag": str(item_dict.get("tag") or ""),
-                "text": str(item_dict.get("text") or ""),
-                "html": str(item_dict.get("html") or ""),
-                "value": str(item_dict.get("value") or ""),
-            })
-
-        if len(sanitized_results) < len(selectors):
-            sanitized_results.extend(
-                empty_result.copy() for _ in range(len(selectors) - len(sanitized_results))
-            )
-        return sanitized_results[: len(selectors)]
-    except Exception as error:
-        logger.debug(f"Batch distill extraction failed: {error}")
-    return [empty_result.copy() for _ in selectors]
-
-
-def collect_distill_targets(pattern: BeautifulSoup) -> list[DistillTarget]:
-    targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
-        attrs={"gg-match-html": True}
-    )
-
-    selector_info: list[DistillTarget] = []
-    for target in targets:
-        if not isinstance(target, Tag):
-            continue
-        html = target.get("gg-match-html")
-        selector, iframe_selector = get_selector(str(html if html else target.get("gg-match")))
-        if selector:
-            selector_info.append(
-                DistillTarget(
-                    target=target,
-                    selector=selector,
-                    iframe_selector=iframe_selector,
-                    is_html=bool(html),
-                    optional=target.get("gg-optional") is not None,
-                )
-            )
-
-    return selector_info
+        logger.debug(f"Batch extract failed: {error}")
+    return None
 
 
 async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
     result: list[Match] = []
-    empty_extracted_target: BatchExtractedTarget = {
-        "found": False,
-        "visible": False,
-        "tag": "",
-        "text": "",
-        "html": "",
-        "value": "",
-    }
 
     for item in patterns:
         name = item.name
@@ -1141,89 +1042,89 @@ async def distill(
 
         logger.debug(f"Checking {name} with priority {priority}")
 
+        targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
+            attrs={"gg-match-html": True}
+        )
+        target_specs: list[dict[str, object]] = []
+        batch_queries: list[dict[str, object]] = []
+
+        for target in targets:
+            if not isinstance(target, Tag):
+                continue
+
+            html_attr = target.get("gg-match-html")
+            selector, iframe_selector = get_selector(
+                str(html_attr if html_attr else target.get("gg-match"))
+            )
+            if not selector:
+                continue
+
+            is_html = html_attr is not None
+            query_key = str(len(target_specs))
+            optional = target.get("gg-optional") is not None
+
+            target_specs.append({
+                "target": target,
+                "selector": selector,
+                "iframe_selector": iframe_selector,
+                "html": is_html,
+                "optional": optional,
+                "query_key": query_key,
+            })
+            batch_queries.append({
+                "query_key": query_key,
+                "selector": selector,
+                "iframe_selector": iframe_selector,
+                "wants_html": is_html,
+                "wants_text": not is_html,
+                "wants_value": not is_html,
+            })
+
         found = True
         match_count = 0
-        selector_info = collect_distill_targets(pattern)
 
-        if not selector_info:
-            continue
+        batch_results = await page_batch_extract(page, batch_queries)
+        safe_results = batch_results if isinstance(batch_results, dict) else {}
 
-        batch_results = await batch_extract_distill_targets(
-            page,
-            [
-                {
-                    "selector": info.selector,
-                    "is_xpath": info.selector.startswith("//"),
-                }
-                for info in selector_info
-                if info.iframe_selector is None
-            ],
-        )
-        batch_result_idx = 0
+        for spec in target_specs:
+            target = spec.get("target")
+            selector = spec.get("selector")
+            query_key = spec.get("query_key")
+            html = bool(spec.get("html"))
+            optional = bool(spec.get("optional"))
 
-        for info in selector_info:
-            if not found:
-                break
+            if not isinstance(target, Tag):
+                continue
+            if not isinstance(selector, str) or not isinstance(query_key, str):
+                continue
 
-            if info.iframe_selector is not None:
-                source = await page_query_selector(
-                    page,
-                    info.selector,
-                    iframe_selector=info.iframe_selector,
-                )
+            source = safe_results.get(query_key, {})
+            source_found = bool(source.get("found"))
 
+            if source_found:
+                if html:
+                    target.clear()
+                    html_content = source.get("html", "")
+                    fragment = BeautifulSoup("<div>" + str(html_content) + "</div>", "html.parser")
+                    if fragment.div:
+                        for child in list(fragment.div.children):
+                            child.extract()
+                            target.append(child)
+                else:
+                    raw_text = source.get("text")
+                    if isinstance(raw_text, str) and raw_text:
+                        target.string = raw_text.strip()
+                    tag = str(source.get("tag", "")).lower()
+                    if tag in ["input", "textarea", "select"]:
+                        value = source.get("value", "")
+                        target["value"] = value if isinstance(value, str) else ""
                 match_count += 1
-                if source:
-                    target = info.target
-                    if info.is_html:
-                        target.clear()
-                        fragment = BeautifulSoup(
-                            "<div>" + await source.inner_html() + "</div>", "html.parser"
-                        )
-                        if fragment.div:
-                            for child in list(fragment.div.children):
-                                child.extract()
-                                target.append(child)
-                    else:
-                        raw_text = await source.inner_text()
-                        if raw_text:
-                            target.string = raw_text.strip()
-                        if source.tag in ["input", "textarea", "select"]:
-                            target["value"] = source.element.get("value") or ""
-                    match_count += 1
-                    continue
-                if not info.optional:
-                    found = False
                 continue
 
-            payload = (
-                batch_results[batch_result_idx]
-                if batch_result_idx < len(batch_results)
-                else empty_extracted_target
-            )
-            batch_result_idx += 1
-
-            if not payload["found"] or not payload["visible"]:
-                if not info.optional:
-                    found = False
+            if optional:
+                logger.debug(f"Optional {selector} has no match")
                 continue
-
-            match_count += 1
-            target = info.target
-            if info.is_html:
-                target.clear()
-                fragment = BeautifulSoup("<div>" + payload["html"] + "</div>", "html.parser")
-                if fragment.div:
-                    for child in list(fragment.div.children):
-                        child.extract()
-                        target.append(child)
-            else:
-                raw_text = payload["text"]
-                if raw_text:
-                    target.string = raw_text.strip()
-                if payload["tag"] in ["input", "textarea", "select"]:
-                    target["value"] = payload["value"]
-            match_count += 1
+            found = False
 
         if found and match_count > 0:
             distilled = str(pattern)
