@@ -347,7 +347,9 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
             error = await check_error(distilled)
             if error:
-                logger.info("Distillation reported page error pattern; sign-in still marked complete for polling.")
+                logger.info(
+                    "Distillation reported page error pattern; sign-in still marked complete for polling."
+                )
 
             distillation_results[id] = True
             await dpage_close(id)
