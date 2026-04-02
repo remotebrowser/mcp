@@ -57,6 +57,8 @@ async def test_wayfair_login_and_get_order_history(mcp_config: dict[str, Any]):
             )
             mcp_call_check_signin_result = json.loads(mcp_call_check_signin.content[0].text)
             assert mcp_call_check_signin_result.get("status") == "SUCCESS"
+            assert mcp_call_check_signin_result.get("completed") is True
+            assert "result" not in mcp_call_check_signin_result
 
             mcp_call_get_order_history = await client.call_tool("wayfair_get_order_history")
             assert isinstance(mcp_call_get_order_history.content[0], TextContent), (

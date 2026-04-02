@@ -27,7 +27,6 @@ from getgather.zen_distill import (
     autoclick as zen_autoclick,
     capture_page_artifacts as zen_capture_page_artifacts,
     check_error,
-    convert,
     distill as zen_distill,
     get_new_page,
     get_selector,
@@ -46,9 +45,11 @@ router = APIRouter(prefix="/dpage", tags=["dpage"])
 
 
 active_pages: dict[str, zd.Tab] = {}
-distillation_results: dict[str, str | list[dict[str, str | list[str]]] | dict[str, Any]] = {}
-pending_actions: dict[str, dict[str, Any]] = {}
+distillation_results: dict[str, bool | str | list[dict[str, str | list[str]]] | dict[str, Any]] = {}
 element_configs: dict[str, ElementConfig] = {}
+
+# Max seconds for the distillation polling loop in zen_post_dpage (per HTTP request).
+DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
 
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
@@ -76,7 +77,9 @@ def _signin_flow_response(dpage_id: str) -> dict[str, Any]:
         "system_message": (
             f"Try open the url {url} in a browser with a tool if available. "
             "Give the url to the user so the user can open it manually in their browser. "
-            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
+            "Then call check_signin with the signin_id to see when sign-in finished (it does not return tool data). "
+            "Call the same MCP tool again to get the result. "
+            "For incognito or explicit session flows, send the x-signin-id header on the retry. "
         ),
     }
 
@@ -288,7 +291,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     logger.debug(f"Available distillation patterns: {len(patterns)}")
 
     TICK = 1  # seconds
-    TIMEOUT = pending_actions.get(id, {}).get("dpage_timeout", 15)  # seconds
+    TIMEOUT = DEFAULT_DPAGE_POST_POLL_TIMEOUT
     max = TIMEOUT // TICK
 
     current = Match(name="", priority=-1, distilled="")
@@ -343,41 +346,13 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             logger.info("Finished!")
 
             error = await check_error(distilled)
+            if error:
+                logger.info("Distillation reported page error pattern; sign-in still marked complete for polling.")
 
-            if id in pending_actions and not error:
-                action_info = pending_actions[id]
-                logger.info(f"Signin completed for {id}, resuming action...")
-
-                resume_fn = (
-                    remote_zen_dpage_with_action if is_remote_browser(id) else zen_dpage_with_action
-                )
-                action_result = await resume_fn(
-                    initial_url=action_info["initial_url"],
-                    action=action_info["action"],
-                    timeout=action_info["timeout"],
-                    _signin_completed=True,
-                    _page_id=id,
-                )
-
-                distillation_results[id] = action_result
-
-                already_cleared = pending_actions.pop(id, None) is None
-                if already_cleared:
-                    logger.warning(f"Pending action for {id} was already cleared")
-                await dpage_close(id)
-                if is_remote_browser(id):
-                    await safe_close_page(page)
-                return HTMLResponse(render(FINISHED_MSG, options))
-
-            converted = await convert(distilled, pattern_path=match.name)
+            distillation_results[id] = True
             await dpage_close(id)
             if is_remote_browser(id):
                 await safe_close_page(page)
-            if converted is not None:
-                distillation_results[id] = converted
-            else:
-                logger.info("No conversion found")
-                distillation_results[id] = distilled
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
@@ -549,8 +524,9 @@ async def zen_dpage_mcp_tool(
         "system_message": (
             f"Try open the url {url} in a browser with a tool if available."
             "Give the url to the user so the user can open it manually in their browser."
-            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
-            "Once it is completed successfully, then call this tool again to proceed with the action."
+            "Then call check_signin with the signin_id to see when sign-in finished (it does not return tool data). "
+            "Call the same MCP tool again to get the result. "
+            "For incognito or explicit session flows, send the x-signin-id header on the retry. "
         ),
     }
 
@@ -559,9 +535,6 @@ async def zen_dpage_with_action(
     initial_url: str,
     action: Any,
     timeout: int = 2,
-    dpage_timeout: int = 60,
-    _signin_completed: bool = False,
-    _page_id: str | None = None,
     config: ElementConfig | None = None,
 ) -> dict[str, Any]:
     """Execute an action after signin completion with Zendriver.
@@ -570,8 +543,6 @@ async def zen_dpage_with_action(
         initial_url: URL to navigate to
         action: Async function that receives a Page and returns a dict
         timeout: Timeout in seconds
-        _signin_completed: Whether the signin process is completed
-        _page_id: ID of the page to resume from
     Returns:
         Dict with result or signin flow info
     """
@@ -579,32 +550,7 @@ async def zen_dpage_with_action(
     incognito = headers.get("x-incognito", "0") == "1"
     signin_id = headers.get("x-signin-id") or None
 
-    # Step 1: If resuming after signin completion, use the active page directly
-    if _signin_completed and _page_id is not None and _page_id in pending_actions:
-        action_info = pending_actions[_page_id]
-        page: zd.Tab | None = None
-        if _page_id in active_pages:
-            page = active_pages[_page_id]
-        elif is_remote_browser(_page_id):
-            browser_id, page_id = _page_id.split("--")
-            browser = await get_remote_browser(browser_id)
-            if browser is not None:
-                page = _find_tab(browser, page_id)
-        if page is None:
-            raise ValueError(f"Page for signin {_page_id} not found")
-        logger.info(f"Resuming action after signin with page_id={_page_id}")
-        try:
-            await zen_navigate_with_retry(page, initial_url)
-        except Exception as e:
-            logger.warning(f"Failed to navigate to {initial_url}: {e}")
-        result = await action(page, action_info["browser"])
-        already_cleared = pending_actions.pop(_page_id, None) is None
-        if already_cleared:
-            logger.warning(f"Pending action for {_page_id} was already cleared")
-
-        return result
-
-    # Step 2: Try existing session — explicit signin_id, or stateless probe on global browser
+    # Try existing session — explicit signin_id, or stateless probe on global browser
     global_browser = browser_manager.get_global_browser()
 
     # 2a. Explicit signin_id: reuse that session directly.
@@ -626,7 +572,7 @@ async def zen_dpage_with_action(
         if result is not None:
             return result
 
-    # Step 3: User not signed in - create interactive signin flow with action
+    # User not signed in - create interactive signin flow (client retries tool after check_signin)
     browser_instance: zd.Browser
     if incognito:
         browser_instance = await init_zendriver_browser(signin_id)
@@ -647,16 +593,6 @@ async def zen_dpage_with_action(
         browser_instance.id,  # type: ignore[attr-defined]
         config=config,
     )
-
-    # Store action for auto-resumption after signin
-    pending_actions[id] = {
-        "action": action,
-        "initial_url": initial_url,
-        "timeout": timeout,
-        "page_id": id,
-        "browser": browser_instance,
-        "dpage_timeout": dpage_timeout,
-    }
 
     if incognito:
         browser_manager.set_incognito_browser(id, browser_instance)
@@ -734,8 +670,9 @@ async def remote_zen_dpage_mcp_tool(
         "system_message": (
             f"Try open the url {url} in a browser with a tool if available. "
             "Give the url to the user so the user can open it manually in their browser. "
-            "Then call check_signin tool with the signin_id to check if the sign in process is completed. "
-            "Once it is completed successfully, then call this tool again to proceed with the action."
+            "Then call check_signin with the signin_id to see when sign-in finished (it does not return tool data). "
+            "Call the same MCP tool again to get the result. "
+            "For incognito or explicit session flows, send the x-signin-id header on the retry. "
         ),
     }
 
@@ -744,9 +681,6 @@ async def remote_zen_dpage_with_action(
     initial_url: str,
     action: Any,
     timeout: int = 2,
-    dpage_timeout: int = 60,
-    _signin_completed: bool = False,
-    _page_id: str | None = None,
     config: ElementConfig | None = None,
 ) -> dict[str, Any]:
     """Execute an action after signin completion with remote Zendriver."""
@@ -754,27 +688,7 @@ async def remote_zen_dpage_with_action(
     signin_id = headers.get("x-signin-id") or None
     incognito = headers.get("x-incognito", "0") == "1"
 
-    # Step 1: Resuming after signin completion
-    if _signin_completed and _page_id is not None and _page_id in pending_actions:
-        action_info = pending_actions[_page_id]
-        page = None
-        if is_remote_browser(_page_id):
-            browser_id, page_id = _page_id.split("--")
-            browser = await get_remote_browser(browser_id)
-            if browser is not None:
-                page = _find_tab(browser, page_id)
-        if page is None:
-            raise ValueError(f"Page for signin {_page_id} not found")
-        logger.info(f"Resuming remote action after signin with page_id={_page_id}")
-        try:
-            await zen_navigate_with_retry(page, initial_url)
-        except Exception as e:
-            logger.warning(f"Failed to navigate to {initial_url}: {e}")
-        result = await action(page, action_info["browser"])
-        del pending_actions[_page_id]
-        return result
-
-    # Step 2: Probe any existing browser for an authenticated session before opening dpage.
+    # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
     if signin_id and is_remote_browser(signin_id):
         probe_browser = await get_remote_browser(signin_id.split("--")[0])
@@ -785,7 +699,7 @@ async def remote_zen_dpage_with_action(
         if result is not None:
             return result
 
-    # Step 3: Create interactive sign-in flow with pending action
+    # Create interactive sign-in flow (client retries tool after check_signin)
     page = None
     if signin_id and is_remote_browser(signin_id):
         browser_id, page_id = signin_id.split("--")
@@ -819,15 +733,6 @@ async def remote_zen_dpage_with_action(
 
     await zen_navigate_with_retry(page, initial_url)
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
-
-    pending_actions[dpage_id] = {
-        "action": action,
-        "initial_url": initial_url,
-        "timeout": timeout,
-        "page_id": dpage_id,
-        "browser": browser,
-        "dpage_timeout": dpage_timeout,
-    }
 
     response = _signin_flow_response(dpage_id)
     logger.info(

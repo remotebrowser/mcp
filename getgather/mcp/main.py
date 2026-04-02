@@ -211,11 +211,12 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
             return {
                 "status": "ERROR",
                 "message": "Sign in not completed within the time limit. Please try again.",
+                "completed": False,
             }
         return {
             "status": "SUCCESS",
-            "message": "Sign in completed successfully.",
-            "result": result,
+            "message": "Sign in completed successfully. Call the same MCP tool again to fetch data.",
+            "completed": True,
         }
 
     @mcp.tool(tags={"general_tool"})
