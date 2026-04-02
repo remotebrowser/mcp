@@ -19,6 +19,8 @@ from starlette.types import Receive, Scope, Send
 from getgather.auth.provider import CustomOAuthProvider
 from getgather.config import settings
 
+MAX_USER_ID_LENGTH = 54
+
 
 class RequireAuthMiddlewareCustom(RequireAuthMiddleware):
     """
@@ -114,7 +116,7 @@ class AuthUser(BaseModel):
 
     @model_validator(mode="after")
     def validate_user_id(self) -> "AuthUser":
-        if len(self.user_id) > 54:
+        if len(self.user_id) > MAX_USER_ID_LENGTH:
             raise ValueError(f"User id is too long: {self.user_id}")
         if not re.match(r"^[a-z0-9-]+$", self.user_id):
             raise ValueError(f"User id contains invalid characters: {self.user_id}")
@@ -167,6 +169,7 @@ def _get_user_for_no_auth() -> AuthUser:
     hostname = socket.gethostname()
     logger.warning(f"Hostname is {hostname}")
     random_suffix = uuid.uuid4().hex[:8]
-    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower().removesuffix(".local"))[:38]
+    max_sub_length = MAX_USER_ID_LENGTH - len(NO_AUTH_PROVIDER) - len(random_suffix) - 2
+    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower().removesuffix(".local"))[:max_sub_length]
     sub = f"{sub}-{random_suffix}"
     return AuthUser(sub=sub, auth_provider=NO_AUTH_PROVIDER)
