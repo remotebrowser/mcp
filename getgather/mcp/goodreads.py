@@ -14,7 +14,6 @@ from getgather.mcp.ui import UI_MIME_TYPE, ResourceCSP, ToolUI
 from getgather.zen_distill import page_query_selector
 
 GOODREADS_UI_URI = "ui://list/data?brand=goodreads"
-GOODREADS_BOOK_LIST_TIMEOUT_SECONDS = 15
 
 goodreads_app_ui = ToolUI(
     resourceUri=GOODREADS_UI_URI,
@@ -74,35 +73,11 @@ async def get_book_list() -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool(
         "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
         "goodreads_book_list",
-        timeout=GOODREADS_BOOK_LIST_TIMEOUT_SECONDS,
-    )
-
-
-@goodreads_mcp.tool(meta=goodreads_mcp.app_ui_tool_meta())
-async def remote_get_book_list() -> dict[str, Any]:
-    """Get the book list from a user's Goodreads account."""
-    return await remote_zen_dpage_mcp_tool(
-        "https://www.goodreads.com/review/list?ref=nav_mybooks&view=table",
-        "goodreads_book_list",
-        timeout=GOODREADS_BOOK_LIST_TIMEOUT_SECONDS,
     )
 
 
 @goodreads_mcp.tool
 async def get_book_details(book_url: str) -> dict[str, Any]:
-    """Get details (title, author, rating, description) of a book on Goodreads.
-
-    Args:
-        book_url: Full Goodreads book URL, e.g. https://www.goodreads.com/book/show/12345
-    """
-    return await remote_zen_dpage_with_action(
-        initial_url=book_url,
-        action=_goodreads_book_details_action,
-    )
-
-
-@goodreads_mcp.tool
-async def remote_get_book_details(book_url: str) -> dict[str, Any]:
     """Get details (title, author, rating, description) of a book on Goodreads.
 
     Args:

@@ -7,8 +7,6 @@ from loguru import logger
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
-    zen_dpage_mcp_tool,
-    zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.utils import retry_with_navigation
@@ -23,17 +21,6 @@ blinds_config = ElementConfig(typing_clear_delay=0.75)
 
 @blinds_mcp.tool
 async def get_favorites() -> dict[str, Any]:
-    """Get favorites of blinds."""
-    return await zen_dpage_mcp_tool(
-        f"https://www.blinds.com/myaccount/favorites",
-        "blinds_favorites",
-        timeout=60,
-        config=blinds_config,
-    )
-
-
-@blinds_mcp.tool
-async def remote_get_favorites() -> dict[str, Any]:
     """Get favorites of blinds."""
     return await remote_zen_dpage_mcp_tool(
         f"https://www.blinds.com/myaccount/favorites",
@@ -103,17 +90,6 @@ async def get_orders_action(page: zd.Tab, _: zd.Browser) -> dict[str, Any]:
 
 @blinds_mcp.tool
 async def get_orders() -> dict[str, Any]:
-    """Get orders of blinds."""
-    return await zen_dpage_with_action(
-        f"https://www.blinds.com/myaccount/orders",
-        action=get_orders_action,
-        dpage_timeout=60,
-        config=blinds_config,
-    )
-
-
-@blinds_mcp.tool
-async def remote_get_orders() -> dict[str, Any]:
     """Get orders of blinds."""
     return await remote_zen_dpage_with_action(
         f"https://www.blinds.com/myaccount/orders",
