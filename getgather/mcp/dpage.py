@@ -345,21 +345,17 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             error = await check_error(distilled)
 
             if id in pending_actions and not error:
-                action_info = pending_actions[id]
-                logger.info(f"Signin completed for {id}, resuming action...")
-
-                resume_fn = (
-                    remote_zen_dpage_with_action if is_remote_browser(id) else zen_dpage_with_action
+                logger.info(
+                    f"Signin completed for {id}; deferring pending action to next tool call "
+                    "(check_signin without re-nav / GraphQL on this request)"
                 )
-                action_result = await resume_fn(
-                    initial_url=action_info["initial_url"],
-                    action=action_info["action"],
-                    timeout=action_info["timeout"],
-                    _signin_completed=True,
-                    _page_id=id,
-                )
-
-                distillation_results[id] = action_result
+                distillation_results[id] = {
+                    "signin_completed": True,
+                    "system_message": (
+                        "Sign-in finished. Call the same brand tool again to load data; "
+                        "the server will run the deferred action on an already-authenticated session."
+                    ),
+                }
 
                 already_cleared = pending_actions.pop(id, None) is None
                 if already_cleared:
