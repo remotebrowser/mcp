@@ -45,7 +45,7 @@ router = APIRouter(prefix="/dpage", tags=["dpage"])
 
 
 active_pages: dict[str, zd.Tab] = {}
-distillation_results: dict[str, bool | str | list[dict[str, str | list[str]]] | dict[str, Any]] = {}
+completed_signins: set[str] = set()
 
 # Max seconds for the distillation polling loop in zen_post_dpage (per HTTP request).
 DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
@@ -167,8 +167,9 @@ async def dpage_check(id: str):
         await asyncio.sleep(TICK)
 
         # Check if signin completed
-        if id in distillation_results:
-            return distillation_results[id]
+        if id in completed_signins:
+            completed_signins.discard(id)
+            return True
 
     return None
 
@@ -348,7 +349,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     "Distillation reported page error pattern; sign-in still marked complete for polling."
                 )
 
-            distillation_results[id] = True
+            completed_signins.add(id)
             await dpage_close(id)
             if is_remote_browser(id):
                 await safe_close_page(page)
