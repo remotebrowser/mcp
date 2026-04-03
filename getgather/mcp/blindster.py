@@ -92,5 +92,4 @@ async def get_orders() -> dict[str, Any]:
     return await remote_zen_dpage_with_action(
         f"https://www.blindster.com/account/orders",
         action=get_orders_action,
-        dpage_timeout=60,
     )

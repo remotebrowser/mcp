@@ -47,6 +47,8 @@ async def test_goodreads_login_and_get_book_list(mcp_config: dict[str, Any]):
             )
             mcp_call_check_signin_result = json.loads(mcp_call_check_signin.content[0].text)
             assert mcp_call_check_signin_result.get("status") == "SUCCESS"
+            assert mcp_call_check_signin_result.get("completed") is True
+            assert "result" not in mcp_call_check_signin_result
 
             mcp_call_get_results = await client.call_tool("goodreads_get_book_list")
             assert isinstance(mcp_call_get_results.content[0], TextContent), (

@@ -90,5 +90,4 @@ async def get_order_history(page_number: int = 1) -> dict[str, Any]:
     return await remote_zen_dpage_with_action(
         "https://www.nordstrom.com/my-account",
         get_order_details_action,
-        dpage_timeout=60,
     )
