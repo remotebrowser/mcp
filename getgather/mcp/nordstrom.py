@@ -3,7 +3,7 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
-from getgather.mcp.dpage import remote_zen_dpage_with_action, zen_dpage_with_action
+from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
@@ -77,24 +77,6 @@ async def get_order_details_with_retry(
 
 @nordstrom_mcp.tool
 async def get_order_history(page_number: int = 1) -> dict[str, Any]:
-    """Get the details of an order from Nordstrom"""
-
-    async def get_order_details_action(tab: zd.Tab, _) -> dict[str, Any]:
-        """Get the details of an order from Nordstrom"""
-        logger.info("🔧 Executing get_order_details_action...")
-        result: dict[str, Any] = await get_order_details_with_retry(tab, page_number)
-        result_keys: list[str] = list(result.keys())
-        logger.info(f"✅ get_order_details_action completed. Result keys: {result_keys}")
-        return result
-
-    return await zen_dpage_with_action(
-        "https://www.nordstrom.com/my-account",
-        get_order_details_action,
-    )
-
-
-@nordstrom_mcp.tool
-async def remote_get_order_history(page_number: int = 1) -> dict[str, Any]:
     """Get the details of an order from Nordstrom"""
 
     async def get_order_details_action(tab: zd.Tab, _) -> dict[str, Any]:
