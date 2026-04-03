@@ -1,6 +1,5 @@
 import re
 import socket
-import uuid
 from typing import cast
 
 from fastapi import FastAPI
@@ -168,8 +167,5 @@ def _get_user_for_no_auth() -> AuthUser:
     """Fake auth user for when auth is disabled to keep the code consistent."""
     hostname = socket.gethostname()
     logger.warning(f"Hostname is {hostname}")
-    random_suffix = uuid.uuid4().hex[:8]
-    max_sub_length = MAX_USER_ID_LENGTH - len(NO_AUTH_PROVIDER) - len(random_suffix) - 2
-    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower().removesuffix(".local"))[:max_sub_length]
-    sub = f"{sub}-{random_suffix}"
+    sub = re.sub(r"[^a-z0-9-]", "", hostname.lower().removesuffix(".local"))
     return AuthUser(sub=sub, auth_provider=NO_AUTH_PROVIDER)
