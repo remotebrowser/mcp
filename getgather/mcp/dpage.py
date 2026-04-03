@@ -46,7 +46,6 @@ router = APIRouter(prefix="/dpage", tags=["dpage"])
 
 active_pages: dict[str, zd.Tab] = {}
 distillation_results: dict[str, bool | str | list[dict[str, str | list[str]]] | dict[str, Any]] = {}
-element_configs: dict[str, ElementConfig] = {}
 
 # Max seconds for the distillation polling loop in zen_post_dpage (per HTTP request).
 DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
@@ -147,7 +146,7 @@ async def dpage_add(
         )
     active_pages[id] = page
     if config:
-        element_configs[id] = config
+        page.element_config = config  # type: ignore[attr-defined]
     return id
 
 
@@ -156,8 +155,6 @@ async def dpage_close(id: str) -> None:
         page = active_pages[id]
         await safe_close_page(page)
         del active_pages[id]
-    if id in element_configs:
-        del element_configs[id]
 
 
 async def dpage_check(id: str):
@@ -372,7 +369,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 selector, frame_selector = get_selector(
                     str(gg_match) if gg_match is not None else ""
                 )
-                config = element_configs.get(id)
+                config = getattr(page, "element_config", None)
                 element = await page_query_selector(
                     page,
                     selector if selector is not None else "",
@@ -412,7 +409,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                             logger.info(f"Using form data {name}={value}")
                             radio_gg_match = str(radio.get("gg-match"))
                             selector, frame_selector = get_selector(radio_gg_match)
-                            config = element_configs.get(id)
+                            config = getattr(page, "element_config", None)
                             radio_element = await page_query_selector(
                                 page,
                                 selector if selector is not None else "",
