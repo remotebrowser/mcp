@@ -1092,3 +1092,21 @@ async def remote_signin() -> dict[str, Any]:
         f"https://www.amazon.com/ax/account/manage",
         "signin",
     )
+
+
+@amazon_mcp.tool
+async def get_watch_history() -> dict[str, Any]:
+    """Get video watch history from Amazon."""
+    return await zen_dpage_mcp_tool(
+        "https://www.amazon.com/gp/video/settings/watch-history",
+        "amazon_watch_history",
+    )
+
+
+@amazon_mcp.tool
+async def remote_get_watch_history() -> dict[str, Any]:
+    """Get video watch history from Amazon."""
+    return await remote_zen_dpage_mcp_tool(
+        "https://www.amazon.com/gp/video/settings/watch-history",
+        "amazon_watch_history",
+    )
