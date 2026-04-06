@@ -364,8 +364,58 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 await zen_autoclick(page, distilled, f"button[value={fields.get('button')}]")
                 continue
 
+        processed_radio_groups: set[str] = set()
+        radio_names_for_expected: set[str] = set()
+        expected_field_count = 0
         for input in inputs:
             if isinstance(input, Tag):
+                name = input.get("name")
+                input_type = input.get("type")
+
+                if input_type == "radio":
+                    if name is None:
+                        continue
+                    name_str = str(name)
+                    if name_str not in radio_names_for_expected:
+                        radio_names_for_expected.add(name_str)
+                        expected_field_count += 1
+                    if name_str in processed_radio_groups:
+                        continue
+                    value = fields.get(name_str)
+                    if not value or len(str(value)) == 0:
+                        logger.warning(f"No form data found for radio button group {name_str}")
+                        continue
+                    radio = document.find(
+                        "input",
+                        {"type": "radio", "name": name_str, "value": str(value)},
+                    )
+                    if not isinstance(radio, Tag):
+                        logger.warning(
+                            f"No radio button found for group {name_str} value {value}"
+                        )
+                        continue
+                    rgm = radio.get("gg-match")
+                    if not rgm:
+                        continue
+                    selector, frame_selector = get_selector(str(rgm))
+                    config = getattr(page, "element_config", None)
+                    radio_element = await page_query_selector(
+                        page,
+                        selector if selector is not None else "",
+                        iframe_selector=frame_selector,
+                        config=config,
+                    )
+                    if radio_element:
+                        logger.info(f"Handling radio button group {name}")
+                        logger.info(f"Using form data {name_str}={value}")
+                        await radio_element.click()
+                        radio["checked"] = "checked"
+                        current.distilled = str(document)
+                        names.append(name_str)
+                        processed_radio_groups.add(name_str)
+                    continue
+
+                expected_field_count += 1
                 gg_match = input.get("gg-match")
                 selector, frame_selector = get_selector(
                     str(gg_match) if gg_match is not None else ""
@@ -377,8 +427,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     iframe_selector=frame_selector,
                     config=config,
                 )
-                name = input.get("name")
-                input_type = input.get("type")
 
                 if element:
                     if input_type == "checkbox":
@@ -395,33 +443,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                         if current_checked_value != checked:
                             logger.info(f"Clicking checkbox {name} to set it to {checked}")
                             await element.click()
-                    elif input_type == "radio":
-                        if name is not None:
-                            name_str = str(name)
-                            value = fields.get(name_str)
-                            if not value or len(value) == 0:
-                                logger.warning(f"No form data found for radio button group {name}")
-                                continue
-                            radio = document.find("input", {"type": "radio", "value": str(value)})
-                            if not radio or not isinstance(radio, Tag):
-                                logger.warning(f"No radio button found with value {value}")
-                                continue
-                            logger.info(f"Handling radio button group {name}")
-                            logger.info(f"Using form data {name}={value}")
-                            radio_gg_match = str(radio.get("gg-match"))
-                            selector, frame_selector = get_selector(radio_gg_match)
-                            config = getattr(page, "element_config", None)
-                            radio_element = await page_query_selector(
-                                page,
-                                selector if selector is not None else "",
-                                iframe_selector=frame_selector,
-                                config=config,
-                            )
-                            if radio_element:
-                                await radio_element.click()
-                                radio["checked"] = "checked"
-                                current.distilled = str(document)
-                                names.append(str(input.get("id")) if input.get("id") else "radio")
                     elif name is not None:
                         name_str = str(name)
                         value = fields.get(name_str)
@@ -438,7 +459,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
         if document.select(SUBMIT_BUTTON):
-            if len(names) > 0 and len(inputs) == len(names):
+            if len(names) > 0 and expected_field_count == len(names):
                 logger.info("Submitting form, all fields are filled...")
                 await zen_autoclick(page, distilled, SUBMIT_BUTTON)
                 continue
