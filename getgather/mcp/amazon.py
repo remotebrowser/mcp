@@ -1128,3 +1128,21 @@ async def remote_get_watchlist() -> dict[str, Any]:
         "https://www.amazon.com/gp/video/mystuff/watchlist",
         "amazon_prime_watchlist",
     )
+
+
+@amazon_mcp.tool
+async def get_prime_library() -> dict[str, Any]:
+    """Get Prime Video purchases and rentals library from Amazon."""
+    return await zen_dpage_mcp_tool(
+        "https://www.amazon.com/gp/video/mystuff/library",
+        "amazon_prime_library",
+    )
+
+
+@amazon_mcp.tool
+async def remote_get_prime_library() -> dict[str, Any]:
+    """Get Prime Video purchases and rentals library from Amazon."""
+    return await remote_zen_dpage_mcp_tool(
+        "https://www.amazon.com/gp/video/mystuff/library",
+        "amazon_prime_library",
+    )
