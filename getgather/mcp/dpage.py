@@ -373,16 +373,18 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     str(gg_match) if gg_match is not None else ""
                 )
                 config = getattr(page, "element_config", None)
-                element = await page_query_selector(
-                    page,
-                    selector if selector is not None else "",
-                    iframe_selector=frame_selector,
-                    config=config,
-                )
                 name = input.get("name")
                 input_type = input.get("type")
 
-                if element:
+                if input_type == "checkbox" or input_type == "radio":
+                    element = await page_query_selector(
+                        page,
+                        selector if selector is not None else "",
+                        iframe_selector=frame_selector,
+                        config=config,
+                    )
+                    if not element:
+                        continue
                     if input_type == "checkbox":
                         if not name:
                             logger.warning(f"No name for the checkbox {gg_match}")
@@ -424,23 +426,51 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                                 radio["checked"] = "checked"
                                 current.distilled = str(document)
                                 names.append(str(input.get("id")) if input.get("id") else "radio")
-                    elif name is not None:
-                        name_str = str(name)
-                        value = fields.get(name_str)
-                        if value and len(value) > 0:
-                            logger.info(f"Using form data {name}")
-                            names.append(name_str)
-                            input["value"] = value
-                            current.distilled = str(document)
-                            pending_actions.append({
-                                "key": f"set:{name}:{len(pending_actions)}",
-                                "kind": "set_value",
-                                "selector": str(selector),
-                                "value": str(value),
-                            })
-                            del fields[name_str]
-                        else:
-                            logger.info(f"No form data found for {name}")
+                elif name is not None:
+                    name_str = str(name)
+                    value = fields.get(name_str)
+                    if value and len(value) > 0:
+                        logger.info(f"Using form data {name}")
+                        names.append(name_str)
+                        input["value"] = value
+                        current.distilled = str(document)
+                        pending_actions.append({
+                            "key": f"set:{name}:{len(pending_actions)}",
+                            "kind": "set_value",
+                            "selector": str(selector),
+                            "value": str(value),
+                        })
+                        del fields[name_str]
+                    else:
+                        logger.info(f"No form data found for {name}")
+
+        # Queue non-button auto-clicks so they can run in the same batch as field updates.
+        for auto_click_target in document.select("[gg-autoclick]:not(button)"):
+            auto_click_selector, _ = get_selector(str(auto_click_target.get("gg-match")))
+            if auto_click_selector:
+                pending_actions.append({
+                    "key": f"click:auto:{len(pending_actions)}",
+                    "kind": "click",
+                    "selector": str(auto_click_selector),
+                })
+
+        should_submit = False
+        SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
+        if document.select(SUBMIT_BUTTON):
+            if len(names) > 0 and len(inputs) == len(names):
+                logger.info("Submitting form, all fields are filled...")
+                for submit_button in document.select(SUBMIT_BUTTON):
+                    submit_selector, _ = get_selector(str(submit_button.get("gg-match")))
+                    if submit_selector:
+                        pending_actions.append({
+                            "key": f"click:submit:{len(pending_actions)}",
+                            "kind": "click",
+                            "selector": str(submit_selector),
+                        })
+                should_submit = True
+            else:
+                logger.warning("Not all form fields are filled")
+                return HTMLResponse(render(str(document.find("body")), options))
 
         if len(pending_actions) > 0:
             action_results = await page_batch_actions(page, pending_actions)
@@ -471,15 +501,8 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
             await asyncio.sleep(0.25)
 
-        await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
-        SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
-        if document.select(SUBMIT_BUTTON):
-            if len(names) > 0 and len(inputs) == len(names):
-                logger.info("Submitting form, all fields are filled...")
-                await zen_autoclick(page, distilled, SUBMIT_BUTTON)
-                continue
-            logger.warning("Not all form fields are filled")
-            return HTMLResponse(render(str(document.find("body")), options))
+        if should_submit:
+            continue
 
     hostname_attr: str | None = getattr(page, "hostname", None)  # type: ignore[assignment]
     location = getattr(page, "url", "unknown")  # type: ignore[assignment]
