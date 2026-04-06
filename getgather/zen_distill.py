@@ -1407,4 +1407,3 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
     except Exception as error:
         logger.error(f"Batch actions failed: {error}")
     return None
-

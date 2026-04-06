@@ -330,7 +330,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         options = {"title": title, "action": action}
         inputs = document.find_all("input")
         pending_actions: list[dict[str, str]] = []
-        
+
         if match.distilled == current.distilled:
             logger.info(f"Still the same: {match.name}")
             has_inputs = len(inputs) > 0
@@ -442,7 +442,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                         else:
                             logger.info(f"No form data found for {name}")
 
-
         if len(pending_actions) > 0:
             action_results = await page_batch_actions(page, pending_actions)
             results = action_results if isinstance(action_results, dict) else {}
@@ -452,7 +451,11 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 key = action.get("key")
                 kind = action.get("kind")
                 selector = action.get("selector")
-                if not isinstance(key, str) or not isinstance(kind, str) or not isinstance(selector, str):
+                if (
+                    not isinstance(key, str)
+                    or not isinstance(kind, str)
+                    or not isinstance(selector, str)
+                ):
                     continue
                 if results.get(key, False):
                     continue
@@ -467,7 +470,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     await element.type_text(value if isinstance(value, str) else "")
 
             await asyncio.sleep(0.25)
-
 
         await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
