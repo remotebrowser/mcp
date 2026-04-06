@@ -162,14 +162,46 @@ async def dpage_check(id: str):
     TIMEOUT = 120  # seconds
     max = TIMEOUT // TICK
 
+    is_remote = is_remote_browser(id)
+    remote_parts = id.split("--", 1) if is_remote else None
+
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
-        # Check if signin completed
         if id in completed_signins:
             completed_signins.discard(id)
             return True
+
+        if not is_remote or remote_parts is None:
+            continue
+
+        browser_id, target_id = remote_parts
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            continue
+
+        page = _find_tab(browser, target_id)
+        if page is None:
+            continue
+
+        hostname = getattr(page, "hostname", None)
+        if not hostname:
+            continue
+
+        try:
+
+            async def _noop(_p: zd.Tab, _b: zd.Browser) -> bool:
+                return True
+
+            if (
+                await _try_action_with_probe(browser, f"https://{hostname}/", _noop, timeout=2)
+                is not None
+            ):
+                completed_signins.discard(id)
+                return True
+        except Exception as e:
+            logger.warning(f"Remote probe failed for {id}: {e}")
 
     return None
 
