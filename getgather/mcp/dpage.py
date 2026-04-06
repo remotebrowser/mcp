@@ -158,15 +158,44 @@ async def dpage_close(id: str) -> None:
 
 
 async def dpage_check(id: str):
-    TICK = 1  # seconds
     TIMEOUT = 120  # seconds
-    max = TIMEOUT // TICK
 
-    for iteration in range(max):
-        logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
-        await asyncio.sleep(TICK)
+    # Remote browsers: poll the actual browser/tab state via ChromeFleet.
+    # No shared state needed — tab closure or a terminal distillation result == done.
+    if is_remote_browser(id):
+        tick = 2
+        iterations = TIMEOUT // tick
+        path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+        patterns = load_distillation_patterns(path)
+        browser_id, page_id = id.split("--")
+        for iteration in range(iterations):
+            logger.debug(f"Checking remote dpage {id}: {iteration + 1} of {iterations}")
+            await asyncio.sleep(tick)
+            browser = await get_remote_browser(browser_id)
+            if browser is None:
+                logger.info(f"Remote browser {browser_id} gone — signin {id} complete")
+                return True
+            page = _find_tab(browser, page_id)
+            if page is None:
+                logger.info(f"Tab {page_id} closed — signin {id} complete")
+                return True
+            try:
+                current_url = str(await page.evaluate("window.location.href", await_promise=True))
+            except Exception:
+                current_url = page.url
+            hostname = str(urllib.parse.urlparse(current_url).hostname) if current_url else None
+            match = await zen_distill(hostname, page, patterns)
+            if match and await terminate(match.distilled):
+                logger.info(f"Remote signin {id} distillation terminated")
+                return True
+        return None
 
-        # Check if signin completed
+    # Local browser: existing in-memory poll (unchanged)
+    tick = 1
+    iterations = TIMEOUT // tick
+    for iteration in range(iterations):
+        logger.debug(f"Checking dpage {id}: {iteration + 1} of {iterations}")
+        await asyncio.sleep(tick)
         if id in completed_signins:
             completed_signins.discard(id)
             return True
@@ -349,10 +378,11 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     "Distillation reported page error pattern; sign-in still marked complete for polling."
                 )
 
-            completed_signins.add(id)
-            await dpage_close(id)
             if is_remote_browser(id):
-                await safe_close_page(page)
+                await safe_close_page(page)  # tab closure is the signal to dpage_check
+            else:
+                completed_signins.add(id)
+                await dpage_close(id)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
