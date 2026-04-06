@@ -93,7 +93,6 @@ async def get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
     return await remote_zen_dpage_with_action(
         "https://www.doordash.com/orders",
         get_order_details_action,
-        dpage_timeout=120,
     )
 
 
@@ -110,5 +109,4 @@ async def remote_get_orders_with_pagination(page_number: int = 1) -> dict[str, A
     return await remote_zen_dpage_with_action(
         "https://www.doordash.com/orders",
         get_order_details_action,
-        dpage_timeout=120,
     )
