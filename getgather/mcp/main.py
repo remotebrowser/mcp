@@ -207,16 +207,22 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
     @mcp.tool(tags={"general_tool"})
     async def check_signin(ctx: Context, signin_id: str) -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
         result = await dpage_check(id=signin_id)
-        if result is None:
+        if result is True:
             return {
-                "status": "ERROR",
-                "message": "Sign in not completed within the time limit. Please try again.",
+                "status": "SUCCESS",
+                "message": "Sign in completed successfully. Call the same MCP tool again to fetch data.",
+                "completed": True,
+            }
+        if result is False:
+            return {
+                "status": "ABORTED",
+                "message": "Sign-in was interrupted (browser or tab closed before completion).",
                 "completed": False,
             }
         return {
-            "status": "SUCCESS",
-            "message": "Sign in completed successfully. Call the same MCP tool again to fetch data.",
-            "completed": True,
+            "status": "ERROR",
+            "message": "Sign in not completed within the time limit. Please try again.",
+            "completed": False,
         }
 
     @mcp.tool(tags={"general_tool"})
