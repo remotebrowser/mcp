@@ -32,6 +32,7 @@ from getgather.zen_distill import (
     get_selector,
     init_zendriver_browser,
     load_distillation_patterns,
+    page_batch_actions,
     page_query_selector,
     run_distillation_loop as zen_run_distillation_loop,
     safe_close_page,
@@ -328,7 +329,8 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         action = f"/dpage/{id}"
         options = {"title": title, "action": action}
         inputs = document.find_all("input")
-
+        pending_actions: list[dict[str, str]] = []
+        
         if match.distilled == current.distilled:
             logger.info(f"Still the same: {match.name}")
             has_inputs = len(inputs) > 0
@@ -430,10 +432,42 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                             names.append(name_str)
                             input["value"] = value
                             current.distilled = str(document)
-                            await element.type_text(value)
+                            pending_actions.append({
+                                "key": f"set:{name}:{len(pending_actions)}",
+                                "kind": "set_value",
+                                "selector": str(selector),
+                                "value": str(value),
+                            })
                             del fields[name_str]
                         else:
                             logger.info(f"No form data found for {name}")
+
+
+        if len(pending_actions) > 0:
+            action_results = await page_batch_actions(page, pending_actions)
+            results = action_results if isinstance(action_results, dict) else {}
+
+            # Fallback for failed/unexecuted actions to preserve behavior.
+            for action in pending_actions:
+                key = action.get("key")
+                kind = action.get("kind")
+                selector = action.get("selector")
+                if not isinstance(key, str) or not isinstance(kind, str) or not isinstance(selector, str):
+                    continue
+                if results.get(key, False):
+                    continue
+
+                element = await page_query_selector(page, selector)
+                if not element:
+                    continue
+                if kind == "click":
+                    await element.click()
+                elif kind == "set_value":
+                    value = action.get("value")
+                    await element.type_text(value if isinstance(value, str) else "")
+
+            await asyncio.sleep(0.25)
+
 
         await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"

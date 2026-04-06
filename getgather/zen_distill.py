@@ -1311,3 +1311,100 @@ async def short_lived_mcp_tool(
                     ))
                     item["url"] = url
     return terminated, result
+
+
+async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dict[str, bool] | None:
+    if len(actions) == 0:
+        return {}
+
+    payload = json.dumps(actions)
+    js_code = f"""
+    (() => {{
+        const actions = {payload};
+        const output = {{}};
+
+        function findCss(selector, doc) {{
+            try {{
+                const direct = doc.querySelector(selector);
+                if (direct) return direct;
+            }} catch (error) {{
+                return null;
+            }}
+
+            const iframes = doc.querySelectorAll("iframe");
+            for (const iframe of iframes) {{
+                try {{
+                    const childDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    const nested = findCss(selector, childDoc);
+                    if (nested) return nested;
+                }} catch (error) {{
+                    // Cross-origin iframe.
+                }}
+            }}
+            return null;
+        }}
+
+        for (const action of actions) {{
+            const key = action?.key;
+            const kind = action?.kind;
+            const selector = action?.selector;
+            if (typeof key !== "string" || key.length === 0) {{
+                continue;
+            }}
+            if (typeof selector !== "string" || selector.length === 0) {{
+                output[key] = false;
+                continue;
+            }}
+
+            let element = null;
+            if (selector.startsWith("//")) {{
+                try {{
+                    element = document.evaluate(
+                        selector,
+                        document,
+                        null,
+                        XPathResult.FIRST_ORDERED_NODE_TYPE,
+                        null
+                    ).singleNodeValue;
+                }} catch (error) {{
+                    element = null;
+                }}
+            }} else {{
+                element = findCss(selector, document);
+            }}
+
+            if (!element) {{
+                output[key] = false;
+                continue;
+            }}
+
+            try {{
+                if (kind === "click") {{
+                    element.click();
+                    output[key] = true;
+                }} else if (kind === "set_value") {{
+                    const value = typeof action?.value === "string" ? action.value : "";
+                    element.value = value;
+                    element.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                    element.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                    output[key] = true;
+                }} else {{
+                    output[key] = false;
+                }}
+            }} catch (error) {{
+                output[key] = false;
+            }}
+        }}
+
+        return output;
+    }})()
+    """
+
+    try:
+        result = await page.evaluate(js_code)
+        if isinstance(result, dict):
+            return {str(k): bool(v) for k, v in result.items()}  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+    except Exception as error:
+        logger.error(f"Batch actions failed: {error}")
+    return None
+
