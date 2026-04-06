@@ -536,6 +536,18 @@ def is_local_browser(browser: zd.Browser) -> bool:
     return browser.config.host is None or browser.config.host in ("127.0.0.1", "localhost")
 
 
+def _image_is_blocked() -> bool:
+    """Returns True if IMAGE resources should be blocked for the active tool.
+
+    Images are blocked by default. Tools listed in settings.allow_image_tools_set
+    (configured via ALLOW_IMAGE_TOOLS env var) are exempt.
+    """
+    from getgather.request_info import active_tool_name
+
+    tool = active_tool_name.get()
+    return tool not in settings.allow_image_tools_set
+
+
 async def get_new_page(browser: zd.Browser) -> zd.Tab:
     page = await browser.get("about:blank", new_tab=True)
 
@@ -547,10 +559,9 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
         request_url = event.request.url
 
         deny_type = resource_type in [
-            zd.cdp.network.ResourceType.IMAGE,
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ]
+        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and _image_is_blocked())
         deny_url = await should_be_blocked(request_url)
         should_deny = deny_type or deny_url
 

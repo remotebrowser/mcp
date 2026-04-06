@@ -35,6 +35,16 @@ class Settings(AuthSettings, BaseSettings):
     # Max session age, in minutes
     BROWSER_SESSION_AGE: int = 60
 
+    # Comma-separated tool names allowed to load images (default: all images blocked)
+    # Example: "amazon_get_watchlist,amazon_remote_get_watchlist"
+    ALLOW_IMAGE_TOOLS: str = ""
+
+    @property
+    def allow_image_tools_set(self) -> frozenset[str]:
+        if not self.ALLOW_IMAGE_TOOLS:
+            return frozenset()
+        return frozenset(t.strip() for t in self.ALLOW_IMAGE_TOOLS.split(",") if t.strip())
+
     @property
     def data_dir(self) -> Path:
         path = Path(self.DATA_DIR).resolve() if self.DATA_DIR else PROJECT_DIR / "data"

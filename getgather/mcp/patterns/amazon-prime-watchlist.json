@@ -15,11 +15,6 @@
       "name": "thumbnail",
       "selector": "img[data-testid='base-image'], [data-testid='base-image']",
       "attribute": "src"
-    },
-    {
-      "name": "image_url",
-      "selector": "img",
-      "attribute": "src"
     }
   ]
 }
