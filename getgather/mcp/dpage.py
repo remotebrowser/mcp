@@ -351,8 +351,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
             completed_signins.add(id)
             await dpage_close(id)
-            if is_remote_browser(id):
-                await safe_close_page(page)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
