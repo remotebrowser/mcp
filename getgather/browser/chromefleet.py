@@ -83,7 +83,7 @@ async def _call_chromefleet_api(
     timeout: float = 120.0,
     retries: int = 3,
     raise_for_status: bool = True,
-) -> httpx.Response:
+):
     base_url = settings.CHROMEFLEET_URL.rstrip("/")
     if not base_url:
         raise ValueError("CHROMEFLEET_URL is not configured")
@@ -113,23 +113,30 @@ async def _call_chromefleet_api(
             )
         ),
     ) as client:
-        response = await client.request(
-            method,
-            url,
-            headers=headers,
-            timeout=httpx.Timeout(connect=2.0, pool=None, read=timeout, write=timeout),
-        )
+        error = None
+        response = None
+        try:
+            response = await client.request(
+                method,
+                url,
+                headers=headers,
+                timeout=httpx.Timeout(connect=2.0, pool=None, read=timeout, write=timeout),
+            )
+        except Exception as e:
+            error = e
+
         if raise_for_status:
-            response.raise_for_status()
+            if error:
+                raise error
+            if response:
+                response.raise_for_status()
         return response
 
 
 async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     logger.info(f"Finding the ChromeFleet browser: {browser_id}")
     try:
-        response = await _call_chromefleet_api("GET", browser_id)
-        if response.status_code != 200:
-            return None
+        await _call_chromefleet_api("GET", browser_id)
     except Exception:
         return None
 
@@ -162,5 +169,5 @@ async def terminate_remote_browser(browser: zd.Browser) -> None:
     logger.info(f"Terminating ChromeFleet browser: {browser_id}")
     # no need to raise for error (which would fail the whole process)
     await _call_chromefleet_api(
-        "DELETE", browser_id, timeout=5.0, retries=0, raise_for_status=False
+        "DELETE", browser_id, timeout=1.0, retries=0, raise_for_status=False
     )

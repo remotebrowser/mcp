@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 from typing import Annotated
 
@@ -29,6 +30,7 @@ async def call_tool(
     transport = StreamableHttpTransport(
         url,
         auth=(token or "oauth"),
+        headers={"x-origin-ip": await _get_ip()},
         sse_read_timeout=180,
     )
     try:
@@ -48,6 +50,20 @@ async def call_tool(
     else:
         print("Result:")
         print(result)
+
+
+async def _get_ip():
+    proc = await asyncio.create_subprocess_exec(
+        "curl",
+        "-s",
+        "https://api4.ipify.org",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+    ip = stdout.decode().strip()
+    print(f"Using IP: {ip}")
+    return ip
 
 
 if __name__ == "__main__":
