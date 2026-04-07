@@ -1021,6 +1021,9 @@ async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
     result: list[Match] = []
+    pattern_runs: list[tuple[str, int, BeautifulSoup, list[dict[str, object]]]] = []
+    all_batch_queries: list[dict[str, object]] = []
+    next_query_key = 0
 
     for item in patterns:
         name = item.name
@@ -1046,7 +1049,6 @@ async def distill(
             attrs={"gg-match-html": True}
         )
         target_specs: list[dict[str, object]] = []
-        batch_queries: list[dict[str, object]] = []
 
         for target in targets:
             if not isinstance(target, Tag):
@@ -1060,7 +1062,8 @@ async def distill(
                 continue
 
             is_html = html_attr is not None
-            query_key = str(len(target_specs))
+            query_key = str(next_query_key)
+            next_query_key += 1
             optional = target.get("gg-optional") is not None
 
             target_specs.append({
@@ -1071,7 +1074,7 @@ async def distill(
                 "optional": optional,
                 "query_key": query_key,
             })
-            batch_queries.append({
+            all_batch_queries.append({
                 "query_key": query_key,
                 "selector": selector,
                 "iframe_selector": iframe_selector,
@@ -1080,11 +1083,16 @@ async def distill(
                 "wants_value": not is_html,
             })
 
+        pattern_runs.append((name, priority, pattern, target_specs))
+
+    safe_results: dict[str, dict[str, object]] = {}
+    if all_batch_queries:
+        batch_results = await page_batch_extract(page, all_batch_queries)
+        safe_results = batch_results if isinstance(batch_results, dict) else {}
+
+    for name, priority, pattern, target_specs in pattern_runs:
         found = True
         match_count = 0
-
-        batch_results = await page_batch_extract(page, batch_queries)
-        safe_results = batch_results if isinstance(batch_results, dict) else {}
 
         for spec in target_specs:
             target = spec.get("target")
