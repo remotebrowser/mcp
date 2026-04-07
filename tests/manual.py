@@ -1,4 +1,3 @@
-import json
 import traceback
 from typing import Annotated
 
@@ -23,8 +22,6 @@ async def call_tool(
     mcp: Annotated[str, Parameter(help="name of the mcp server")] = "media",
     tool: Annotated[str, Parameter(help="name of the tool")] = "get_user_info",
     token: Annotated[str, Parameter(help="OAuth token to skip full auth flow")] | None = None,
-    country: Annotated[str, Parameter(help="Country")] = "us",
-    state: Annotated[str, Parameter(help="State")] = "california",
 ):
     url = f"{server_url}/mcp-{mcp}"
     result = None
@@ -32,7 +29,6 @@ async def call_tool(
     transport = StreamableHttpTransport(
         url,
         auth=(token or "oauth"),
-        headers={"x-location": json.dumps({"country": country, "state": state})},
         sse_read_timeout=180,
     )
     try:
