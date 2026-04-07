@@ -641,9 +641,8 @@ async def safe_close_page(page: zd.Tab) -> None:
         logger.warning(f"Unexpected error disabling fetch domain: {e}")
 
     try:
-        raw_target_id = getattr(getattr(page, "target", None), "target_id", None) or getattr(
-            page, "target_id", None
-        )
+        target = getattr(page, "target", None)
+        raw_target_id = getattr(target, "target_id", None) or getattr(page, "target_id", None)
         normalized_target_id = (
             zd.cdp.target.TargetID(raw_target_id.split("@", 1)[-1])
             if isinstance(raw_target_id, str)
