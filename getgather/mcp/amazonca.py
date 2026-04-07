@@ -499,8 +499,8 @@ async def get_purchase_history_with_details(
             (start_index / 10) + 1
         )  # for business account pagination, it use page_index, not start_index
         _, _, orders = await run_distillation_loop(
-            f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
-            patterns,
+            location=f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
+            patterns=patterns,
             browser=browser,
             interactive=False,
             timeout=10,  # need to increase timeout for business account pagination, since its SPA
@@ -804,8 +804,8 @@ async def remote_get_purchase_history_with_details(
             (start_index / 10) + 1
         )  # for business account pagination, it use page_index, not start_index
         _, _, orders = await run_distillation_loop(
-            f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
-            patterns,
+            location=f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
+            patterns=patterns,
             browser=browser,
             interactive=False,
             timeout=10,  # need to increase timeout for business account pagination, since its SPA
