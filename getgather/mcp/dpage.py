@@ -390,9 +390,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                         {"type": "radio", "name": name_str, "value": str(value)},
                     )
                     if not isinstance(radio, Tag):
-                        logger.warning(
-                            f"No radio button found for group {name_str} value {value}"
-                        )
+                        logger.warning(f"No radio button found for group {name_str} value {value}")
                         continue
                     rgm = radio.get("gg-match")
                     if not rgm:
