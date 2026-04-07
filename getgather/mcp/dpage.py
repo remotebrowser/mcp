@@ -275,6 +275,12 @@ def get_base_url() -> str:
     return base_url
 
 
+def is_incognito_request(headers: dict[str, str]) -> bool:
+    if headers.get("x-incognito", "0") == "1":
+        return True
+    return get_auth_user().auth_provider == "noauth"
+
+
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
     if not is_remote_browser(id):
         browser_manager.update_last_active(id)
@@ -478,7 +484,7 @@ async def zen_dpage_mcp_tool(
     patterns = load_distillation_patterns(path)
 
     headers = get_http_headers(include_all=True)
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
     signin_id = headers.get("x-signin-id") or None
 
     if incognito:
@@ -547,7 +553,7 @@ async def zen_dpage_with_action(
         Dict with result or signin flow info
     """
     headers = get_http_headers(include_all=True)
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
     signin_id = headers.get("x-signin-id") or None
 
     # Try existing session — explicit signin_id, or stateless probe on global browser
@@ -617,7 +623,7 @@ async def remote_zen_dpage_mcp_tool(
 
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
 
     browser = None
     page = None
@@ -686,7 +692,7 @@ async def remote_zen_dpage_with_action(
     """Execute an action after signin completion with remote Zendriver."""
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
