@@ -21,12 +21,6 @@ async def get_orders() -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool("https://www.doordash.com/orders", "doordash_orders")
 
 
-@doordash_mcp.tool
-async def remote_get_orders() -> dict[str, Any]:
-    """Get the orders from a user's Doordash account (remote zen)."""
-    return await remote_zen_dpage_mcp_tool("https://www.doordash.com/orders", "doordash_orders")
-
-
 async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, Any]:
     """Get the orders from the Doordash API with retry logic"""
     logger.info(f"Starting get_orders_from_api (page_number={page_number})")
@@ -82,22 +76,6 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
 
 @doordash_mcp.tool
 async def get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
-    """Get the order history from a user's Doordash account (remote zen)."""
-
-    async def get_order_details_action(tab: zd.Tab, _) -> dict[str, Any]:
-        """Get the details of an order from Doordash"""
-        logger.info("🔧 Executing get_orders_from_api...")
-        result: dict[str, Any] = await get_orders_from_api(tab, page_number)
-        return {"doordash_orders": result.get("data", {}).get("getConsumerOrdersWithDetails", [])}
-
-    return await remote_zen_dpage_with_action(
-        "https://www.doordash.com/orders",
-        get_order_details_action,
-    )
-
-
-@doordash_mcp.tool
-async def remote_get_orders_with_pagination(page_number: int = 1) -> dict[str, Any]:
     """Get the order history from a user's Doordash account (remote zen)."""
 
     async def get_order_details_action(tab: zd.Tab, _) -> dict[str, Any]:
