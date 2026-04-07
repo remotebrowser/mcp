@@ -23,7 +23,12 @@ from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.browser.proxy import setup_proxy
-from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
+from getgather.browser.resource_blocker import (
+    blocked_domains,
+    images_allowed_for_request_url,
+    load_blocklists,
+    should_be_blocked,
+)
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
 from getgather.mcp.browser import browser_manager
@@ -536,18 +541,6 @@ def is_local_browser(browser: zd.Browser) -> bool:
     return browser.config.host is None or browser.config.host in ("127.0.0.1", "localhost")
 
 
-def _image_is_blocked() -> bool:
-    """Returns True if IMAGE resources should be blocked for the active tool.
-
-    Images are blocked by default. Tools listed in settings.allow_image_tools_set
-    (configured via ALLOW_IMAGE_TOOLS env var) are exempt.
-    """
-    from getgather.request_info import active_tool_name
-
-    tool = active_tool_name.get()
-    return tool not in settings.allow_image_tools_set
-
-
 async def get_new_page(browser: zd.Browser) -> zd.Tab:
     page = await browser.get("about:blank", new_tab=True)
 
@@ -557,11 +550,18 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
     async def handle_request(event: zd.cdp.fetch.RequestPaused) -> None:
         resource_type = event.resource_type
         request_url = event.request.url
+        images_allowed = images_allowed_for_request_url(request_url)
+
+        if resource_type == zd.cdp.network.ResourceType.IMAGE:
+            logger.debug(
+                f"Image request check: page_url={page.url!r}, request_url={request_url!r}, "
+                f"images_allowed={images_allowed}"
+            )
 
         deny_type = resource_type in [
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and _image_is_blocked())
+        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and not images_allowed)
         deny_url = await should_be_blocked(request_url)
         should_deny = deny_type or deny_url
 
