@@ -99,16 +99,8 @@ async def _try_action_with_probe(
     page = await get_new_page(browser)
     try:
         await zen_navigate_with_retry(page, initial_url)
-        path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
-        patterns = load_distillation_patterns(path)
-        terminated, _, _ = await zen_run_distillation_loop(
-            initial_url,
-            patterns,
-            browser,
-            timeout,
-            interactive=False,
-            close_page=False,
-            page=page,
+        terminated = await _probe_page(
+            location=initial_url, page=page, browser=browser, timeout=timeout
         )
         if terminated:
             result = await action(page, browser)
@@ -120,6 +112,23 @@ async def _try_action_with_probe(
         logger.info(f"Stateless probe failed for {initial_url}: {e}")
         await safe_close_page(page)
         return None
+
+
+async def _probe_page(
+    *, location: str | None = None, page: zd.Tab, browser: zd.Browser, timeout: int = 2
+) -> bool:
+    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+    patterns = load_distillation_patterns(path)
+    terminated, _, _ = await zen_run_distillation_loop(
+        location=location,
+        patterns=patterns,
+        browser=browser,
+        timeout=timeout,
+        interactive=False,
+        close_page=False,
+        page=page,
+    )
+    return terminated
 
 
 async def dpage_add(
@@ -162,14 +171,36 @@ async def dpage_check(id: str):
     TIMEOUT = 120  # seconds
     max = TIMEOUT // TICK
 
+    is_remote = is_remote_browser(id)
+    remote_parts = id.split("--", 1) if is_remote else None
+
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
-        # Check if signin completed
         if id in completed_signins:
             completed_signins.discard(id)
             return True
+
+        if not is_remote or remote_parts is None:
+            continue
+
+        browser_id, target_id = remote_parts
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            continue
+
+        page = _find_tab(browser, target_id)
+        if page is None:
+            continue
+
+        try:
+            terminated = await _probe_page(page=page, browser=browser, timeout=2)
+            if terminated:
+                completed_signins.discard(id)
+                return True
+        except Exception as e:
+            logger.warning(f"Remote probe failed for {id}: {e}")
 
     return None
 
@@ -351,8 +382,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
 
             completed_signins.add(id)
             await dpage_close(id)
-            if is_remote_browser(id):
-                await safe_close_page(page)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
@@ -495,7 +524,11 @@ async def zen_dpage_mcp_tool(
     if not incognito or signin_id is not None:
         # First, try without any interaction as this will work if the user signed in previously
         terminated, distilled, converted = await zen_run_distillation_loop(
-            initial_url, patterns, browser, timeout, interactive=False
+            location=initial_url,
+            patterns=patterns,
+            browser=browser,
+            timeout=timeout,
+            interactive=False,
         )
         if terminated:
             distillation_result = converted if converted is not None else distilled
@@ -651,7 +684,13 @@ async def remote_zen_dpage_mcp_tool(
     await zen_navigate_with_retry(page, initial_url)
 
     terminated, distilled, converted = await zen_run_distillation_loop(
-        initial_url, patterns, browser, timeout, interactive=False, close_page=False, page=page
+        location=initial_url,
+        patterns=patterns,
+        browser=browser,
+        timeout=timeout,
+        interactive=False,
+        close_page=False,
+        page=page,
     )
     if terminated:
         await safe_close_page(page)
