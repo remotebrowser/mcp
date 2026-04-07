@@ -4,24 +4,25 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from nanoid import generate
+from pytest import MonkeyPatch
 
 load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-from pytest import MonkeyPatch
-
 ACME_HOSTNAME = "https://acme.fly.dev"
-
-from nanoid import generate
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.zen_distill import (
+    Pattern,
     distill,
     get_new_page,
     load_distillation_patterns,
+    page_batch_extract,
     run_distillation_loop,
 )
 
@@ -102,6 +103,258 @@ BROWSER_ERROR_ENDPOINTS = {
     "/error/tunnel-connection-failed": "err-tunnel-connection-failed.html",
     "/error/proxy-connection-failed": "err-proxy-connection-failed.html",
 }
+
+
+class StubPage:
+    def __init__(self, result: object):
+        self.result = result
+        self.calls: list[str] = []
+
+    async def evaluate(self, js_code: str):
+        self.calls.append(js_code)
+        return self.result
+
+
+@pytest.mark.asyncio
+async def test_page_batch_extract_returns_result_map():
+    page = StubPage({
+        "0": {
+            "found": True,
+            "tag": "h1",
+            "text": "Welcome",
+        },
+        "1": {
+            "found": True,
+            "tag": "section",
+            "html": "<p>Account</p>",
+        },
+    })
+
+    result = await page_batch_extract(
+        cast(Any, page),
+        [
+            {
+                "query_key": "0",
+                "selector": "h1",
+                "iframe_selector": None,
+                "wants_html": False,
+                "wants_text": True,
+                "wants_value": True,
+            },
+            {
+                "query_key": "1",
+                "selector": "//section[@data-role='account']",
+                "iframe_selector": None,
+                "wants_html": True,
+                "wants_text": False,
+                "wants_value": False,
+            },
+        ],
+    )
+
+    assert result == {
+        "0": {
+            "found": True,
+            "tag": "h1",
+            "text": "Welcome",
+        },
+        "1": {
+            "found": True,
+            "tag": "section",
+            "html": "<p>Account</p>",
+        },
+    }
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_page_batch_extract_returns_empty_mapping_for_no_queries():
+    page = StubPage({"0": {"found": True}})
+
+    result = await page_batch_extract(cast(Any, page), [])
+
+    assert result == {}
+    assert len(page.calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_page_batch_extract_falls_back_to_none_on_invalid_result():
+    page = StubPage(["invalid"])
+
+    result = await page_batch_extract(
+        cast(Any, page),
+        [{"query_key": "0", "selector": "h1", "wants_html": False, "wants_text": True}],
+    )
+
+    assert result is None
+    assert len(page.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_distill_uses_page_batch_extract(monkeypatch: MonkeyPatch):
+    async def stub_page_batch_extract(
+        page: Any, queries: list[dict[str, object]]
+    ) -> dict[str, dict[str, object]]:
+        assert queries == [
+            {
+                "query_key": "0",
+                "selector": "button.login",
+                "iframe_selector": None,
+                "wants_html": False,
+                "wants_text": True,
+                "wants_value": True,
+            },
+            {
+                "query_key": "1",
+                "selector": "input[name='email']",
+                "iframe_selector": "iframe.auth",
+                "wants_html": False,
+                "wants_text": True,
+                "wants_value": True,
+            },
+            {
+                "query_key": "2",
+                "selector": "//section[@data-role='content']",
+                "iframe_selector": None,
+                "wants_html": True,
+                "wants_text": False,
+                "wants_value": False,
+            },
+        ]
+        return {
+            "0": {
+                "found": True,
+                "tag": "button",
+                "text": "Sign in",
+            },
+            "1": {
+                "found": True,
+                "tag": "input",
+                "text": "",
+                "value": "person@example.com",
+            },
+            "2": {
+                "found": True,
+                "tag": "section",
+                "html": "<p>Account details</p>",
+            },
+        }
+
+    monkeypatch.setattr("getgather.zen_distill.page_batch_extract", stub_page_batch_extract)
+
+    pattern = Pattern(
+        name="batched-login.html",
+        pattern=BeautifulSoup(
+            """
+            <html gg-priority="1">
+                <button gg-match="button.login"></button>
+                <div gg-match-html="//section[@data-role='content']"></div>
+                <input gg-match="iframe.auth input[name='email']" />
+            </html>
+            """,
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is not None
+    assert "Sign in" in match.distilled
+    assert "<p>Account details</p>" in match.distilled
+    assert 'value="person@example.com"' in match.distilled
+
+
+@pytest.mark.asyncio
+async def test_distill_rejects_pattern_when_required_batched_target_missing(
+    monkeypatch: MonkeyPatch,
+):
+    async def stub_page_batch_extract(
+        page: Any, queries: list[dict[str, object]]
+    ) -> dict[str, dict[str, object]]:
+        assert queries == [
+            {
+                "query_key": "0",
+                "selector": "button.login",
+                "iframe_selector": None,
+                "wants_html": False,
+                "wants_text": True,
+                "wants_value": True,
+            }
+        ]
+        return {
+            "0": {
+                "found": False,
+            }
+        }
+
+    monkeypatch.setattr("getgather.zen_distill.page_batch_extract", stub_page_batch_extract)
+
+    pattern = Pattern(
+        name="required-login.html",
+        pattern=BeautifulSoup(
+            '<html gg-priority="1"><button gg-match="button.login"></button></html>',
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is None
+
+
+@pytest.mark.asyncio
+async def test_distill_allows_optional_batched_target_to_be_missing(monkeypatch: MonkeyPatch):
+    async def stub_page_batch_extract(
+        page: Any, queries: list[dict[str, object]]
+    ) -> dict[str, dict[str, object]]:
+        assert queries == [
+            {
+                "query_key": "0",
+                "selector": "button.login",
+                "iframe_selector": None,
+                "wants_html": False,
+                "wants_text": True,
+                "wants_value": True,
+            },
+            {
+                "query_key": "1",
+                "selector": ".helper",
+                "iframe_selector": None,
+                "wants_html": False,
+                "wants_text": True,
+                "wants_value": True,
+            },
+        ]
+        return {
+            "0": {
+                "found": True,
+                "tag": "button",
+                "text": "Sign in",
+            },
+            "1": {
+                "found": False,
+            },
+        }
+
+    monkeypatch.setattr("getgather.zen_distill.page_batch_extract", stub_page_batch_extract)
+
+    pattern = Pattern(
+        name="optional-helper.html",
+        pattern=BeautifulSoup(
+            """
+            <html gg-priority="1">
+                <button gg-match="button.login"></button>
+                <span gg-match=".helper" gg-optional></span>
+            </html>
+            """,
+            "html.parser",
+        ),
+    )
+
+    match = await distill("example.com", cast(Any, object()), [pattern], reload_on_error=False)
+
+    assert match is not None
+    assert "Sign in" in match.distilled
 
 
 @pytest.mark.asyncio

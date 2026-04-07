@@ -884,6 +884,139 @@ async def page_query_selector(
         return None
 
 
+async def page_batch_extract(
+    page: zd.Tab, queries: list[dict[str, object]]
+) -> dict[str, dict[str, object]] | None:
+    if len(queries) == 0:
+        return {}
+
+    payload = json.dumps(queries)
+    js_code = f"""
+    (() => {{
+        const queries = {payload};
+        const output = {{}};
+
+        function isVisible(element) {{
+            const style = window.getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return (
+                style.visibility !== "hidden" &&
+                style.display !== "none" &&
+                rect.width > 0 &&
+                rect.height > 0
+            );
+        }}
+
+        function findCss(selector, doc, iframeSelector) {{
+            try {{
+                if (iframeSelector) {{
+                    const iframe = doc.querySelector(iframeSelector);
+                    if (iframe) {{
+                        const childDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        const directIframeMatch = childDoc.querySelector(selector);
+                        if (directIframeMatch) {{
+                            return directIframeMatch;
+                        }}
+                        return findCss(selector, childDoc, null);
+                    }}
+                }}
+            }} catch (error) {{
+                return null;
+            }}
+
+            try {{
+                const direct = doc.querySelector(selector);
+                if (direct) return direct;
+            }} catch (error) {{
+                return null;
+            }}
+
+            const iframes = doc.querySelectorAll("iframe");
+            for (const iframe of iframes) {{
+                try {{
+                    const childDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    const nested = findCss(selector, childDoc, null);
+                    if (nested) return nested;
+                }} catch (error) {{}}
+            }}
+
+            return null;
+        }}
+
+        for (const query of queries) {{
+            const selector = query?.selector;
+            const iframeSelector = query?.iframe_selector;
+            const queryKey = query?.query_key;
+            if (typeof selector !== "string" || selector.length === 0) {{
+                continue;
+            }}
+            if (typeof queryKey !== "string" || queryKey.length === 0) {{
+                continue;
+            }}
+
+            let element = null;
+
+            if (selector.startsWith("//")) {{
+                try {{
+                    element = document.evaluate(
+                        selector,
+                        document,
+                        null,
+                        XPathResult.FIRST_ORDERED_NODE_TYPE,
+                        null
+                    ).singleNodeValue;
+                }} catch (error) {{
+                    element = null;
+                }}
+            }} else {{
+                const resolvedIframeSelector = typeof iframeSelector === "string" &&
+                    iframeSelector.length > 0
+                    ? iframeSelector
+                    : null;
+                element = findCss(selector, document, resolvedIframeSelector);
+            }}
+
+            if (!element || !isVisible(element)) {{
+                output[queryKey] = {{ found: false }};
+                continue;
+            }}
+
+            const tag = String(element.tagName || "").toLowerCase();
+            const item = {{ found: true, tag }};
+
+            if (query?.wants_html) {{
+                item.html = element.innerHTML || "";
+            }}
+            if (query?.wants_text) {{
+                item.text = element.innerText || "";
+            }}
+            if (query?.wants_value && ["input", "textarea", "select"].includes(tag)) {{
+                const value = element.value;
+                if (typeof value === "string") {{
+                    item.value = value;
+                }} else if (value == null) {{
+                    item.value = "";
+                }} else {{
+                    item.value = String(value);
+                }}
+            }}
+
+            output[queryKey] = item;
+        }}
+
+        return output;
+    }})()
+    """
+
+    try:
+        result = await page.evaluate(js_code)
+        if isinstance(result, dict):
+            return cast(dict[str, dict[str, object]], result)
+    except Exception as error:
+        logger.debug(f"Batch extract failed: {error}")
+    return None
+
+
 async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
@@ -909,127 +1042,89 @@ async def distill(
 
         logger.debug(f"Checking {name} with priority {priority}")
 
-        found = True
-        match_count = 0
-
         targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
             attrs={"gg-match-html": True}
         )
+        target_specs: list[dict[str, object]] = []
+        batch_queries: list[dict[str, object]] = []
 
-        # Collect all selectors for batch processing
-        selector_info: list[dict[str, Any]] = []
         for target in targets:
             if not isinstance(target, Tag):
                 continue
-            html = target.get("gg-match-html")
-            selector, iframe_selector = get_selector(str(html if html else target.get("gg-match")))
-            if selector:
-                selector_info.append({
-                    "target": target,
-                    "selector": selector,
-                    "iframe_selector": iframe_selector,
-                    "is_html": bool(html),
-                    "optional": target.get("gg-optional") is not None,
-                })
 
-        if not selector_info:
-            continue
-
-        # Batch check visibility for all selectors in one evaluate() call
-        selectors_list = [info["selector"] for info in selector_info]
-        is_xpath_list = [info["selector"].startswith("//") for info in selector_info]
-
-        # Batch visibility check - ONE page.evaluate() call for all selectors!
-        # Returns array of booleans indicating visibility
-        visibility_results_raw = await page.evaluate(f"""
-            (() => {{
-                const selectors = {json.dumps(selectors_list)};
-                const isXpath = {json.dumps(is_xpath_list)};
-                const results = [];
-                
-                for (let i = 0; i < selectors.length; i++) {{
-                    let el = null;
-                    try {{
-                        if (isXpath[i]) {{
-                            el = document.evaluate(selectors[i], document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                        }} else {{
-                            el = document.querySelector(selectors[i]);
-                        }}
-                    }} catch (e) {{
-                        results.push(false);
-                        continue;
-                    }}
-                    
-                    if (!el) {{
-                        results.push(false);
-                        continue;
-                    }}
-                    
-                    const s = window.getComputedStyle(el);
-                    const visible = s.visibility !== "hidden" && s.display !== "none" && 
-                                   el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
-                    
-                    results.push(visible);
-                }}
-                
-                return results;
-            }})()
-        """)
-
-        # Handle potential None or invalid results
-        visibility_results: list[bool] = []
-        if isinstance(visibility_results_raw, list):
-            try:
-                raw_list = cast(list[Any], visibility_results_raw)
-                visibility_results = [bool(r) if r is not None else False for r in raw_list]
-            except (TypeError, ValueError):
-                visibility_results = [False] * len(selector_info)
-        else:
-            # Fallback: all false if evaluation failed
-            visibility_results = [False] * len(selector_info)
-
-        # Process results and extract data for visible elements
-        for idx, info in enumerate(selector_info):
-            if not found:
-                break
-
-            is_visible = visibility_results[idx] if idx < len(visibility_results) else False
-
-            if not is_visible:
-                if not info["optional"]:
-                    found = False
+            html_attr = target.get("gg-match-html")
+            selector, iframe_selector = get_selector(
+                str(html_attr if html_attr else target.get("gg-match"))
+            )
+            if not selector:
                 continue
 
-            # Element is visible - now query it to get the Element object for data extraction
-            # Skip visibility check since we already verified it in the batch check
-            source = await page_query_selector(
-                page,
-                info["selector"],
-                iframe_selector=info["iframe_selector"],
-                skip_visibility_check=True,
-            )
-            if source:
-                match_count += 1
-                target = info["target"]
-                if info["is_html"]:
+            is_html = html_attr is not None
+            query_key = str(len(target_specs))
+            optional = target.get("gg-optional") is not None
+
+            target_specs.append({
+                "target": target,
+                "selector": selector,
+                "iframe_selector": iframe_selector,
+                "html": is_html,
+                "optional": optional,
+                "query_key": query_key,
+            })
+            batch_queries.append({
+                "query_key": query_key,
+                "selector": selector,
+                "iframe_selector": iframe_selector,
+                "wants_html": is_html,
+                "wants_text": not is_html,
+                "wants_value": not is_html,
+            })
+
+        found = True
+        match_count = 0
+
+        batch_results = await page_batch_extract(page, batch_queries)
+        safe_results = batch_results if isinstance(batch_results, dict) else {}
+
+        for spec in target_specs:
+            target = spec.get("target")
+            selector = spec.get("selector")
+            query_key = spec.get("query_key")
+            html = bool(spec.get("html"))
+            optional = bool(spec.get("optional"))
+
+            if not isinstance(target, Tag):
+                continue
+            if not isinstance(selector, str) or not isinstance(query_key, str):
+                continue
+
+            source = safe_results.get(query_key, {})
+            source_found = bool(source.get("found"))
+
+            if source_found:
+                if html:
                     target.clear()
-                    fragment = BeautifulSoup(
-                        "<div>" + await source.inner_html() + "</div>", "html.parser"
-                    )
+                    html_content = source.get("html", "")
+                    fragment = BeautifulSoup("<div>" + str(html_content) + "</div>", "html.parser")
                     if fragment.div:
                         for child in list(fragment.div.children):
                             child.extract()
                             target.append(child)
                 else:
-                    raw_text = await source.inner_text()
-                    if raw_text:
+                    raw_text = source.get("text")
+                    if isinstance(raw_text, str) and raw_text:
                         target.string = raw_text.strip()
-                    if source.tag in ["input", "textarea", "select"]:
-                        target["value"] = source.element.get("value") or ""
+                    tag = str(source.get("tag", "")).lower()
+                    if tag in ["input", "textarea", "select"]:
+                        value = source.get("value", "")
+                        target["value"] = value if isinstance(value, str) else ""
                 match_count += 1
-            else:
-                if not info["optional"]:
-                    found = False
+                continue
+
+            if optional:
+                logger.debug(f"Optional {selector} has no match")
+                continue
+            found = False
 
         if found and match_count > 0:
             distilled = str(pattern)
