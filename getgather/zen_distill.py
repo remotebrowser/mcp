@@ -1053,7 +1053,7 @@ async def get_url(page: zd.Tab) -> str | None:
     return None
 
 
-_T = TypeVar("T")
+T = TypeVar("T")
 _ResponseJsonT = TypeVar("_ResponseJsonT", list[dict[str, Any]], dict[str, Any])
 
 
@@ -1079,15 +1079,15 @@ async def parse_response_json(
 
 async def retry_with_navigation(
     tab: zd.Tab,
-    operation: Callable[[], Awaitable[_T]],
+    operation: Callable[[], Awaitable[T]],
     navigation_url: str | None = None,
     max_retries: int = 3,
     timeout_seconds: float | None = None,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-    default_on_max_retries: _T | None = None,
+    default_on_max_retries: T | None = None,
     re_raise_on_max_retries: bool = False,
     operation_name: str = "operation",
-) -> _T:
+) -> T:
     for attempt in range(1, max_retries + 1):
         logger.info(f"{operation_name} attempt {attempt}/{max_retries}")
 
