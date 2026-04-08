@@ -37,12 +37,6 @@ COPY .jwmrc /app/.jwmrc
 # Install the workspace package
 RUN uv sync --no-dev
 
-# Grab additional blocklists
-RUN curl -o /app/blocklists-analytics.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/mozilla-shavar-analytics/list.txt
-RUN curl -o /app/blocklists-ads.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/mozilla-shavar-advertising/list.txt
-RUN curl -o /app/blocklists-privacy.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/easyprivacy/list.txt
-RUN curl -o /app/blocklists-adguard.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/adguard-simplified/list.txt
-
 # Stage 2: Final image
 FROM mirror.gcr.io/library/python:3.13-slim-bookworm
 
@@ -89,7 +83,6 @@ COPY --from=builder /app/getgather /app/getgather
 COPY --from=builder /app/tests /app/tests
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /app/.jwmrc /app/.jwmrc
-COPY --from=builder /app/blocklists-*.txt /app/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
