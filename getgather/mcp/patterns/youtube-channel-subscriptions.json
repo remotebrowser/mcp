@@ -1,13 +1,13 @@
 {
-  "rows": "ytd-guide-entry-renderer:has(a[href^='/@'])",
+  "rows": "ytd-channel-renderer",
   "columns": [
     {
       "name": "channel",
-      "selector": "yt-formatted-string.title"
+      "selector": "ytd-channel-name yt-formatted-string#text"
     },
     {
       "name": "url",
-      "selector": "a#endpoint",
+      "selector": "a.channel-link",
       "attribute": "href"
     }
   ]
