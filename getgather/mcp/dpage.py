@@ -19,7 +19,6 @@ from getgather.browser.chromefleet import (
     terminate_remote_browser,
 )
 from getgather.config import settings
-from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
     ElementConfig,
@@ -198,11 +197,6 @@ async def dpage_check(id: str):
 
 
 async def dpage_finalize(id: str):
-    if browser := browser_manager.get_incognito_browser(id):
-        await terminate_zendriver_browser(browser)
-        browser_manager.remove_incognito_browser(id)
-        return True
-
     if is_remote_browser(id):
         browser_id, _ = id.split("--")
         if browser := await get_remote_browser(browser_id):
@@ -303,9 +297,6 @@ def is_incognito_request(headers: dict[str, str]) -> bool:
 
 
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
-    if not is_remote_browser(id):
-        browser_manager.update_last_active(id)
-
     form_data = await request.form()
     fields: dict[str, str] = {k: str(v) for k, v in form_data.items()}
 

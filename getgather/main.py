@@ -23,7 +23,6 @@ from loguru import logger
 from getgather.auth.auth import setup_mcp_auth
 from getgather.config import settings
 from getgather.logs import instrument_fastapi
-from getgather.mcp.browser import browser_manager
 from getgather.mcp.dpage import remote_zen_dpage_mcp_tool, router as dpage_router
 from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
 
@@ -47,13 +46,9 @@ async def lifespan(app: FastAPI):
     async def timer_loop():
         while not stop_event.is_set():
             try:
-                await browser_manager.cleanup_incognito_browsers()
-            except Exception as e:
-                logger.error(f"Error in cleanup_incognito_browsers: {e}", exc_info=True)
-            try:
                 await asyncio.wait_for(stop_event.wait(), timeout=5 * 60)
             except asyncio.TimeoutError:
-                pass  # Timeout = 5 minutes passed, continue loop
+                pass
 
     background_task = asyncio.create_task(timer_loop())
 
