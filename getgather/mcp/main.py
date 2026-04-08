@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass
 from functools import cache, cached_property
 from typing import Any, Literal, cast
@@ -97,16 +96,6 @@ class LocationProxyMiddleware(Middleware):
 
         # Initialize request_info data
         info_data: dict[str, str | None] = {}
-
-        # Handle x-location header (contains city, state, country, postal_code)
-        location = headers.get("x-location", None)
-        if location is not None:
-            try:
-                location_data: dict[str, str | None] = json.loads(location)
-                info_data.update(location_data)
-            except json.JSONDecodeError:
-                with logger.contextualize(**log_context):
-                    logger.warning(f"Failed to parse x-location header as JSON, {location}")
 
         # Handle x-proxy-type header (e.g., "proxy-0", "proxy-1", etc.)
         proxy_type = headers.get("x-proxy-type", None)
