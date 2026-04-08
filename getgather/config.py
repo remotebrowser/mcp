@@ -37,11 +37,5 @@ class Settings(AuthSettings, BaseSettings):
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    @property
-    def profiles_dir(self) -> Path:
-        path = self.data_dir / "profiles"
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
 
 settings = Settings()
