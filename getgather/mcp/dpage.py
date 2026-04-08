@@ -44,8 +44,6 @@ from getgather.zen_distill import (
 router = APIRouter(prefix="/dpage", tags=["dpage"])
 
 
-completed_signins: set[str] = set()
-
 # Max seconds for the distillation polling loop in zen_post_dpage (per HTTP request).
 DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
 
@@ -156,10 +154,6 @@ async def dpage_check(id: str):
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
-
-        if id in completed_signins:
-            completed_signins.discard(id)
-            return True
 
         if not is_remote or remote_parts is None:
             continue
@@ -355,7 +349,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     "Distillation reported page error pattern; sign-in still marked complete for polling."
                 )
 
-            completed_signins.add(id)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
