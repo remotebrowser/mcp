@@ -9,8 +9,7 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
-from getgather.zen_distill import zen_navigate_with_retry
+from getgather.zen_distill import retry_with_navigation, zen_navigate_with_retry
 
 doordash_mcp = GatherMCP(brand_id="doordash", name="Doordash MCP")
 

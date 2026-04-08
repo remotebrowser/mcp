@@ -5,9 +5,12 @@ from loguru import logger
 
 from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
-from getgather.zen_actions import parse_response_json
-from getgather.zen_distill import page_query_selector, zen_navigate_with_retry
+from getgather.zen_distill import (
+    page_query_selector,
+    parse_response_json,
+    retry_with_navigation,
+    zen_navigate_with_retry,
+)
 
 nordstrom_mcp = GatherMCP(brand_id="nordstrom", name="Nordstrom MCP")
 

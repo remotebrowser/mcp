@@ -9,9 +9,12 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
-from getgather.zen_actions import parse_response_json
-from getgather.zen_distill import ElementConfig, zen_navigate_with_retry
+from getgather.zen_distill import (
+    ElementConfig,
+    parse_response_json,
+    retry_with_navigation,
+    zen_navigate_with_retry,
+)
 
 blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
 

@@ -4,11 +4,12 @@ import os
 import random
 import re
 import urllib.parse
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 from urllib.parse import urlunparse
 
 import sentry_sdk
@@ -1050,6 +1051,79 @@ async def get_url(page: zd.Tab) -> str | None:
     if current_url:
         return str(current_url)
     return None
+
+
+_T = TypeVar("T")
+_ResponseJsonT = TypeVar("_ResponseJsonT", list[dict[str, Any]], dict[str, Any])
+
+
+async def parse_response_json(
+    resp: Any,
+    default: _ResponseJsonT,
+    context: str = "response",
+) -> _ResponseJsonT:
+    response_event = await resp.value
+    logger.info(
+        f"Received {context} response: {response_event.response.status} "
+        f"{response_event.response.url}"
+    )
+
+    body, _ = await resp.response_body
+    try:
+        result: _ResponseJsonT = json.loads(body)
+        return result
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse {context} JSON response: {e}")
+        return default
+
+
+async def retry_with_navigation(
+    tab: zd.Tab,
+    operation: Callable[[], Awaitable[_T]],
+    navigation_url: str | None = None,
+    max_retries: int = 3,
+    timeout_seconds: float | None = None,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
+    default_on_max_retries: _T | None = None,
+    re_raise_on_max_retries: bool = False,
+    operation_name: str = "operation",
+) -> _T:
+    for attempt in range(1, max_retries + 1):
+        logger.info(f"{operation_name} attempt {attempt}/{max_retries}")
+
+        try:
+            if navigation_url:
+                await zen_navigate_with_retry(tab, navigation_url, wait_for_ready=False)
+
+            if timeout_seconds is not None:
+                result = await asyncio.wait_for(operation(), timeout=timeout_seconds)
+            else:
+                result = await operation()
+
+            logger.info(f"Successfully completed {operation_name}.")
+            return result
+
+        except exceptions as e:
+            error_type = type(e).__name__
+            logger.warning(
+                f"{operation_name} attempt {attempt}/{max_retries} failed with {error_type}: {e}"
+            )
+
+            if attempt == max_retries:
+                logger.error(f"Max retries reached for {operation_name}.")
+                if re_raise_on_max_retries:
+                    raise
+                if default_on_max_retries is not None:
+                    return default_on_max_retries
+                raise ValueError(
+                    f"Max retries reached for {operation_name} and no default value or re-raise specified"
+                )
+
+            logger.info(f"Retrying {operation_name}...")
+
+    if default_on_max_retries is not None:
+        return default_on_max_retries
+    raise RuntimeError(f"Unexpected end of retry loop for {operation_name}")
 
 
 async def run_distillation_loop(

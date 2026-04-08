@@ -4,7 +4,7 @@ import zendriver as zd
 
 from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
-from getgather.zen_actions import parse_response_json
+from getgather.zen_distill import parse_response_json
 
 americanairlines_mcp = GatherMCP(brand_id="americanairlines", name="American Airlines MCP")
 
