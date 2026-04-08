@@ -32,7 +32,6 @@ RUN uv sync --no-dev --no-install-workspace
 COPY getgather /app/getgather
 COPY tests /app/tests
 COPY entrypoint.sh /app/entrypoint.sh
-COPY .jwmrc /app/.jwmrc
 
 # Install the workspace package
 RUN uv sync --no-dev
@@ -41,25 +40,6 @@ RUN uv sync --no-dev
 FROM mirror.gcr.io/library/python:3.13-slim-bookworm
 
 RUN apt-get update && apt-get install -y \
-    tigervnc-standalone-server \
-    chromium \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libgtk-3-0 \
-    libxss1 \
-    libasound2 \
-    libgbm1 \
-    libxshmfence1 \
-    fonts-liberation \
-    libu2f-udev \
-    libvulkan1 \
-    x11vnc \
-    jwm \
-    xterm \
-    x11-apps \
-    x11-utils \
-    dbus \
-    dbus-x11 \
     iproute2 \
     sudo \
     ca-certificates \
@@ -74,29 +54,22 @@ COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /usr/l
 # Create Tailscale directories
 RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
 
-RUN ln -s /usr/bin/chromium /usr/bin/chromium-browser
-
 WORKDIR /app
 
 COPY --from=builder /app/.venv /opt/venv
 COPY --from=builder /app/getgather /app/getgather
 COPY --from=builder /app/tests /app/tests
 COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
-COPY --from=builder /app/.jwmrc /app/.jwmrc
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
     PATH="/opt/venv/bin:$PATH"
-
-ENV DISPLAY=:99
 
 ARG PORT=23456
 ENV PORT=${PORT}
 
 # port for FastAPI server
 EXPOSE ${PORT}
-# port for VNC server
-EXPOSE 5900
 
 RUN useradd -m -s /bin/bash getgather && \
     chown -R getgather:getgather /app && \
