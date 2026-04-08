@@ -3,7 +3,6 @@ import asyncio
 import json
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Awaitable, Callable, Final
 
 from fastapi import FastAPI, Request
@@ -13,7 +12,6 @@ from fastapi.responses import (
     Response,
 )
 from fastapi.routing import APIRoute
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from getgather.auth.auth import setup_mcp_auth
@@ -65,9 +63,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 instrument_fastapi(app)
-
-STATIC_ASSETS_DIR = Path(__file__).parent / "static" / "assets"
-app.mount("/__static/assets", StaticFiles(directory=STATIC_ASSETS_DIR), name="assets")
 
 
 @app.get("/health")
