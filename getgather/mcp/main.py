@@ -21,7 +21,7 @@ from getgather.mcp.dpage import (
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
-from getgather.request_info import RequestInfo, active_tool_name, request_info
+from getgather.request_info import RequestInfo, request_info
 
 
 def _inject_app_ui_content_meta(
@@ -116,9 +116,6 @@ class LocationProxyMiddleware(Middleware):
         # Set request_info if we have any data
         if info_data:
             request_info.set(RequestInfo(**info_data))  # type: ignore[arg-type]
-
-        # Capture active tool name for request-scoped image allowlist check
-        active_tool_name.set(context.message.name)
 
         tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)  # type: ignore
 

@@ -21,4 +21,3 @@ class RequestInfo(BaseModel):
 
 
 request_info: ContextVar[RequestInfo | None] = ContextVar("request_info", default=None)
-active_tool_name: ContextVar[str | None] = ContextVar("active_tool_name", default=None)
