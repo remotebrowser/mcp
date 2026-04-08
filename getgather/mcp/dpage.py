@@ -144,34 +144,6 @@ async def _probe_page(
     return terminated
 
 
-async def dpage_add(
-    page: zd.Tab,
-    location: str,
-    profile_id: str | None = None,
-    config: ElementConfig | None = None,
-):
-    id = generate(FRIENDLY_CHARS, 8)
-
-    try:
-        if not location.startswith("http"):
-            location = f"https://{location}"
-        await zen_navigate_with_retry(page, location)
-    except Exception as error:
-        hostname = urllib.parse.urlparse(location).hostname or "unknown"
-        await zen_report_distill_error(
-            error=error,
-            page=page,
-            profile_id=profile_id or "unknown",
-            location=location,
-            hostname=hostname,
-            iteration=0,
-        )
-    active_pages[id] = page
-    if config:
-        page.element_config = config  # type: ignore[attr-defined]
-    return id
-
-
 async def dpage_close(id: str) -> None:
     if id in active_pages:
         page = active_pages[id]

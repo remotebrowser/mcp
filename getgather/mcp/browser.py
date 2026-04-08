@@ -53,36 +53,18 @@ class BrowserManager:
 
     def __init__(self):
         self._incognito_browsers: dict[str, zd.Browser] = {}
-        self._zen_global_browser: zd.Browser | None = None
         self._browser_information: dict[str, BrowserInformation] = {}
-
-    def get_incognito_browser(self, id: str) -> zd.Browser | None:
-        """Get an incognito browser by ID."""
-        self.update_last_active(id)
-        return self._incognito_browsers.get(id)
-
-    def set_incognito_browser(self, id: str, browser: zd.Browser) -> None:
-        """Set an incognito browser by ID."""
-        self.update_last_active(id)
-        self._incognito_browsers[id] = browser
-
-    def has_incognito_browser(self, id: str) -> bool:
-        """Check if an incognito browser exists by ID."""
-        return id in self._incognito_browsers
-
-    def get_global_browser(self) -> zd.Browser | None:
-        """Get the global browser instance."""
-        return self._zen_global_browser
-
-    def set_global_browser(self, browser: zd.Browser) -> None:
-        """Set the global browser instance."""
-        self._zen_global_browser = browser
 
     def update_last_active(self, id: str):
         """Update the last active timestamp for this session."""
         if id not in self._browser_information:
             self._browser_information[id] = {"last_active_timestamp": datetime.now()}
         self._browser_information[id]["last_active_timestamp"] = datetime.now()
+
+    def get_incognito_browser(self, id: str) -> zd.Browser | None:
+        """Get an incognito browser by ID."""
+        self.update_last_active(id)
+        return self._incognito_browsers.get(id)
 
     def remove_incognito_browser(self, id: str):
         """Remove a browser by ID."""
