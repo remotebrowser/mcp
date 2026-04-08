@@ -17,7 +17,7 @@ from getgather.mcp.auto_import import auto_import
 from getgather.mcp.dpage import (
     dpage_check,
     dpage_finalize,
-    zen_dpage_mcp_tool,
+    remote_zen_dpage_mcp_tool,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
@@ -239,7 +239,7 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
         return await _get_browser_ip_address()
 
     async def _get_browser_ip_address() -> dict[str, Any]:
-        return await zen_dpage_mcp_tool(
+        return await remote_zen_dpage_mcp_tool(
             initial_url="https://ip.fly.dev/ip", result_key="ip_address"
         )
 
