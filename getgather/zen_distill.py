@@ -1319,7 +1319,7 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
 
     payload = json.dumps(actions)
     js_code = f"""
-    (() => {{
+    (async () => {{
         const actions = {payload};
         const output = {{}};
 
@@ -1384,8 +1384,60 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                     output[key] = true;
                 }} else if (kind === "set_value") {{
                     const value = typeof action?.value === "string" ? action.value : "";
-                    element.value = value;
-                    element.dispatchEvent(new Event("input", {{ bubbles: true }}));
+                    const requestedDelay = Number(action?.typing_delay_ms);
+                    const typingDelayMs = Number.isFinite(requestedDelay)
+                        ? Math.max(0, Math.min(250, requestedDelay))
+                        : 25;
+                    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        "value"
+                    )?.set;
+                    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLTextAreaElement.prototype,
+                        "value"
+                    )?.set;
+
+                    const setNativeValue = (el, nextValue) => {{
+                        if (el instanceof HTMLInputElement && nativeInputValueSetter) {{
+                            nativeInputValueSetter.call(el, nextValue);
+                        }} else if (el instanceof HTMLTextAreaElement && nativeTextAreaValueSetter) {{
+                            nativeTextAreaValueSetter.call(el, nextValue);
+                        }} else {{
+                            el.value = nextValue;
+                        }}
+                    }};
+
+                    element.focus();
+                    element.dispatchEvent(new KeyboardEvent("keydown", {{ key: "Tab", bubbles: true }}));
+
+                    setNativeValue(element, "");
+                    element.dispatchEvent(
+                        new InputEvent("input", {{
+                            bubbles: true,
+                            inputType: "deleteContentBackward",
+                            data: null
+                        }})
+                    );
+
+                    let currentValue = "";
+                    for (const char of value) {{
+                        element.dispatchEvent(new KeyboardEvent("keydown", {{ key: char, bubbles: true }}));
+                        element.dispatchEvent(new KeyboardEvent("keypress", {{ key: char, bubbles: true }}));
+                        currentValue += char;
+                        setNativeValue(element, currentValue);
+                        element.dispatchEvent(
+                            new InputEvent("input", {{
+                                bubbles: true,
+                                inputType: "insertText",
+                                data: char
+                            }})
+                        );
+                        element.dispatchEvent(new KeyboardEvent("keyup", {{ key: char, bubbles: true }}));
+                        if (typingDelayMs > 0) {{
+                            await sleep(typingDelayMs);
+                        }}
+                    }}
                     element.dispatchEvent(new Event("change", {{ bubbles: true }}));
                     output[key] = true;
                 }} else {{
@@ -1401,7 +1453,7 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
     """
 
     try:
-        result = await page.evaluate(js_code)
+        result = await page.evaluate(js_code, await_promise=True)
         if isinstance(result, dict):
             return {str(k): bool(v) for k, v in result.items()}  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
     except Exception as error:
