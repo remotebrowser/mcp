@@ -99,17 +99,3 @@ After cloning the repo:
 docker build -t mcp-getgather .
 docker run -p 23456:23456 mcp-getgather
 ```
-
-### Proxy Configuration
-
-Get Gather supports using an external proxy service for browser sessions. To enable proxy support, set the following environment variables:
-
-```bash
-BROWSER_HTTP_PROXY=http://your-proxy-server:port
-BROWSER_HTTP_PROXY_PASSWORD=your-proxy-password
-```
-
-The proxy service should use hierarchical location-based routing if location information is provided. The username format sent to the proxy server will be:
-
-- Basic: `profile_id`
-- With location: `profile_id-city_X_state_Y_country_Z`
