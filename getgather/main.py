@@ -1,23 +1,17 @@
 import ast
 import asyncio
 import json
-import socket
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Awaitable, Callable, Final
 
-import httpx
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request
 from fastapi.responses import (
-    FileResponse,
     HTMLResponse,
     PlainTextResponse,
-    RedirectResponse,
     Response,
 )
 from fastapi.routing import APIRoute
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from getgather.auth.auth import setup_mcp_auth
@@ -74,117 +68,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 instrument_fastapi(app)
-
-STATIC_DIR = Path(__file__).parent / "static"
-STATIC_ASSETS_DIR = STATIC_DIR / "assets"
-FRONTEND_DIR = Path(__file__).parent / "frontend"
-
-
-app.mount("/__static/assets", StaticFiles(directory=STATIC_ASSETS_DIR), name="assets")
-
-
-@app.get("/live")
-def read_live():
-    return RedirectResponse(url="/live/", status_code=301)
-
-
-@app.get("/live/{file_path:path}")
-async def proxy_live_files(file_path: str):
-    # noVNC lite's main web UI
-    if file_path == "" or file_path == "old-index.html":
-        local_file_path = FRONTEND_DIR / "live.html"
-        with open(local_file_path) as f:
-            return HTMLResponse(content=f.read())
-
-    # Proxy noVNC libraries to unpkg.com
-    unpkg_url = f"https://unpkg.com/@novnc/novnc@1.3.0/{file_path}"
-
-    logger.info(f"Proxying {file_path} to {unpkg_url}")
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(unpkg_url)
-            content = response.content
-            logger.debug(f"Response's length: {len(content)}")
-
-            # Filter out headers that can cause decoding issues
-            headers = dict(response.headers)
-            for header in ["content-encoding", "content-length", "transfer-encoding"]:
-                headers.pop(header, None)
-
-            return Response(status_code=response.status_code, content=content, headers=headers)
-        except httpx.RequestError:
-            return Response(status_code=404)
-
-
-@app.websocket("/websockify")
-async def vnc_websocket_proxy(websocket: WebSocket):
-    """WebSocket proxy to bridge NoVNC client and VNC server."""
-    await websocket.accept()
-
-    vnc_socket = None
-    websocket_closed = asyncio.Event()
-
-    try:
-        vnc_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        vnc_socket.connect(("localhost", 5900))
-        vnc_socket.setblocking(False)
-
-        async def forward_to_vnc():
-            try:
-                while not websocket_closed.is_set():
-                    data = await websocket.receive_bytes()
-                    vnc_socket.send(data)
-            except WebSocketDisconnect:
-                websocket_closed.set()
-            except Exception as e:
-                logger.error(f"Error forwarding to VNC: {e}")
-                websocket_closed.set()
-
-        async def forward_from_vnc():
-            try:
-                while not websocket_closed.is_set():
-                    await asyncio.sleep(0.001)
-                    try:
-                        data = vnc_socket.recv(4096)
-                        if data:
-                            if not websocket_closed.is_set():
-                                await websocket.send_bytes(data)
-                        else:
-                            break  # VNC connection closed
-                    except socket.error:
-                        continue
-            except Exception as e:
-                logger.error(f"Error forwarding from VNC: {e}")
-            finally:
-                websocket_closed.set()
-
-        await asyncio.gather(forward_to_vnc(), forward_from_vnc(), return_exceptions=True)
-
-    except ConnectionRefusedError:
-        if not websocket_closed.is_set():
-            try:
-                await websocket.send_text("Error: Could not connect to VNC server on port 5900")
-            except:
-                pass
-    except Exception as e:
-        if not websocket_closed.is_set():
-            try:
-                await websocket.send_text(f"Error: {str(e)}")
-            except:
-                pass
-    finally:
-        websocket_closed.set()
-        try:
-            if vnc_socket is not None:
-                vnc_socket.close()
-        except:
-            pass
-        try:
-            if websocket.client_state.value <= 2:  # CONNECTING or CONNECTED
-                await websocket.close()
-        except:
-            pass
 
 
 @app.get("/health")
@@ -288,7 +171,13 @@ async def mcp_docs() -> list[MCPDoc]:
     return await asyncio.gather(*[mcp_app_docs(mcp_app) for mcp_app in create_mcp_apps()])
 
 
-# Serve static homepage
 @app.get("/")
 def homepage():
-    return FileResponse(STATIC_DIR / "index.html")
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GetGather</title>
+<style>html,body{{margin:0;padding:0;height:100%;overflow:hidden}}iframe{{border:none;width:100%;height:100%}}</style>
+</head>
+<body><iframe src="{settings.CHROMEFLEET_URL}"></iframe></body>
+</html>"""
+    return HTMLResponse(content=html)
