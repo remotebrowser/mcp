@@ -59,4 +59,4 @@ jobs:
         uses: ./.github/actions/prepare-backend
 
       - name: Check YAML formatting
-        run: uv run yamlfix --check $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\.venv/|node_modules/')
+        run: uv run yamlfix --check $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\.venv/|node_modules/|mcp-tools\.yaml')

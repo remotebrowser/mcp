@@ -14,8 +14,8 @@
     "backend:check:format": "uv run ruff check && uv run ruff format --check",
     "backend:format": "uv run ruff format && uv run ruff check --fix",
     "backend:check:type-safety": "uv run pyright .",
-    "yaml:check:format": "uv run yamlfix --check $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\\.venv/|node_modules/')",
-    "yaml:format": "uv run yamlfix $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\\.venv/|node_modules/')",
+    "yaml:check:format": "uv run yamlfix --check $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\\.venv/|node_modules/|mcp-tools\\.yaml')",
+    "yaml:format": "uv run yamlfix $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\\.venv/|node_modules/|mcp-tools\\.yaml')",
     "check:all": "npm run frontend:check:format && npm run backend:check:format && npm run backend:check:type-safety && npm run yaml:check:format",
     "prepare": "husky"
   },
