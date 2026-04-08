@@ -38,6 +38,10 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not settings.CHROMEFLEET_URL:
+        logger.error("CHROMEFLEET_URL is not set. Exiting.")
+        raise SystemExit(1)
+
     stop_event = asyncio.Event()
 
     async def timer_loop():
