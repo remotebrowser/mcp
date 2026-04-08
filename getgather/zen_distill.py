@@ -20,7 +20,7 @@ from loguru import logger
 from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
-from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
+from getgather.browser import create_remote_browser, terminate_remote_browser
 from getgather.config import FRIENDLY_CHARS, settings
 
 

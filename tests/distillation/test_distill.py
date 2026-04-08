@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 ACME_HOSTNAME = "https://acme.fly.dev"
 
-from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
+from getgather.browser import create_remote_browser, terminate_remote_browser
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.zen_distill import (
     Pattern,

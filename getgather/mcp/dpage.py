@@ -13,7 +13,7 @@ from loguru import logger
 from nanoid import generate
 
 from getgather.auth.auth import get_auth_user
-from getgather.browser.chromefleet import (
+from getgather.browser import (
     create_remote_browser,
     get_remote_browser,
     terminate_remote_browser,
