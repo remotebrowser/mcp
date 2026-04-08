@@ -44,7 +44,6 @@ from getgather.zen_distill import (
 router = APIRouter(prefix="/dpage", tags=["dpage"])
 
 
-active_pages: dict[str, zd.Tab] = {}
 completed_signins: set[str] = set()
 
 # Max seconds for the distillation polling loop in zen_post_dpage (per HTTP request).
@@ -143,13 +142,6 @@ async def _probe_page(
     return terminated
 
 
-async def dpage_close(id: str) -> None:
-    if id in active_pages:
-        page = active_pages[id]
-        await safe_close_page(page)
-        del active_pages[id]
-
-
 async def dpage_check(id: str):
     TICK = 1  # seconds
     TIMEOUT = 120  # seconds
@@ -236,9 +228,7 @@ def redirect(id: str) -> HTMLResponse:
 @router.get("/{id}", response_class=HTMLResponse)
 async def get_dpage(id: str | None = None) -> HTMLResponse:
     if id:
-        if id in active_pages:
-            return redirect(id)
-        elif is_remote_browser(id):
+        if is_remote_browser(id):
             return redirect(id)
 
     raise HTTPException(status_code=400, detail="Missing page id")
@@ -250,9 +240,6 @@ FINISHED_MSG = "Finished! You can close this window now."
 @router.post("/{id}", response_class=HTMLResponse)
 async def post_dpage(id: str, request: Request) -> HTMLResponse:
     page: zd.Tab | None = None
-
-    if id in active_pages:
-        page = active_pages[id]
 
     if is_remote_browser(id):
         browser_id, page_id = id.split("--")
@@ -368,9 +355,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     "Distillation reported page error pattern; sign-in still marked complete for polling."
                 )
 
-            if not is_remote_browser(id):
-                completed_signins.add(id)
-                await dpage_close(id)
+            completed_signins.add(id)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
