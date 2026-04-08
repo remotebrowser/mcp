@@ -21,9 +21,7 @@ from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
-from getgather.browser.proxy import setup_proxy
 from getgather.config import FRIENDLY_CHARS, settings
-from getgather.request_info import request_info
 
 
 @dataclass
@@ -349,30 +347,6 @@ async def zen_report_distill_error(
             sentry_sdk.capture_exception(error)
 
 
-async def install_proxy_handler(username: str, password: str, page: zd.Tab):
-    """Install proxy authentication handler for the page.
-
-    Note: This only handles authentication challenges. Request continuation
-    is handled by the resource blocker in get_new_page().
-    """
-
-    async def auth_challenge_handler(event: zd.cdp.fetch.AuthRequired):
-        logger.debug("Supplying proxy authentication...")
-        await page.send(
-            zd.cdp.fetch.continue_with_auth(
-                request_id=event.request_id,
-                auth_challenge_response=zd.cdp.fetch.AuthChallengeResponse(
-                    response="ProvideCredentials",
-                    username=username,
-                    password=password,
-                ),
-            )
-        )
-
-    page.add_handler(zd.cdp.fetch.AuthRequired, auth_challenge_handler)  # type: ignore[arg-type]
-    await page.send(zd.cdp.fetch.enable(handle_auth_requests=True))
-
-
 async def zen_navigate_with_retry(page: zd.Tab, url: str, wait_for_ready: bool = True) -> zd.Tab:
     """Navigate to URL with retry logic for resilient navigation.
 
@@ -430,10 +404,6 @@ async def zen_navigate_with_retry(page: zd.Tab, url: str, wait_for_ready: bool =
 
     # This should never be reached, but satisfies type checker
     raise last_error or Exception(f"Failed to navigate to {url}")
-
-
-def is_local_browser(browser: zd.Browser) -> bool:
-    return browser.config.host is None or browser.config.host in ("127.0.0.1", "localhost")
 
 
 async def get_new_page(browser: zd.Browser) -> zd.Tab:
@@ -500,18 +470,6 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             source=_CREDENTIALS_BLOCK_SCRIPT, run_immediately=True
         )
     )
-
-    if is_local_browser(browser):
-        id = cast(str, browser.id)  # type: ignore[attr-defined]
-        proxy = await setup_proxy(id, request_info.get())
-        proxy_username = None
-        proxy_password = None
-        if proxy:
-            proxy_username = proxy["username"]
-            proxy_password = proxy["password"]
-            if proxy_username or proxy_password:
-                logger.debug("Setting up proxy authentication...")
-                await install_proxy_handler(proxy_username or "", proxy_password or "", page)
 
     return page
 
