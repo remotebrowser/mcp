@@ -1337,3 +1337,151 @@ async def short_lived_mcp_tool(
                     ))
                     item["url"] = url
     return terminated, result
+
+
+async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dict[str, bool] | None:
+    if len(actions) == 0:
+        return {}
+
+    payload = json.dumps(actions)
+    js_code = f"""
+    (async () => {{
+        const actions = {payload};
+        const output = {{}};
+
+        function findCss(selector, doc) {{
+            try {{
+                const direct = doc.querySelector(selector);
+                if (direct) return direct;
+            }} catch (error) {{
+                return null;
+            }}
+
+            const iframes = doc.querySelectorAll("iframe");
+            for (const iframe of iframes) {{
+                try {{
+                    const childDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    const nested = findCss(selector, childDoc);
+                    if (nested) return nested;
+                }} catch (error) {{
+                    // Cross-origin iframe.
+                }}
+            }}
+            return null;
+        }}
+
+        for (const action of actions) {{
+            const key = action?.key;
+            const kind = action?.kind;
+            const selector = action?.selector;
+            if (typeof key !== "string" || key.length === 0) {{
+                continue;
+            }}
+            if (typeof selector !== "string" || selector.length === 0) {{
+                output[key] = false;
+                continue;
+            }}
+
+            let element = null;
+            if (selector.startsWith("//")) {{
+                try {{
+                    element = document.evaluate(
+                        selector,
+                        document,
+                        null,
+                        XPathResult.FIRST_ORDERED_NODE_TYPE,
+                        null
+                    ).singleNodeValue;
+                }} catch (error) {{
+                    element = null;
+                }}
+            }} else {{
+                element = findCss(selector, document);
+            }}
+
+            if (!element) {{
+                output[key] = false;
+                continue;
+            }}
+
+            try {{
+                if (kind === "click") {{
+                    element.click();
+                    output[key] = true;
+                }} else if (kind === "set_value") {{
+                    const value = typeof action?.value === "string" ? action.value : "";
+                    const requestedDelay = Number(action?.typing_delay_ms);
+                    const typingDelayMs = Number.isFinite(requestedDelay)
+                        ? Math.max(0, Math.min(250, requestedDelay))
+                        : 25;
+                    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        "value"
+                    )?.set;
+                    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLTextAreaElement.prototype,
+                        "value"
+                    )?.set;
+
+                    const setNativeValue = (el, nextValue) => {{
+                        if (el instanceof HTMLInputElement && nativeInputValueSetter) {{
+                            nativeInputValueSetter.call(el, nextValue);
+                        }} else if (el instanceof HTMLTextAreaElement && nativeTextAreaValueSetter) {{
+                            nativeTextAreaValueSetter.call(el, nextValue);
+                        }} else {{
+                            el.value = nextValue;
+                        }}
+                    }};
+
+                    element.focus();
+                    element.dispatchEvent(new KeyboardEvent("keydown", {{ key: "Tab", bubbles: true }}));
+
+                    setNativeValue(element, "");
+                    element.dispatchEvent(
+                        new InputEvent("input", {{
+                            bubbles: true,
+                            inputType: "deleteContentBackward",
+                            data: null
+                        }})
+                    );
+
+                    let currentValue = "";
+                    for (const char of value) {{
+                        element.dispatchEvent(new KeyboardEvent("keydown", {{ key: char, bubbles: true }}));
+                        element.dispatchEvent(new KeyboardEvent("keypress", {{ key: char, bubbles: true }}));
+                        currentValue += char;
+                        setNativeValue(element, currentValue);
+                        element.dispatchEvent(
+                            new InputEvent("input", {{
+                                bubbles: true,
+                                inputType: "insertText",
+                                data: char
+                            }})
+                        );
+                        element.dispatchEvent(new KeyboardEvent("keyup", {{ key: char, bubbles: true }}));
+                        if (typingDelayMs > 0) {{
+                            await sleep(typingDelayMs);
+                        }}
+                    }}
+                    element.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                    output[key] = true;
+                }} else {{
+                    output[key] = false;
+                }}
+            }} catch (error) {{
+                output[key] = false;
+            }}
+        }}
+
+        return output;
+    }})()
+    """
+
+    try:
+        result = await page.evaluate(js_code, await_promise=True)
+        if isinstance(result, dict):
+            return {str(k): bool(v) for k, v in result.items()}  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+    except Exception as error:
+        logger.error(f"Batch actions failed: {error}")
+    return None

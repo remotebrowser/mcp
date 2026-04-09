@@ -32,6 +32,7 @@ from getgather.zen_distill import (
     get_selector,
     init_zendriver_browser,
     load_distillation_patterns,
+    page_batch_actions,
     page_query_selector,
     run_distillation_loop as zen_run_distillation_loop,
     safe_close_page,
@@ -365,6 +366,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         action = f"/dpage/{id}"
         options = {"title": title, "action": action}
         inputs = document.find_all("input")
+        pending_actions: list[dict[str, str]] = []
 
         if match.distilled == current.distilled:
             logger.info(f"Still the same: {match.name}")
@@ -454,14 +456,18 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     str(gg_match) if gg_match is not None else ""
                 )
                 config = getattr(page, "element_config", None)
-                element = await page_query_selector(
-                    page,
-                    selector if selector is not None else "",
-                    iframe_selector=frame_selector,
-                    config=config,
-                )
+                name = input.get("name")
+                input_type = input.get("type")
 
-                if element:
+                if input_type == "checkbox" or input_type == "radio":
+                    element = await page_query_selector(
+                        page,
+                        selector if selector is not None else "",
+                        iframe_selector=frame_selector,
+                        config=config,
+                    )
+                    if not element:
+                        continue
                     if input_type == "checkbox":
                         if not name:
                             logger.warning(f"No name for the checkbox {gg_match}")
@@ -476,28 +482,110 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                         if current_checked_value != checked:
                             logger.info(f"Clicking checkbox {name} to set it to {checked}")
                             await element.click()
-                    elif name is not None:
-                        name_str = str(name)
-                        value = fields.get(name_str)
-                        if value and len(value) > 0:
-                            logger.info(f"Using form data {name}")
-                            names.append(name_str)
-                            input["value"] = value
-                            current.distilled = str(document)
-                            await element.type_text(value)
-                            del fields[name_str]
-                        else:
-                            logger.info(f"No form data found for {name}")
+                    elif input_type == "radio":
+                        if name is not None:
+                            name_str = str(name)
+                            value = fields.get(name_str)
+                            if not value or len(value) == 0:
+                                logger.warning(f"No form data found for radio button group {name}")
+                                continue
+                            radio = document.find("input", {"type": "radio", "value": str(value)})
+                            if not radio or not isinstance(radio, Tag):
+                                logger.warning(f"No radio button found with value {value}")
+                                continue
+                            logger.info(f"Handling radio button group {name}")
+                            logger.info(f"Using form data {name}={value}")
+                            radio_gg_match = str(radio.get("gg-match"))
+                            selector, frame_selector = get_selector(radio_gg_match)
+                            config = getattr(page, "element_config", None)
+                            radio_element = await page_query_selector(
+                                page,
+                                selector if selector is not None else "",
+                                iframe_selector=frame_selector,
+                                config=config,
+                            )
+                            if radio_element:
+                                await radio_element.click()
+                                radio["checked"] = "checked"
+                                current.distilled = str(document)
+                                names.append(str(input.get("id")) if input.get("id") else "radio")
+                elif name is not None:
+                    name_str = str(name)
+                    value = fields.get(name_str)
+                    if value and len(value) > 0:
+                        logger.info(f"Using form data {name}")
+                        names.append(name_str)
+                        input["value"] = value
+                        current.distilled = str(document)
+                        pending_actions.append({
+                            "key": f"set:{name}:{len(pending_actions)}",
+                            "kind": "set_value",
+                            "selector": str(selector),
+                            "value": str(value),
+                        })
+                        del fields[name_str]
+                    else:
+                        logger.info(f"No form data found for {name}")
 
-        await zen_autoclick(page, distilled, "[gg-autoclick]:not(button)")
+        # Queue non-button auto-clicks so they can run in the same batch as field updates.
+        for auto_click_target in document.select("[gg-autoclick]:not(button)"):
+            auto_click_selector, _ = get_selector(str(auto_click_target.get("gg-match")))
+            if auto_click_selector:
+                pending_actions.append({
+                    "key": f"click:auto:{len(pending_actions)}",
+                    "kind": "click",
+                    "selector": str(auto_click_selector),
+                })
+
+        should_submit = False
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
         if document.select(SUBMIT_BUTTON):
             if len(names) > 0 and expected_field_count == len(names):
                 logger.info("Submitting form, all fields are filled...")
-                await zen_autoclick(page, distilled, SUBMIT_BUTTON)
-                continue
-            logger.warning("Not all form fields are filled")
-            return HTMLResponse(render(str(document.find("body")), options))
+                for submit_button in document.select(SUBMIT_BUTTON):
+                    submit_selector, _ = get_selector(str(submit_button.get("gg-match")))
+                    if submit_selector:
+                        pending_actions.append({
+                            "key": f"click:submit:{len(pending_actions)}",
+                            "kind": "click",
+                            "selector": str(submit_selector),
+                        })
+                should_submit = True
+            else:
+                logger.warning("Not all form fields are filled")
+                return HTMLResponse(render(str(document.find("body")), options))
+
+        if len(pending_actions) > 0:
+            action_results = await page_batch_actions(page, pending_actions)
+            results = action_results if isinstance(action_results, dict) else {}
+
+            # Fallback for failed/unexecuted actions to preserve behavior.
+            for action in pending_actions:
+                key = action.get("key")
+                kind = action.get("kind")
+                selector = action.get("selector")
+                if (
+                    not isinstance(key, str)
+                    or not isinstance(kind, str)
+                    or not isinstance(selector, str)
+                ):
+                    continue
+                if results.get(key, False):
+                    continue
+
+                element = await page_query_selector(page, selector)
+                if not element:
+                    continue
+                if kind == "click":
+                    await element.click()
+                elif kind == "set_value":
+                    value = action.get("value")
+                    await element.type_text(value if isinstance(value, str) else "")
+
+            await asyncio.sleep(0.25)
+
+        if should_submit:
+            continue
 
     hostname_attr: str | None = getattr(page, "hostname", None)  # type: ignore[assignment]
     location = getattr(page, "url", "unknown")  # type: ignore[assignment]
