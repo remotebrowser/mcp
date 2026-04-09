@@ -308,9 +308,7 @@ def get_base_url() -> str:
 
 
 def is_incognito_request(headers: dict[str, str]) -> bool:
-    if headers.get("x-incognito", "0") == "1":
-        return True
-    return get_auth_user().auth_provider == "noauth"
+    return headers.get("x-incognito", "0") == "1"
 
 
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
