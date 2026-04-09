@@ -23,7 +23,12 @@ from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
 from getgather.browser.proxy import setup_proxy
-from getgather.browser.resource_blocker import blocked_domains, load_blocklists, should_be_blocked
+from getgather.browser.resource_blocker import (
+    blocked_domains,
+    images_allowed_for_request_url,
+    load_blocklists,
+    should_be_blocked,
+)
 from getgather.config import FRIENDLY_CHARS, settings
 from getgather.container_utils import check_x_server_available
 from getgather.mcp.browser import browser_manager
@@ -545,12 +550,18 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
     async def handle_request(event: zd.cdp.fetch.RequestPaused) -> None:
         resource_type = event.resource_type
         request_url = event.request.url
+        images_allowed = images_allowed_for_request_url(request_url)
+
+        if resource_type == zd.cdp.network.ResourceType.IMAGE:
+            logger.debug(
+                f"Image request check: page_url={page.url!r}, request_url={request_url!r}, "
+                f"images_allowed={images_allowed}"
+            )
 
         deny_type = resource_type in [
-            zd.cdp.network.ResourceType.IMAGE,
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ]
+        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and not images_allowed)
         deny_url = await should_be_blocked(request_url)
         should_deny = deny_type or deny_url
 

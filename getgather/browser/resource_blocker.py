@@ -8,6 +8,15 @@ from getgather.config import PROJECT_DIR
 
 blocked_domains: frozenset[str] | None = None
 allowed_domains: frozenset[str] = frozenset(["amazon.ca", "wayfair.com", "cdn4dd.com"])
+image_allowed_url_substrings: frozenset[str] = frozenset(["/pv-target-images/"])
+
+
+def images_allowed_for_request_url(request_url: str) -> bool:
+    """Returns True if images should be allowed for the given request URL."""
+    for allowed_substring in image_allowed_url_substrings:
+        if allowed_substring in request_url:
+            return True
+    return False
 
 
 def _get_domain_variants(domain: str) -> list[str]:
