@@ -100,6 +100,7 @@ async def _call_chromefleet_api(
         "x-proxy-type": mcp_headers.get("x-proxy-type", None),
         "x-origin-ip": mcp_headers.get("x-origin-ip", None),
         "x-origin-ua": mcp_headers.get("x-origin-ua", None),
+        "x-target-domains": mcp_headers.get("x-target-domains", None),
     }
     headers = {k: v for k, v in headers.items() if v is not None}
 
