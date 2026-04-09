@@ -59,7 +59,7 @@ async def get_watch_later() -> dict[str, Any]:
 async def get_channel_subscriptions() -> dict[str, Any]:
     """Get channel subscriptions from YouTube."""
     result = await remote_zen_dpage_mcp_tool(
-        "https://www.youtube.com/feed/subscriptions",
+        "https://www.youtube.com/feed/channels",
         "youtube_channel_subscriptions",
         timeout=YOUTUBE_TIMEOUT_SECONDS,
     )
