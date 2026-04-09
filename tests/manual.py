@@ -1,4 +1,4 @@
-import json
+import asyncio
 import traceback
 from typing import Annotated
 
@@ -23,8 +23,6 @@ async def call_tool(
     mcp: Annotated[str, Parameter(help="name of the mcp server")] = "media",
     tool: Annotated[str, Parameter(help="name of the tool")] = "get_user_info",
     token: Annotated[str, Parameter(help="OAuth token to skip full auth flow")] | None = None,
-    country: Annotated[str, Parameter(help="Country")] = "us",
-    state: Annotated[str, Parameter(help="State")] = "california",
 ):
     url = f"{server_url}/mcp-{mcp}"
     result = None
@@ -32,7 +30,7 @@ async def call_tool(
     transport = StreamableHttpTransport(
         url,
         auth=(token or "oauth"),
-        headers={"x-location": json.dumps({"country": country, "state": state})},
+        headers={"x-origin-ip": await _get_ip()},
         sse_read_timeout=180,
     )
     try:
@@ -52,6 +50,20 @@ async def call_tool(
     else:
         print("Result:")
         print(result)
+
+
+async def _get_ip():
+    proc = await asyncio.create_subprocess_exec(
+        "curl",
+        "-s",
+        "https://api4.ipify.org",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+    ip = stdout.decode().strip()
+    print(f"Using IP: {ip}")
+    return ip
 
 
 if __name__ == "__main__":

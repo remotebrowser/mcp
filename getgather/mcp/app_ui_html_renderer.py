@@ -172,7 +172,7 @@ def render_app_ui_html(content: str, title: str = "MCP GetGather App") -> str:
     .view {{ display: none; }}
     .view.active {{ display: block; }}
     #signin a {{ color: var(--color-accent); }}
-    #signin .signin-iframe {{ width: 100%; min-height: 480px; border: 1px solid var(--color-border); border-radius: 8px; margin-top: 0.5rem; }}
+    #signin .signin-iframe {{ width: 100%; min-height: 300px; border: 1px solid var(--color-border); border-radius: 8px; margin-top: 0.5rem; }}
     #error {{ color: var(--color-error); }}
     #loading.view {{ display: none; }}
     #loading.view.active {{

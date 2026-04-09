@@ -641,8 +641,19 @@ async def safe_close_page(page: zd.Tab) -> None:
         logger.warning(f"Unexpected error disabling fetch domain: {e}")
 
     try:
-        await page.close()
-        logger.debug("Page closed successfully")
+        target = getattr(page, "target", None)
+        raw_target_id = getattr(target, "target_id", None) or getattr(page, "target_id", None)
+        normalized_target_id = (
+            zd.cdp.target.TargetID(raw_target_id.split("@", 1)[-1])
+            if isinstance(raw_target_id, str)
+            else None
+        )
+
+        if normalized_target_id:
+            await page.send(zd.cdp.target.close_target(target_id=normalized_target_id))
+        else:
+            await page.close()
+        logger.warning("Page closed successfully")
     except Exception as e:
         logger.warning(f"Error closing page: {e}")
 
@@ -1190,7 +1201,8 @@ async def get_url(page: zd.Tab) -> str | None:
 
 
 async def run_distillation_loop(
-    location: str,
+    *,
+    location: str | None = None,
     patterns: list[Pattern],
     browser: zd.Browser,
     timeout: int = 15,
@@ -1209,24 +1221,25 @@ async def run_distillation_loop(
         logger.error("No distillation patterns provided")
         raise ValueError("No distillation patterns provided")
 
-    hostname = urllib.parse.urlparse(location).hostname or ""
+    hostname = (location and urllib.parse.urlparse(location).hostname) or ""
 
     if page is None:
         page = await get_new_page(browser)
         logger.info(f"Navigating to {location}")
-        try:
-            await zen_navigate_with_retry(page, location)
-        except Exception as error:
-            # Error already logged by retry wrapper, just report and re-raise
-            await zen_report_distill_error(
-                error=error,
-                page=page,
-                profile_id=browser.id,  # type: ignore[attr-defined]
-                location=location,
-                hostname=hostname,
-                iteration=0,
-            )
-            raise ValueError(f"Failed to navigate to {location}: {error}")
+        if location:
+            try:
+                await zen_navigate_with_retry(page, location)
+            except Exception as error:
+                # Error already logged by retry wrapper, just report and re-raise
+                await zen_report_distill_error(
+                    error=error,
+                    page=page,
+                    profile_id=browser.id,  # type: ignore[attr-defined]
+                    location=location,
+                    hostname=hostname,
+                    iteration=0,
+                )
+                raise ValueError(f"Failed to navigate to {location}: {error}")
 
     TICK = 1  # seconds
     max = timeout // TICK
@@ -1270,7 +1283,7 @@ async def run_distillation_loop(
         error=ValueError("No matched pattern found"),
         page=page,
         profile_id=browser.id,  # type: ignore[attr-defined]
-        location=location,
+        location=location or "",
         hostname=hostname,
         iteration=max,
     )
@@ -1289,7 +1302,9 @@ async def short_lived_mcp_tool(
 
     path = os.path.join(os.path.dirname(__file__), "mcp", "patterns", pattern_wildcard)
     patterns = load_distillation_patterns(path)
-    terminated, distilled, converted = await run_distillation_loop(location, patterns, browser)
+    terminated, distilled, converted = await run_distillation_loop(
+        location=location, patterns=patterns, browser=browser
+    )
     await terminate_remote_browser(browser)
 
     result: dict[str, Any] = {result_key: converted if converted else distilled}

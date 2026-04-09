@@ -157,6 +157,9 @@ class MCPApp:
 
 @cache
 def create_mcp_apps() -> list[MCPApp]:
+    from getgather.mcp.declarative_mcp import create_declarative_mcp_tools
+
+    create_declarative_mcp_tools()
     auto_import("getgather.mcp")
 
     apps: list[MCPApp] = []

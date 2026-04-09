@@ -100,16 +100,8 @@ async def _try_action_with_probe(
     page = await get_new_page(browser)
     try:
         await zen_navigate_with_retry(page, initial_url)
-        path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
-        patterns = load_distillation_patterns(path)
-        terminated, _, _ = await zen_run_distillation_loop(
-            initial_url,
-            patterns,
-            browser,
-            timeout,
-            interactive=False,
-            close_page=False,
-            page=page,
+        terminated = await _probe_page(
+            location=initial_url, page=page, browser=browser, timeout=timeout
         )
         if terminated:
             result = await action(page, browser)
@@ -121,6 +113,23 @@ async def _try_action_with_probe(
         logger.info(f"Stateless probe failed for {initial_url}: {e}")
         await safe_close_page(page)
         return None
+
+
+async def _probe_page(
+    *, location: str | None = None, page: zd.Tab, browser: zd.Browser, timeout: int = 2
+) -> bool:
+    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+    patterns = load_distillation_patterns(path)
+    terminated, _, _ = await zen_run_distillation_loop(
+        location=location,
+        patterns=patterns,
+        browser=browser,
+        timeout=timeout,
+        interactive=False,
+        close_page=False,
+        page=page,
+    )
+    return terminated
 
 
 async def dpage_add(
@@ -163,14 +172,36 @@ async def dpage_check(id: str):
     TIMEOUT = 120  # seconds
     max = TIMEOUT // TICK
 
+    is_remote = is_remote_browser(id)
+    remote_parts = id.split("--", 1) if is_remote else None
+
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
-        # Check if signin completed
         if id in completed_signins:
             completed_signins.discard(id)
             return True
+
+        if not is_remote or remote_parts is None:
+            continue
+
+        browser_id, target_id = remote_parts
+        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            continue
+
+        page = _find_tab(browser, target_id)
+        if page is None:
+            continue
+
+        try:
+            terminated = await _probe_page(page=page, browser=browser, timeout=2)
+            if terminated:
+                completed_signins.discard(id)
+                return True
+        except Exception as e:
+            logger.warning(f"Remote probe failed for {id}: {e}")
 
     return None
 
@@ -276,6 +307,12 @@ def get_base_url() -> str:
     return base_url
 
 
+def is_incognito_request(headers: dict[str, str]) -> bool:
+    if headers.get("x-incognito", "0") == "1":
+        return True
+    return get_auth_user().auth_provider == "noauth"
+
+
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
     if not is_remote_browser(id):
         browser_manager.update_last_active(id)
@@ -364,8 +401,56 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 await zen_autoclick(page, distilled, f"button[value={fields.get('button')}]")
                 continue
 
+        processed_radio_groups: set[str] = set()
+        radio_names_for_expected: set[str] = set()
+        expected_field_count = 0
         for input in inputs:
             if isinstance(input, Tag):
+                name = input.get("name")
+                input_type = input.get("type")
+
+                if input_type == "radio":
+                    if name is None:
+                        continue
+                    name_str = str(name)
+                    if name_str not in radio_names_for_expected:
+                        radio_names_for_expected.add(name_str)
+                        expected_field_count += 1
+                    if name_str in processed_radio_groups:
+                        continue
+                    value = fields.get(name_str)
+                    if not value or len(str(value)) == 0:
+                        logger.warning(f"No form data found for radio button group {name_str}")
+                        continue
+                    radio = document.find(
+                        "input",
+                        {"type": "radio", "name": name_str, "value": str(value)},
+                    )
+                    if not isinstance(radio, Tag):
+                        logger.warning(f"No radio button found for group {name_str} value {value}")
+                        continue
+                    rgm = radio.get("gg-match")
+                    if not rgm:
+                        continue
+                    selector, frame_selector = get_selector(str(rgm))
+                    config = getattr(page, "element_config", None)
+                    radio_element = await page_query_selector(
+                        page,
+                        selector if selector is not None else "",
+                        iframe_selector=frame_selector,
+                        config=config,
+                    )
+                    if radio_element:
+                        logger.info(f"Handling radio button group {name}")
+                        logger.info(f"Using form data {name_str}={value}")
+                        await radio_element.click()
+                        radio["checked"] = "checked"
+                        current.distilled = str(document)
+                        names.append(name_str)
+                        processed_radio_groups.add(name_str)
+                    continue
+
+                expected_field_count += 1
                 gg_match = input.get("gg-match")
                 selector, frame_selector = get_selector(
                     str(gg_match) if gg_match is not None else ""
@@ -455,7 +540,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         should_submit = False
         SUBMIT_BUTTON = "button[gg-autoclick], button[type=submit]"
         if document.select(SUBMIT_BUTTON):
-            if len(names) > 0 and len(inputs) == len(names):
+            if len(names) > 0 and expected_field_count == len(names):
                 logger.info("Submitting form, all fields are filled...")
                 for submit_button in document.select(SUBMIT_BUTTON):
                     submit_selector, _ = get_selector(str(submit_button.get("gg-match")))
@@ -535,7 +620,7 @@ async def zen_dpage_mcp_tool(
     patterns = load_distillation_patterns(path)
 
     headers = get_http_headers(include_all=True)
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
     signin_id = headers.get("x-signin-id") or None
 
     if incognito:
@@ -552,7 +637,11 @@ async def zen_dpage_mcp_tool(
     if not incognito or signin_id is not None:
         # First, try without any interaction as this will work if the user signed in previously
         terminated, distilled, converted = await zen_run_distillation_loop(
-            initial_url, patterns, browser, timeout, interactive=False
+            location=initial_url,
+            patterns=patterns,
+            browser=browser,
+            timeout=timeout,
+            interactive=False,
         )
         if terminated:
             distillation_result = converted if converted is not None else distilled
@@ -604,7 +693,7 @@ async def zen_dpage_with_action(
         Dict with result or signin flow info
     """
     headers = get_http_headers(include_all=True)
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
     signin_id = headers.get("x-signin-id") or None
 
     # Try existing session — explicit signin_id, or stateless probe on global browser
@@ -674,7 +763,7 @@ async def remote_zen_dpage_mcp_tool(
 
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
 
     browser = None
     page = None
@@ -708,7 +797,13 @@ async def remote_zen_dpage_mcp_tool(
     await zen_navigate_with_retry(page, initial_url)
 
     terminated, distilled, converted = await zen_run_distillation_loop(
-        initial_url, patterns, browser, timeout, interactive=False, close_page=False, page=page
+        location=initial_url,
+        patterns=patterns,
+        browser=browser,
+        timeout=timeout,
+        interactive=False,
+        close_page=False,
+        page=page,
     )
     if terminated:
         await safe_close_page(page)
@@ -743,7 +838,7 @@ async def remote_zen_dpage_with_action(
     """Execute an action after signin completion with remote Zendriver."""
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
-    incognito = headers.get("x-incognito", "0") == "1"
+    incognito = is_incognito_request(headers)
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
