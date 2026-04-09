@@ -198,7 +198,6 @@ async def dpage_check(id: str):
         try:
             terminated = await _probe_page(page=page, browser=browser, timeout=2)
             if terminated:
-                completed_signins.discard(id)
                 return True
         except Exception as e:
             logger.warning(f"Remote probe failed for {id}: {e}")
@@ -388,8 +387,9 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     "Distillation reported page error pattern; sign-in still marked complete for polling."
                 )
 
-            completed_signins.add(id)
-            await dpage_close(id)
+            if not is_remote_browser(id):
+                completed_signins.add(id)
+                await dpage_close(id)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
