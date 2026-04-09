@@ -26,7 +26,7 @@ async def _create_browser_from_cdp_websocket(
     port = parsed.port or (443 if parsed.scheme in ("wss", "https") else 80)
 
     if not config:
-        config = Config(host=host, port=port)
+        config = Config(host=host, port=port, browser_executable_path="remote")
 
     config.host = host
     config.port = port
