@@ -17,11 +17,16 @@
     },
     {
       "name": "channel",
-      "selector": "yt-content-metadata-view-model .yt-content-metadata-view-model__metadata-row:first-child span:first-child"
+      "selector": "yt-content-metadata-view-model .ytContentMetadataViewModelMetadataRow:first-child span.ytContentMetadataViewModelMetadataText:first-child, yt-content-metadata-view-model .yt-content-metadata-view-model__metadata-row:first-child span:first-child"
     },
     {
-      "name": "views",
-      "selector": "yt-content-metadata-view-model .yt-content-metadata-view-model__delimiter + span, .shortsLockupViewModelHostOutsideMetadataSubhead span"
+      "name": "channel_url",
+      "selector": "yt-content-metadata-view-model a[href^='/@']",
+      "attribute": "href"
+    },
+    {
+      "name": "views_and_date",
+      "selector": "yt-content-metadata-view-model .ytContentMetadataViewModelDelimiter + span, yt-content-metadata-view-model .yt-content-metadata-view-model__delimiter + span, .shortsLockupViewModelHostOutsideMetadataSubhead span"
     },
     {
       "name": "duration",
