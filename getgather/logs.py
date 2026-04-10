@@ -1,6 +1,10 @@
+import asyncio
+import ipaddress
 import logging
+from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
+import httpx
 import sentry_sdk
 import yaml
 from fastapi import Request
@@ -16,6 +20,39 @@ if TYPE_CHECKING:
 
 from getgather.config import settings
 from getgather.tracing import logfire_loguru_handler, setup_logfire, setup_mcp_tracing
+
+client_ip_var: ContextVar[str | None] = ContextVar("client_ip", default=None)
+
+_cached_server_public_ip: str | None = None
+_server_public_ip_lock = asyncio.Lock()
+
+
+def _is_local_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return addr.is_loopback or addr.is_private
+    except ValueError:
+        return False
+
+
+async def _get_server_public_ip() -> str | None:
+    """Return this machine's public IP — used only when server and client are co-located
+    (TCP shows 127.0.0.1), so the server's public IP equals the user's actual IP.
+    """
+    global _cached_server_public_ip
+    if _cached_server_public_ip:
+        return _cached_server_public_ip
+    async with _server_public_ip_lock:
+        if _cached_server_public_ip:
+            return _cached_server_public_ip
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get("https://api.ipify.org", timeout=5.0)
+                _cached_server_public_ip = resp.text.strip()
+                logger.info(f"[SERVER PUBLIC IP] Detected: {_cached_server_public_ip}")
+        except Exception as e:
+            logger.warning(f"[SERVER PUBLIC IP] Detection failed: {e}")
+    return _cached_server_public_ip
 
 
 def setup_logging():
@@ -109,6 +146,28 @@ class MCPLoggingContextMiddleware:
 
         request = Request(scope, receive)
         mcp_session_id = setup_mcp_tracing(request)
+
+        # Resolve client IP: explicit header > TCP.
+        # If local/private, fall back to server's public IP (same machine = same public IP).
+        origin_ip = request.headers.get("x-origin-ip")
+        if origin_ip:
+            client_ip = origin_ip
+            ip_source = "x-origin-ip"
+        elif request.client:
+            client_ip = request.client.host
+            ip_source = "tcp"
+        else:
+            client_ip = None
+            ip_source = None
+        if client_ip and _is_local_ip(client_ip):
+            public_ip = await _get_server_public_ip()
+            if public_ip:
+                client_ip = public_ip
+                ip_source = "server-public-ip"
+
+        if client_ip:
+            client_ip_var.set(client_ip)
+            logger.debug(f"[CLIENT IP] {client_ip} (source: {ip_source})")
 
         context: dict[str, str] = {"mcp_session_id": mcp_session_id}
         with logger.contextualize(**context):
