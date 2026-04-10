@@ -1,5 +1,6 @@
 import ast
 import asyncio
+import ipaddress
 import json
 import socket
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -26,6 +27,7 @@ from getgather.logs import instrument_fastapi
 from getgather.mcp.browser import browser_manager
 from getgather.mcp.dpage import remote_zen_dpage_mcp_tool, router as dpage_router
 from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
+from getgather.request_info import client_ip_var
 
 # Create MCP apps once and reuse for lifespan and mounting
 mcp_apps = create_mcp_apps()
@@ -196,6 +198,37 @@ def health():
 
 IP_CHECK_URL: Final[str] = "https://ip.fly.dev/ip"
 
+_cached_server_public_ip: str | None = None
+_server_public_ip_lock = asyncio.Lock()
+
+
+def _is_local_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return addr.is_loopback or addr.is_private
+    except ValueError:
+        return False
+
+
+async def _get_server_public_ip() -> str | None:
+    """Return this machine's public IP — used only when server and client are co-located
+    (TCP shows 127.0.0.1), so the server's public IP equals the user's actual IP.
+    """
+    global _cached_server_public_ip
+    if _cached_server_public_ip:
+        return _cached_server_public_ip
+    async with _server_public_ip_lock:
+        if _cached_server_public_ip:
+            return _cached_server_public_ip
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get("https://api.ipify.org", timeout=5.0)
+                _cached_server_public_ip = resp.text.strip()
+                logger.info(f"[SERVER PUBLIC IP] Detected: {_cached_server_public_ip}")
+        except Exception as e:
+            logger.warning(f"[SERVER PUBLIC IP] Detection failed: {e}")
+    return _cached_server_public_ip
+
 
 @app.get("/extended-health")
 async def extended_health():
@@ -218,6 +251,36 @@ async def mcp_logging_context_middleware(
 ):
     """Set logging context with session IDs for MCP requests."""
     if request.url.path.startswith("/mcp"):
+        # Resolve client IP: explicit header > Fly.io > reverse proxy > TCP
+        # If local/private, fall back to server's public IP (same machine = same public IP).
+        origin_ip = request.headers.get("x-origin-ip")
+        fly_client_ip = request.headers.get("fly-client-ip")
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if origin_ip:
+            client_ip = origin_ip
+            ip_source = "x-origin-ip"
+        elif fly_client_ip:
+            client_ip = fly_client_ip
+            ip_source = "fly-client-ip"
+        elif forwarded_for:
+            client_ip = forwarded_for.split(",")[0].strip()
+            ip_source = "x-forwarded-for"
+        elif request.client:
+            client_ip = request.client.host
+            ip_source = "tcp"
+        else:
+            client_ip = None
+            ip_source = None
+        if client_ip and _is_local_ip(client_ip):
+            public_ip = await _get_server_public_ip()
+            if public_ip:
+                client_ip = public_ip
+                ip_source = "server-public-ip"
+
+        if client_ip:
+            client_ip_var.set(client_ip)
+            logger.debug(f"[CLIENT IP] {client_ip} (source: {ip_source})")
+
         # Extract session IDs from headers
         browser_session_id = request.headers.get("x-browser-session-id")
         mcp_session_id = request.headers.get("mcp-session-id")

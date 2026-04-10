@@ -13,6 +13,7 @@ from zendriver.core.config import Config
 from zendriver.core.connection import Connection
 
 from getgather.config import settings
+from getgather.request_info import client_ip_var
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
@@ -98,7 +99,7 @@ async def _call_chromefleet_api(
         "sec-ch-ua-mobile": mcp_headers.get("sec-ch-ua-mobile", None),
         "sec-ch-ua-platform": mcp_headers.get("sec-ch-ua-platform", None),
         "x-proxy-type": mcp_headers.get("x-proxy-type", None),
-        "x-origin-ip": mcp_headers.get("x-origin-ip", None),
+        "x-origin-ip": mcp_headers.get("x-origin-ip") or client_ip_var.get(),
         "x-origin-ua": mcp_headers.get("x-origin-ua", None),
     }
     headers = {k: v for k, v in headers.items() if v is not None}
