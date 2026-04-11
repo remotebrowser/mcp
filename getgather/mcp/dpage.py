@@ -177,6 +177,8 @@ async def dpage_check(id: str):
     remote_parts = id.split("--", 1) if is_remote else None
     browser: zd.Browser | None = None
 
+    browser: zd.Browser | None = None
+
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
@@ -196,6 +198,7 @@ async def dpage_check(id: str):
 
         page = _find_tab(browser, target_id)
         if page is None:
+            browser = None  # tab gone, re-fetch next tick
             continue
 
         try:
@@ -204,6 +207,7 @@ async def dpage_check(id: str):
                 return True
         except Exception as e:
             logger.warning(f"Remote probe failed for {id}: {e}")
+            browser = None  # reset on error, re-fetch next tick
 
     return None
 
