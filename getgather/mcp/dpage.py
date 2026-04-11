@@ -24,6 +24,7 @@ from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
     ElementConfig,
     Match,
+    Pattern,
     autoclick as zen_autoclick,
     capture_page_artifacts as zen_capture_page_artifacts,
     check_error,
@@ -116,10 +117,16 @@ async def _try_action_with_probe(
 
 
 async def _probe_page(
-    *, location: str | None = None, page: zd.Tab, browser: zd.Browser, timeout: int = 2
+    *,
+    location: str | None = None,
+    page: zd.Tab,
+    browser: zd.Browser,
+    timeout: int = 2,
+    patterns: list[Pattern] | None = None,
 ) -> bool:
-    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
-    patterns = load_distillation_patterns(path)
+    if patterns is None:
+        path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+        patterns = load_distillation_patterns(path)
     terminated, _, _ = await zen_run_distillation_loop(
         location=location,
         patterns=patterns,
@@ -178,6 +185,11 @@ async def dpage_check(id: str):
     browser: zd.Browser | None = None
 
     browser: zd.Browser | None = None
+    probe_patterns = None
+
+    if is_remote:
+        path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+        probe_patterns = load_distillation_patterns(path)
 
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
@@ -198,16 +210,18 @@ async def dpage_check(id: str):
 
         page = _find_tab(browser, target_id)
         if page is None:
-            browser = None  # tab gone, re-fetch next tick
+            browser = None
             continue
 
         try:
-            terminated = await _probe_page(page=page, browser=browser, timeout=2)
+            terminated = await _probe_page(
+                page=page, browser=browser, timeout=2, patterns=probe_patterns
+            )
             if terminated:
                 return True
         except Exception as e:
             logger.warning(f"Remote probe failed for {id}: {e}")
-            browser = None  # reset on error, re-fetch next tick
+            browser = None
 
     return None
 
