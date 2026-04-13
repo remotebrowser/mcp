@@ -183,8 +183,6 @@ async def dpage_check(id: str):
     is_remote = is_remote_browser(id)
     remote_parts = id.split("--", 1) if is_remote else None
     browser: zd.Browser | None = None
-
-    browser: zd.Browser | None = None
     probe_patterns = None
 
     if is_remote:
