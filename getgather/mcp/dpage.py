@@ -128,6 +128,7 @@ async def _probe_page(
         interactive=False,
         close_page=False,
         page=page,
+        report_error=False,
     )
     return terminated
 
