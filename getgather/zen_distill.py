@@ -1220,6 +1220,7 @@ async def run_distillation_loop(
     interactive: bool = True,
     close_page: bool = True,
     page: zd.Tab | None = None,
+    report_error: bool = True,
 ) -> tuple[bool, str, ConversionResult | None]:
     """Run the distillation loop with zendriver.
 
@@ -1290,14 +1291,15 @@ async def run_distillation_loop(
         else:
             logger.debug(f"No matched pattern found")
 
-    await zen_report_distill_error(
-        error=ValueError("No matched pattern found"),
-        page=page,
-        profile_id=browser.id,  # type: ignore[attr-defined]
-        location=location or "",
-        hostname=hostname,
-        iteration=max,
-    )
+    if report_error:
+        await zen_report_distill_error(
+            error=ValueError("No matched pattern found"),
+            page=page,
+            profile_id=browser.id,  # type: ignore[attr-defined]
+            location=location or "",
+            hostname=hostname,
+            iteration=max,
+        )
     if close_page:
         await safe_close_page(page)
     return (False, current.distilled, None)
