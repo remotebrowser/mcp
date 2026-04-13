@@ -84,9 +84,9 @@ def _signin_flow_response(dpage_id: str) -> dict[str, Any]:
     }
 
 
-def _target_domains_from_initial_url(initial_url: str) -> list[str]:
+def _target_domain_from_initial_url(initial_url: str) -> str:
     hostname = urllib.parse.urlparse(initial_url).hostname
-    return [hostname] if hostname else []
+    return hostname or ""
 
 
 async def _try_action_with_probe(
@@ -783,7 +783,7 @@ async def remote_zen_dpage_mcp_tool(
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
         browser = await create_remote_browser(
-            browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+            browser_id, target_domain=_target_domain_from_initial_url(initial_url)
         )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
@@ -794,7 +794,7 @@ async def remote_zen_dpage_mcp_tool(
         browser = await get_remote_browser(browser_id)
         if browser is None:
             browser = await create_remote_browser(
-                browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+                browser_id, target_domain=_target_domain_from_initial_url(initial_url)
             )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
@@ -877,7 +877,7 @@ async def remote_zen_dpage_with_action(
         prefix = "E"
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
         browser = await create_remote_browser(
-            browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+            browser_id, target_domain=_target_domain_from_initial_url(initial_url)
         )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
@@ -888,7 +888,7 @@ async def remote_zen_dpage_with_action(
         browser = await get_remote_browser(browser_id)
         if browser is None:
             browser = await create_remote_browser(
-                browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+                browser_id, target_domain=_target_domain_from_initial_url(initial_url)
             )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
