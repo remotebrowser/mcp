@@ -84,6 +84,11 @@ def _signin_flow_response(dpage_id: str) -> dict[str, Any]:
     }
 
 
+def _target_domains_from_initial_url(initial_url: str) -> list[str]:
+    hostname = urllib.parse.urlparse(initial_url).hostname
+    return [hostname] if hostname else []
+
+
 async def _try_action_with_probe(
     browser: zd.Browser,
     initial_url: str,
@@ -777,7 +782,9 @@ async def remote_zen_dpage_mcp_tool(
     elif incognito:
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
-        browser = await create_remote_browser(browser_id, initial_url=initial_url)
+        browser = await create_remote_browser(
+            browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+        )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
         logger.info(f"Start with an ephemeral browser {browser_id}")
@@ -786,7 +793,9 @@ async def remote_zen_dpage_mcp_tool(
         browser_id: str = user_id
         browser = await get_remote_browser(browser_id)
         if browser is None:
-            browser = await create_remote_browser(browser_id, initial_url=initial_url)
+            browser = await create_remote_browser(
+                browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+            )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
         logger.info(f"For user {user_id}: using browser {browser_id}")
@@ -867,7 +876,9 @@ async def remote_zen_dpage_with_action(
     elif incognito:
         prefix = "E"
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
-        browser = await create_remote_browser(browser_id, initial_url=initial_url)
+        browser = await create_remote_browser(
+            browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+        )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
         logger.info(f"Start with ephemeral remote browser {browser_id}")
@@ -876,7 +887,9 @@ async def remote_zen_dpage_with_action(
         browser_id = user_id
         browser = await get_remote_browser(browser_id)
         if browser is None:
-            browser = await create_remote_browser(browser_id, initial_url=initial_url)
+            browser = await create_remote_browser(
+                browser_id, target_domains=_target_domains_from_initial_url(initial_url)
+            )
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
         logger.info(f"For user {user_id}: using remote browser {browser_id}")
