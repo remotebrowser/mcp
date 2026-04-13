@@ -80,7 +80,6 @@ async def _call_chromefleet_api(
     method: HTTP_METHOD,
     browser_id: str,
     *,
-    initial_url: str | None = None,
     target_domains: list[str] | None = None,
     timeout: float = 120.0,
     retries: int = 3,
@@ -93,11 +92,7 @@ async def _call_chromefleet_api(
     url = f"{base_url}/api/v1/browsers/{browser_id}"
 
     mcp_headers = get_http_headers(include_all=True)
-    target_domains_header = (
-        ",".join(target_domains)
-        if target_domains is not None
-        else urlparse(initial_url).hostname if initial_url else None
-    )
+    target_domains_header = ",".join(target_domains) if target_domains is not None else None
     headers = {
         "x-forwarded-for": mcp_headers.get("x-forwarded-for", None),
         "user-agent": mcp_headers.get("user-agent", None),
@@ -158,8 +153,6 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
 
 async def create_remote_browser(
     browser_id: str,
-    *,
-    initial_url: str | None = None,
     target_domains: list[str] | None = None,
 ) -> zd.Browser:
     """
@@ -167,9 +160,7 @@ async def create_remote_browser(
     The browser_id must not already be in use.
     """
     logger.info(f"Starting new ChromeFleet browser: {browser_id}")
-    await _call_chromefleet_api(
-        "POST", browser_id, initial_url=initial_url, target_domains=target_domains
-    )
+    await _call_chromefleet_api("POST", browser_id, target_domains=target_domains)
     cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
