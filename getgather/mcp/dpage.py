@@ -175,6 +175,7 @@ async def dpage_check(id: str):
 
     is_remote = is_remote_browser(id)
     remote_parts = id.split("--", 1) if is_remote else None
+    browser: zd.Browser | None = None
 
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
@@ -188,7 +189,8 @@ async def dpage_check(id: str):
             continue
 
         browser_id, target_id = remote_parts
-        browser = await get_remote_browser(browser_id)
+        if browser is None:
+            browser = await get_remote_browser(browser_id)
         if browser is None:
             continue
 
