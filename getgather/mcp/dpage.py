@@ -198,6 +198,7 @@ async def dpage_check(id: str):
         try:
             terminated = await _probe_page(page=page, browser=browser, timeout=2)
             if terminated:
+                await safe_close_page(page)
                 return True
         except Exception as e:
             logger.warning(f"Remote probe failed for {id}: {e}")
