@@ -629,6 +629,9 @@ async def zen_dpage_mcp_tool(
     incognito = is_incognito_request(headers)
     signin_id = headers.get("x-signin-id") or None
 
+    if signin_id and is_remote_browser(signin_id):
+        return await remote_zen_dpage_mcp_tool(initial_url, result_key, timeout, config)
+
     if incognito:
         browser = await init_zendriver_browser(signin_id)
     else:
