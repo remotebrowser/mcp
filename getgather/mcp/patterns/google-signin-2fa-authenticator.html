@@ -1,0 +1,19 @@
+<html gg-domain="google" gg-priority="2">
+  <head>
+    <title>Google Activity</title>
+  </head>
+  <body>
+    <div
+      gg-match-html="//div[@class='dMNVAe' and contains(normalize-space(.), 'Google Authenticator')]"
+    ></div>
+    <input
+      autofocus
+      name="totpPin"
+      type="tel"
+      gg-match="input[name='totpPin']"
+      placeholder="Enter code"
+      aria-label="Enter code"
+    />
+    <button type="submit" gg-match="button[jsname='LgbsSe']:not([disabled])">Next</button>
+  </body>
+</html>
