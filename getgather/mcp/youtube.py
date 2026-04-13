@@ -186,6 +186,20 @@ async def _yt_extract(url: str, result_key: str, schema_file: str) -> dict[str, 
     return await remote_zen_dpage_with_action(url, action=action, timeout=YOUTUBE_TIMEOUT_SECONDS)
 
 
+def _extract_continuation_token(sections: list[dict[str, Any]]) -> str | None:
+    """Return the next-page token from the trailing continuationItemRenderer, if present."""
+    if not sections:
+        return None
+    last = sections[-1]
+    cont = last.get("continuationItemRenderer")
+    if not cont:
+        return None
+    return cast(
+        "str | None",
+        _resolve_json_path(cont, "continuationEndpoint.continuationCommand.token"),
+    )
+
+
 @youtube_mcp.tool
 async def get_liked_videos() -> dict[str, Any]:
     """Get liked videos from YouTube."""
@@ -197,12 +211,65 @@ async def get_liked_videos() -> dict[str, Any]:
 
 
 @youtube_mcp.tool
-async def get_watch_history() -> dict[str, Any]:
-    """Get watch history from YouTube."""
-    return await _yt_extract(
+async def get_watch_history(token: str | None = None) -> dict[str, Any]:
+    """Get watch history from YouTube.
+
+    Returns youtube_watch_history (list of videos) and next_page_token.
+    Pass next_page_token from a previous response to retrieve the next page.
+    """
+    schema = _load_schema("youtube-history-script.json")
+    token_json = json.dumps(token)  # safe interpolation into JS
+
+    async def action(page: zd.Tab, _: Any) -> dict[str, Any]:
+        if token:
+            raw = cast(
+                Any,
+                await page.evaluate(
+                    f"fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', {{"
+                    f"  method: 'POST',"
+                    f"  headers: {{'content-type': 'application/json'}},"
+                    f"  body: JSON.stringify({{"
+                    f"    context: {{client: {{clientName: 'WEB', clientVersion: '2.20260413.01.00'}}}},"
+                    f"    continuation: {token_json}"
+                    f"  }})"
+                    f"}}).then(r => r.json())",
+                    await_promise=True,
+                ),
+            )
+            sections = cast(
+                list[dict[str, Any]],
+                _resolve_json_path(
+                    raw,
+                    "onResponseReceivedActions.0.appendContinuationItemsAction.continuationItems",
+                )
+                or [],
+            )
+        else:
+            data = await _get_yt_initial_data(page)
+            if data is None:
+                logger.warning("ytInitialData not found on the page")
+                return {"youtube_watch_history": [], "next_page_token": None}
+            sections = cast(
+                list[dict[str, Any]],
+                _resolve_json_path(data, schema["sections"]) or [],
+            )
+
+        next_token = _extract_continuation_token(sections)
+        video_sections = sections[:-1] if next_token else sections
+
+        # convert_json expects data + a "sections" path; wrap the pre-resolved list
+        entries = _normalize_urls(
+            convert_json({"_s": video_sections}, {**schema, "sections": "_s"})
+        )
+        logger.info(
+            f"Extracted {len(entries)} items for youtube_watch_history (token={'yes' if token else 'no'})"
+        )
+        return {"youtube_watch_history": entries, "next_page_token": next_token}
+
+    return await remote_zen_dpage_with_action(
         "https://www.youtube.com/feed/history",
-        "youtube_watch_history",
-        "youtube-history-script.json",
+        action=action,
+        timeout=YOUTUBE_TIMEOUT_SECONDS,
     )
 
 
