@@ -830,6 +830,7 @@ async def remote_zen_dpage_mcp_tool(
         interactive=False,
         close_page=False,
         page=page,
+        report_error=signin_id is not None,
     )
     if terminated:
         await safe_close_page(page)
