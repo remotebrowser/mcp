@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, cast
+from urllib.parse import unquote
 
 import zendriver as zd
 from loguru import logger
@@ -22,7 +23,11 @@ def _resolve_json_path(obj: dict[str, Any] | list[Any] | None, path: str) -> Any
             lst = cast(list[Any], cur)
             if key.lstrip("-").isdigit():
                 idx = int(key)
-                cur = lst[idx] if abs(idx) <= len(lst) else None
+                cur = (
+                    lst[idx]
+                    if (idx >= 0 and idx < len(lst)) or (idx < 0 and abs(idx) <= len(lst))
+                    else None
+                )
             else:
                 return None
         elif isinstance(cur, dict):
@@ -186,6 +191,20 @@ async def _yt_extract(url: str, result_key: str, schema_file: str) -> dict[str, 
     return await remote_zen_dpage_with_action(url, action=action, timeout=YOUTUBE_TIMEOUT_SECONDS)
 
 
+def _extract_continuation_token(sections: list[dict[str, Any]]) -> str | None:
+    """Return the next-page token from the trailing continuationItemRenderer, if present."""
+    if not sections:
+        return None
+    last = sections[-1]
+    cont = last.get("continuationItemRenderer")
+    if not cont:
+        return None
+    return cast(
+        "str | None",
+        _resolve_json_path(cont, "continuationEndpoint.continuationCommand.token"),
+    )
+
+
 @youtube_mcp.tool
 async def get_liked_videos() -> dict[str, Any]:
     """Get liked videos from YouTube."""
@@ -197,12 +216,78 @@ async def get_liked_videos() -> dict[str, Any]:
 
 
 @youtube_mcp.tool
-async def get_watch_history() -> dict[str, Any]:
-    """Get watch history from YouTube."""
-    return await _yt_extract(
+async def get_watch_history(token: str | None = None) -> dict[str, Any]:
+    """Get watch history from YouTube.
+
+    Returns youtube_watch_history (list of videos) and next_page_token.
+    Pass next_page_token from a previous response to retrieve the next page.
+    """
+    schema = _load_schema("youtube-history-script.json")
+    # Tokens extracted from ytInitialData are URL-encoded (%3D → =); decode before sending
+    token_json = json.dumps(unquote(token) if token else token)
+
+    async def action(page: zd.Tab, _: Any) -> dict[str, Any]:
+        if token:
+            raw = cast(
+                Any,
+                await page.evaluate(
+                    "(async () => {"
+                    "  const sapisid = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('SAPISID='))?.split('=')[1];"
+                    "  const ts = Math.floor(Date.now() / 1000);"
+                    "  const msg = new TextEncoder().encode(`${ts} ${sapisid} https://www.youtube.com`);"
+                    "  const hash = await crypto.subtle.digest('SHA-1', msg);"
+                    "  const hashHex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');"
+                    "  const auth = `SAPISIDHASH ${ts}_${hashHex}`;"
+                    "  return fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', {"
+                    "    method: 'POST',"
+                    "    headers: {"
+                    "      'content-type': 'application/json',"
+                    "      'x-youtube-client-name': '1',"
+                    "      'x-youtube-client-version': '2.20260413.01.00',"
+                    "      'authorization': auth,"
+                    "      'x-origin': 'https://www.youtube.com',"
+                    "    },"
+                    f"    body: JSON.stringify({{context: {{client: {{clientName: 'WEB', clientVersion: '2.20260413.01.00'}}}}, continuation: {token_json}}})"
+                    "  }).then(r => r.json());"
+                    "})()",
+                    await_promise=True,
+                ),
+            )
+            raw_dict: dict[str, Any] = raw if isinstance(raw, dict) else {}  # type: ignore[assignment]
+            sections = cast(
+                list[dict[str, Any]],
+                _resolve_json_path(
+                    raw_dict,
+                    "onResponseReceivedActions.0.appendContinuationItemsAction.continuationItems",
+                )
+                or [],
+            )
+        else:
+            data = await _get_yt_initial_data(page)
+            if data is None:
+                logger.warning("ytInitialData not found on the page")
+                return {"youtube_watch_history": [], "next_page_token": None}
+            sections = cast(
+                list[dict[str, Any]],
+                _resolve_json_path(data, schema["sections"]) or [],
+            )
+
+        next_token = _extract_continuation_token(sections)
+        video_sections = sections[:-1] if next_token else sections
+
+        # convert_json expects data + a "sections" path; wrap the pre-resolved list
+        entries = _normalize_urls(
+            convert_json({"_s": video_sections}, {**schema, "sections": "_s"})
+        )
+        logger.info(
+            f"Extracted {len(entries)} items for youtube_watch_history (token={'yes' if token else 'no'})"
+        )
+        return {"youtube_watch_history": entries, "next_page_token": next_token}
+
+    return await remote_zen_dpage_with_action(
         "https://www.youtube.com/feed/history",
-        "youtube_watch_history",
-        "youtube-history-script.json",
+        action=action,
+        timeout=YOUTUBE_TIMEOUT_SECONDS,
     )
 
 
