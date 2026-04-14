@@ -179,6 +179,10 @@ def render_form(content: str, title: str = DEFAULT_TITLE, action: str = "") -> s
     }}
 
       @media (max-width: 640px) {{
+        body {{
+          padding: 0;
+        }}
+
         .card {{
           padding: 1.5rem;
           max-width: 100%;
