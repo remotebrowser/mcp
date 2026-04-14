@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, cast
+from urllib.parse import unquote
 
 import zendriver as zd
 from loguru import logger
@@ -22,7 +23,11 @@ def _resolve_json_path(obj: dict[str, Any] | list[Any] | None, path: str) -> Any
             lst = cast(list[Any], cur)
             if key.lstrip("-").isdigit():
                 idx = int(key)
-                cur = lst[idx] if abs(idx) <= len(lst) else None
+                cur = (
+                    lst[idx]
+                    if (idx >= 0 and idx < len(lst)) or (idx < 0 and abs(idx) <= len(lst))
+                    else None
+                )
             else:
                 return None
         elif isinstance(cur, dict):
@@ -218,28 +223,41 @@ async def get_watch_history(token: str | None = None) -> dict[str, Any]:
     Pass next_page_token from a previous response to retrieve the next page.
     """
     schema = _load_schema("youtube-history-script.json")
-    token_json = json.dumps(token)  # safe interpolation into JS
+    # Tokens extracted from ytInitialData are URL-encoded (%3D → =); decode before sending
+    token_json = json.dumps(unquote(token) if token else token)
 
     async def action(page: zd.Tab, _: Any) -> dict[str, Any]:
         if token:
             raw = cast(
                 Any,
                 await page.evaluate(
-                    f"fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', {{"
-                    f"  method: 'POST',"
-                    f"  headers: {{'content-type': 'application/json'}},"
-                    f"  body: JSON.stringify({{"
-                    f"    context: {{client: {{clientName: 'WEB', clientVersion: '2.20260413.01.00'}}}},"
-                    f"    continuation: {token_json}"
-                    f"  }})"
-                    f"}}).then(r => r.json())",
+                    "(async () => {"
+                    "  const sapisid = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('SAPISID='))?.split('=')[1];"
+                    "  const ts = Math.floor(Date.now() / 1000);"
+                    "  const msg = new TextEncoder().encode(`${ts} ${sapisid} https://www.youtube.com`);"
+                    "  const hash = await crypto.subtle.digest('SHA-1', msg);"
+                    "  const hashHex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');"
+                    "  const auth = `SAPISIDHASH ${ts}_${hashHex}`;"
+                    "  return fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', {"
+                    "    method: 'POST',"
+                    "    headers: {"
+                    "      'content-type': 'application/json',"
+                    "      'x-youtube-client-name': '1',"
+                    "      'x-youtube-client-version': '2.20260413.01.00',"
+                    "      'authorization': auth,"
+                    "      'x-origin': 'https://www.youtube.com',"
+                    "    },"
+                    f"    body: JSON.stringify({{context: {{client: {{clientName: 'WEB', clientVersion: '2.20260413.01.00'}}}}, continuation: {token_json}}})"
+                    "  }).then(r => r.json());"
+                    "})()",
                     await_promise=True,
                 ),
             )
+            raw_dict: dict[str, Any] = raw if isinstance(raw, dict) else {}  # type: ignore[assignment]
             sections = cast(
                 list[dict[str, Any]],
                 _resolve_json_path(
-                    raw,
+                    raw_dict,
                     "onResponseReceivedActions.0.appendContinuationItemsAction.continuationItems",
                 )
                 or [],
