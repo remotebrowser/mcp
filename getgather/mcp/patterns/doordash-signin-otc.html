@@ -3,6 +3,15 @@
     <title>Doordash Sign In Code</title>
   </head>
   <body>
+    <!-- dpage splices only this <body> into html_renderer; <head> is omitted, so pattern CSS must live here. -->
+    <style>
+      @media (max-width: 768px) {
+        #doordash-otc input {
+          padding-left: 0;
+          padding-right: 0;
+        }
+      }
+    </style>
     <p id="message" gg-optional gg-match="form#otc-submit-form span:nth-child(2)" />
     <div
       id="doordash-otc"
