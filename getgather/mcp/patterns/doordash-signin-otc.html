@@ -4,100 +4,145 @@
   </head>
   <body>
     <p id="message" gg-optional gg-match="form#otc-submit-form span:nth-child(2)" />
-    <div
-      id="doordash-otc"
-      style="
-        width: 100%;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        display: grid;
-        gap: 10px;
-      "
-    >
+    <div id="doordash-otc" class="doordash-otc-grid">
       <input
         autofocus
         name="otc-1"
         type="text"
-        style="width: 100%; box-sizing: border-box; text-align: center"
         inputmode="numeric"
         pattern="[0-9]"
         maxlength="1"
+        autocomplete="one-time-code"
         gg-match="form#otc-submit-form input[type=number][aria-label='0']"
-        value="0"
       />
       <input
         name="otc-2"
         type="text"
-        style="width: 100%; box-sizing: border-box; text-align: center"
         inputmode="numeric"
         pattern="[0-9]"
         maxlength="1"
         gg-match="form#otc-submit-form input[type=number][aria-label='1']"
-        value="0"
       />
       <input
         name="otc-3"
         type="text"
-        style="width: 100%; box-sizing: border-box; text-align: center"
         inputmode="numeric"
         pattern="[0-9]"
         maxlength="1"
         gg-match="form#otc-submit-form input[type=number][aria-label='2']"
-        value="0"
       />
       <input
         name="otc-4"
         type="text"
-        style="width: 100%; box-sizing: border-box; text-align: center"
         inputmode="numeric"
         pattern="[0-9]"
         maxlength="1"
         gg-match="form#otc-submit-form input[type=number][aria-label='3']"
-        value="0"
       />
       <input
         name="otc-5"
         type="text"
-        style="width: 100%; box-sizing: border-box; text-align: center"
         inputmode="numeric"
         pattern="[0-9]"
         maxlength="1"
         gg-match="form#otc-submit-form input[type=number][aria-label='4']"
-        value="0"
       />
       <input
         name="otc-6"
         type="text"
-        style="width: 100%; box-sizing: border-box; text-align: center"
         inputmode="numeric"
         pattern="[0-9]"
         maxlength="1"
         gg-match="form#otc-submit-form input[type=number][aria-label='5']"
-        value="0"
       />
     </div>
+    <style>
+      .doordash-otc-grid {
+        width: 100%;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        justify-content: stretch;
+      }
+
+      #doordash-otc input[type="text"] {
+        box-sizing: border-box;
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+        min-height: 48px;
+        padding: 0 4px;
+        text-align: center;
+        font-size: 1.25rem;
+        line-height: 1.2;
+      }
+
+      @media (max-width: 400px) {
+        .doordash-otc-grid {
+          gap: 4px;
+        }
+
+        #doordash-otc input[type="text"] {
+          padding: 0 2px;
+          font-size: 1.125rem;
+        }
+      }
+    </style>
     <script>
       const box = document.getElementById("doordash-otc");
       const inputs = [...box.querySelectorAll("input")];
 
-      box.addEventListener("focusin", (e) => {
-        if (e.target.tagName !== "INPUT") return;
-        setTimeout(() => e.target.select(), 0);
+      const distributeDigitsFromIndex = (startIndex, rawDigits) => {
+        let idx = startIndex;
+        for (const d of rawDigits) {
+          if (idx >= inputs.length) break;
+          inputs[idx].value = d;
+          idx += 1;
+        }
+        const nextFocus = Math.min(idx, inputs.length - 1);
+        inputs[nextFocus].focus();
+      };
+
+      box.addEventListener("beforeinput", (e) => {
+        if (e.inputType !== "deleteContentBackward") return;
+        const el = e.target;
+        if (el.tagName !== "INPUT") return;
+        const i = inputs.indexOf(el);
+        if (i <= 0) return;
+        if (el.value === "") {
+          e.preventDefault();
+          inputs[i - 1].focus();
+        }
       });
 
       box.addEventListener("input", (e) => {
         const i = inputs.indexOf(e.target);
         if (i < 0) return;
-        e.target.value = e.target.value.replace(/\D/g, "").slice(-1);
-        if (e.target.value && inputs[i + 1]) inputs[i + 1].focus();
+        const raw = e.target.value.replace(/\D/g, "");
+        if (raw.length <= 1) {
+          e.target.value = raw.slice(-1);
+          if (e.target.value && inputs[i + 1]) inputs[i + 1].focus();
+          return;
+        }
+        distributeDigitsFromIndex(i, raw.split(""));
       });
 
       box.addEventListener("keydown", (e) => {
         const i = inputs.indexOf(e.target);
         if (i < 0) return;
-
         if (e.key === "Backspace" && !e.target.value && inputs[i - 1]) {
           inputs[i - 1].focus();
         }
+      });
+
+      inputs.forEach((input, index) => {
+        input.addEventListener("paste", (e) => {
+          e.preventDefault();
+          const pasted = e.clipboardData.getData("text").trim();
+          const digits = pasted.replace(/\D/g, "").split("");
+          if (digits.length === 0) return;
+          distributeDigitsFromIndex(index, digits);
+        });
       });
     </script>
     <p
