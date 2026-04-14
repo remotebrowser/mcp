@@ -136,7 +136,7 @@ async def _call_chromefleet_api(
 
 
 async def get_remote_browser(browser_id: str) -> zd.Browser | None:
-    logger.info(f"Finding the ChromeFleet browser: {browser_id}")
+    logger.debug(f"Finding the ChromeFleet browser: {browser_id}")
     try:
         await _call_chromefleet_api("GET", browser_id)
     except Exception:
