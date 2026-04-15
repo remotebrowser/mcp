@@ -789,6 +789,7 @@ async def remote_zen_dpage_mcp_tool(
 
     browser = None
     page = None
+    should_report_error = True
 
     if signin_id:
         browser_id, _ = signin_id.split("--")
@@ -799,6 +800,7 @@ async def remote_zen_dpage_mcp_tool(
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
     elif incognito:
+        should_report_error = False
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
         browser = await create_remote_browser(
@@ -830,6 +832,7 @@ async def remote_zen_dpage_mcp_tool(
         interactive=False,
         close_page=False,
         page=page,
+        report_error=should_report_error,  # don't report error if we are hit this tool for the first time (for signin)
     )
     if terminated:
         await safe_close_page(page)
