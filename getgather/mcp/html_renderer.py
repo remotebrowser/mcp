@@ -3,13 +3,16 @@
 DEFAULT_TITLE = "Sign In"
 
 
-def render_form(content: str, title: str = DEFAULT_TITLE, action: str = "") -> str:
+def render_form(
+    content: str, title: str = DEFAULT_TITLE, action: str = "", error_code: str | None = None
+) -> str:
     """Render HTML form with the given content and options."""
     return f"""<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="error-message" content="{error_code if error_code else ""}" />
     <title>{title}</title>
     <style>
       :root {{
