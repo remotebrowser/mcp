@@ -21,7 +21,6 @@ from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
-from getgather.browser.proxy import setup_proxy
 from getgather.browser.resource_blocker import (
     blocked_domains,
     images_allowed_for_request_url,
@@ -29,7 +28,6 @@ from getgather.browser.resource_blocker import (
     should_be_blocked,
 )
 from getgather.config import FRIENDLY_CHARS, settings
-from getgather.request_info import request_info
 
 
 @dataclass
@@ -440,10 +438,6 @@ async def zen_navigate_with_retry(page: zd.Tab, url: str, wait_for_ready: bool =
     raise last_error or Exception(f"Failed to navigate to {url}")
 
 
-def is_local_browser(browser: zd.Browser) -> bool:
-    return browser.config.host is None or browser.config.host in ("127.0.0.1", "localhost")
-
-
 async def get_new_page(browser: zd.Browser) -> zd.Tab:
     page = await browser.get("about:blank", new_tab=True)
 
@@ -520,18 +514,6 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             source=_CREDENTIALS_BLOCK_SCRIPT, run_immediately=True
         )
     )
-
-    if is_local_browser(browser):
-        id = cast(str, browser.id)  # type: ignore[attr-defined]
-        proxy = await setup_proxy(id, request_info.get())
-        proxy_username = None
-        proxy_password = None
-        if proxy:
-            proxy_username = proxy["username"]
-            proxy_password = proxy["password"]
-            if proxy_username or proxy_password:
-                logger.debug("Setting up proxy authentication...")
-                await install_proxy_handler(proxy_username or "", proxy_password or "", page)
 
     return page
 
