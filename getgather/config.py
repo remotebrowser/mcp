@@ -25,9 +25,6 @@ class Settings(AuthSettings, BaseSettings):
     SENTRY_DSN: str = ""
     LOGFIRE_TOKEN: str = ""
 
-    # Max session age, in minutes
-    BROWSER_SESSION_AGE: int = 60
-
     @property
     def data_dir(self) -> Path:
         path = Path(self.DATA_DIR).resolve() if self.DATA_DIR else PROJECT_DIR / "data"
