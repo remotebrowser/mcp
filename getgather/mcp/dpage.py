@@ -53,10 +53,6 @@ DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
 
-def is_remote_browser(dpage_id: str) -> bool:
-    return "--" in dpage_id
-
-
 def _find_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
     """Find a browser tab by its target ID."""
     for tab in browser.tabs:
@@ -155,8 +151,7 @@ async def dpage_check(id: str):
     TIMEOUT = 120  # seconds
     max = TIMEOUT // TICK
 
-    is_remote = is_remote_browser(id)
-    remote_parts = id.split("--", 1) if is_remote else None
+    remote_parts = id.split("--", 1)
     browser: zd.Browser | None = None
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     probe_patterns = load_distillation_patterns(path)
@@ -168,9 +163,6 @@ async def dpage_check(id: str):
         if id in completed_signins:
             completed_signins.discard(id)
             return True
-
-        if not is_remote or remote_parts is None:
-            continue
 
         browser_id, target_id = remote_parts
         if browser is None:
@@ -197,11 +189,10 @@ async def dpage_check(id: str):
 
 
 async def dpage_finalize(id: str):
-    if is_remote_browser(id):
-        browser_id, _ = id.split("--")
-        if browser := await get_remote_browser(browser_id):
-            await terminate_remote_browser(browser)
-            return True
+    browser_id, _ = id.split("--")
+    if browser := await get_remote_browser(browser_id):
+        await terminate_remote_browser(browser)
+        return True
 
     raise ValueError(f"Browser profile for signin {id} not found in incognito browser profiles")
 
@@ -237,10 +228,7 @@ def redirect(id: str) -> HTMLResponse:
 @router.get("/{id}", response_class=HTMLResponse)
 async def get_dpage(id: str | None = None) -> HTMLResponse:
     if id:
-        if id in active_pages:
-            return redirect(id)
-        elif is_remote_browser(id):
-            return redirect(id)
+        return redirect(id)
 
     raise HTTPException(status_code=400, detail="Missing page id")
 
@@ -255,15 +243,14 @@ async def post_dpage(id: str, request: Request) -> HTMLResponse:
     if id in active_pages:
         page = active_pages[id]
 
-    if is_remote_browser(id):
-        browser_id, page_id = id.split("--")
-        browser = await get_remote_browser(browser_id)
-        if browser is None:
-            raise HTTPException(status_code=404, detail="Remote browser not found")
-        for tab in browser.tabs:
-            if tab.target_id == page_id:
-                page = tab
-                break
+    browser_id, page_id = id.split("--")
+    browser = await get_remote_browser(browser_id)
+    if browser is None:
+        raise HTTPException(status_code=404, detail="Remote browser not found")
+    for tab in browser.tabs:
+        if tab.target_id == page_id:
+            page = tab
+            break
 
     if page is None:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -370,9 +357,6 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                 )
                 options["error_code"] = error
 
-            if not is_remote_browser(id):
-                completed_signins.add(id)
-                await dpage_close(id)
             return HTMLResponse(render(FINISHED_MSG, options))
 
         names: list[str] = []
@@ -683,7 +667,7 @@ async def remote_zen_dpage_with_action(
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
-    if signin_id and is_remote_browser(signin_id):
+    if signin_id:
         probe_browser = await get_remote_browser(signin_id.split("--")[0])
     elif not incognito:
         probe_browser = await get_remote_browser(str(get_auth_user().user_id))
@@ -694,7 +678,7 @@ async def remote_zen_dpage_with_action(
 
     # Create interactive sign-in flow (client retries tool after check_signin)
     page = None
-    if signin_id and is_remote_browser(signin_id):
+    if signin_id:
         browser_id, page_id = signin_id.split("--")
         dpage_id = signin_id
         browser = await get_remote_browser(browser_id)
