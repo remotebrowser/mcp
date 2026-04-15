@@ -248,9 +248,9 @@ def render(content: str, options: dict[str, str] | None = None) -> str:
 
     title = options.get("title", DEFAULT_TITLE)
     action = options.get("action", "")
-    error_message = options.get("error_message", None)
+    error_code = options.get("error_code", None)
 
-    return render_form(content, title, action, error_message)
+    return render_form(content, title, action, error_code)
 
 
 # Since the browser can't redirect from GET to POST,
@@ -376,7 +376,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         if not match:
             logger.info("No matched pattern found")
             continue
-
+        
         distilled = match.distilled
         document = BeautifulSoup(distilled, "html.parser")
 
@@ -404,9 +404,9 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             error = await get_error(distilled)
             if error is not None:
                 logger.info(
-                    "Distillation reported page error pattern; sign-in still marked complete for polling."
+                    f"Distillation reported page error pattern; sign-in still marked complete for polling. Pattern name: {match.name}"
                 )
-                options["error_message"] = error
+                options["error_code"] = error
 
             if not is_remote_browser(id):
                 completed_signins.add(id)
