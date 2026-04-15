@@ -1,0 +1,16 @@
+name: Setup Google Cloud
+description: Authenticate with Google Cloud and install the gcloud SDK.
+inputs:
+  credentials_json:
+    description: Service account JSON key with required permissions.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ inputs.credentials_json }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v3
