@@ -3,7 +3,9 @@
 DEFAULT_TITLE = "Sign In"
 
 
-def render_form(content: str, title: str = DEFAULT_TITLE, action: str = "") -> str:
+def render_form(
+    content: str, title: str = DEFAULT_TITLE, action: str = "", error_message: str | None = None
+) -> str:
     """Render HTML form with the given content and options."""
     return f"""<!doctype html>
 <html lang="en">
@@ -256,6 +258,9 @@ def render_form(content: str, title: str = DEFAULT_TITLE, action: str = "") -> s
       <form method="POST" action="{action}">
         <div class="content-wrapper">
           {content}
+        </div>
+        <div class="error-message">
+          {error_message}
         </div>
       </form>
     </div>

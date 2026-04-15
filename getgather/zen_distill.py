@@ -211,13 +211,15 @@ async def terminate(distilled: str) -> bool:
     return False
 
 
-async def check_error(distilled: str) -> bool:
+async def get_error(distilled: str) -> str | None:
     document = BeautifulSoup(distilled, "html.parser")
-    errors = document.find_all(attrs={"gg-error": True})
-    if len(errors) > 0:
-        logger.info("Found error elements...")
-        return True
-    return False
+    error_element = document.find(attrs={"gg-error": True})
+    if error_element and isinstance(error_element, Tag):
+        error_value = error_element.get("gg-error")
+        logger.info(f"Found error element: {error_value}")
+        if isinstance(error_value, str):
+            return error_value
+    return None
 
 
 def load_distillation_patterns(path: str) -> list[Pattern]:
