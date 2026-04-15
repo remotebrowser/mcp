@@ -19,7 +19,6 @@ from getgather.browser.chromefleet import (
     terminate_remote_browser,
 )
 from getgather.config import settings
-from getgather.mcp.browser import browser_manager, terminate_zendriver_browser
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
     ElementConfig,
@@ -144,34 +143,6 @@ async def _probe_page(
     return terminated
 
 
-async def dpage_add(
-    page: zd.Tab,
-    location: str,
-    profile_id: str | None = None,
-    config: ElementConfig | None = None,
-):
-    id = generate(FRIENDLY_CHARS, 8)
-
-    try:
-        if not location.startswith("http"):
-            location = f"https://{location}"
-        await zen_navigate_with_retry(page, location)
-    except Exception as error:
-        hostname = urllib.parse.urlparse(location).hostname or "unknown"
-        await zen_report_distill_error(
-            error=error,
-            page=page,
-            profile_id=profile_id or "unknown",
-            location=location,
-            hostname=hostname,
-            iteration=0,
-        )
-    active_pages[id] = page
-    if config:
-        page.element_config = config  # type: ignore[attr-defined]
-    return id
-
-
 async def dpage_close(id: str) -> None:
     if id in active_pages:
         page = active_pages[id]
@@ -226,11 +197,6 @@ async def dpage_check(id: str):
 
 
 async def dpage_finalize(id: str):
-    if browser := browser_manager.get_incognito_browser(id):
-        await terminate_zendriver_browser(browser)
-        browser_manager.remove_incognito_browser(id)
-        return True
-
     if is_remote_browser(id):
         browser_id, _ = id.split("--")
         if browser := await get_remote_browser(browser_id):
@@ -332,9 +298,6 @@ def is_incognito_request(headers: dict[str, str]) -> bool:
 
 
 async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLResponse:
-    if not is_remote_browser(id):
-        browser_manager.update_last_active(id)
-
     form_data = await request.form()
     fields: dict[str, str] = {k: str(v) for k, v in form_data.items()}
 
