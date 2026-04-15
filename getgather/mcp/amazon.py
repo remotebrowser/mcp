@@ -10,7 +10,6 @@ from loguru import logger
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
-    zen_dpage_mcp_tool,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_distill import (
@@ -567,15 +566,6 @@ async def signin() -> dict[str, Any]:
 @amazon_mcp.tool
 async def get_watch_history() -> dict[str, Any]:
     """Get video watch history from Amazon."""
-    return await zen_dpage_mcp_tool(
-        "https://www.amazon.com/gp/video/settings/watch-history",
-        "amazon_watch_history",
-    )
-
-
-@amazon_mcp.tool
-async def remote_get_watch_history() -> dict[str, Any]:
-    """Get video watch history from Amazon."""
     return await remote_zen_dpage_mcp_tool(
         "https://www.amazon.com/gp/video/settings/watch-history",
         "amazon_watch_history",
@@ -585,15 +575,6 @@ async def remote_get_watch_history() -> dict[str, Any]:
 @amazon_mcp.tool
 async def get_watchlist() -> dict[str, Any]:
     """Get Prime Video watchlist from Amazon."""
-    return await zen_dpage_mcp_tool(
-        "https://www.amazon.com/gp/video/mystuff/watchlist",
-        "amazon_prime_watchlist",
-    )
-
-
-@amazon_mcp.tool
-async def remote_get_watchlist() -> dict[str, Any]:
-    """Get Prime Video watchlist from Amazon."""
     return await remote_zen_dpage_mcp_tool(
         "https://www.amazon.com/gp/video/mystuff/watchlist",
         "amazon_prime_watchlist",
@@ -602,15 +583,6 @@ async def remote_get_watchlist() -> dict[str, Any]:
 
 @amazon_mcp.tool
 async def get_prime_library() -> dict[str, Any]:
-    """Get Prime Video purchases and rentals library from Amazon."""
-    return await zen_dpage_mcp_tool(
-        "https://www.amazon.com/gp/video/mystuff/library",
-        "amazon_prime_library",
-    )
-
-
-@amazon_mcp.tool
-async def remote_get_prime_library() -> dict[str, Any]:
     """Get Prime Video purchases and rentals library from Amazon."""
     return await remote_zen_dpage_mcp_tool(
         "https://www.amazon.com/gp/video/mystuff/library",

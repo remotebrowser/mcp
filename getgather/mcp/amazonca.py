@@ -10,7 +10,6 @@ from loguru import logger
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
-    zen_dpage_mcp_tool,
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.zen_distill import (
@@ -556,15 +555,6 @@ async def get_purchase_history_with_details(
 @amazonca_mcp.tool
 async def get_watch_history() -> dict[str, Any]:
     """Get video watch history from Amazon Canada Prime Video."""
-    return await zen_dpage_mcp_tool(
-        "https://www.primevideo.com/region/na/settings/watch-history/ref=atv_set_watch-history",
-        "amazon_ca_watch_history",
-    )
-
-
-@amazonca_mcp.tool
-async def remote_get_watch_history() -> dict[str, Any]:
-    """Get video watch history from Amazon Canada Prime Video."""
     return await remote_zen_dpage_mcp_tool(
         "https://www.primevideo.com/region/na/settings/watch-history/ref=atv_set_watch-history",
         "amazon_ca_watch_history",
@@ -574,15 +564,6 @@ async def remote_get_watch_history() -> dict[str, Any]:
 @amazonca_mcp.tool
 async def get_watchlist() -> dict[str, Any]:
     """Get Prime Video watchlist from Amazon Canada."""
-    return await zen_dpage_mcp_tool(
-        "https://www.primevideo.com/region/na/mystuff/watchlist",
-        "amazon_ca_prime_watchlist",
-    )
-
-
-@amazonca_mcp.tool
-async def remote_get_watchlist() -> dict[str, Any]:
-    """Get Prime Video watchlist from Amazon Canada."""
     return await remote_zen_dpage_mcp_tool(
         "https://www.primevideo.com/region/na/mystuff/watchlist",
         "amazon_ca_prime_watchlist",
@@ -591,15 +572,6 @@ async def remote_get_watchlist() -> dict[str, Any]:
 
 @amazonca_mcp.tool
 async def get_prime_library() -> dict[str, Any]:
-    """Get Prime Video purchases and rentals library from Amazon Canada."""
-    return await zen_dpage_mcp_tool(
-        "https://www.primevideo.com/region/na/mystuff/library",
-        "amazon_ca_prime_library",
-    )
-
-
-@amazonca_mcp.tool
-async def remote_get_prime_library() -> dict[str, Any]:
     """Get Prime Video purchases and rentals library from Amazon Canada."""
     return await remote_zen_dpage_mcp_tool(
         "https://www.primevideo.com/region/na/mystuff/library",
