@@ -376,7 +376,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         if not match:
             logger.info("No matched pattern found")
             continue
-        
+
         distilled = match.distilled
         document = BeautifulSoup(distilled, "html.parser")
 
