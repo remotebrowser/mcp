@@ -1,10 +1,8 @@
 from pathlib import Path
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from getgather.auth.settings import AuthSettings
-from getgather.browser.proxy_types import ProxyConfig
 
 FRIENDLY_CHARS = "23456789abcdefghijkmnpqrstuvwxyz"
 
@@ -21,16 +19,11 @@ class Settings(AuthSettings, BaseSettings):
     DATA_DIR: str = ""
 
     CHROMEFLEET_URL: str = ""
-    CHROMEFLEET_PROXY_URL: str = ""
 
     # Logging
     LOG_LEVEL: str = "INFO"
     SENTRY_DSN: str = ""
     LOGFIRE_TOKEN: str = ""
-
-    # Default Proxy Type (optional - e.g., "proxy-0", "proxy-1")
-    # If not set, no proxy will be used unless specified via x-proxy-type header
-    DEFAULT_PROXY_TYPE: str = ""
 
     # Max session age, in minutes
     BROWSER_SESSION_AGE: int = 60
@@ -52,32 +45,6 @@ class Settings(AuthSettings, BaseSettings):
         path = self.data_dir / "profiles"
         path.mkdir(parents=True, exist_ok=True)
         return path
-
-    @property
-    def proxy_configs(self) -> dict[str, ProxyConfig]:
-        """Load proxy configurations from YAML file or environment variable (cached).
-
-        Returns:
-            dict: Mapping of proxy identifiers (e.g., 'proxy-0') to ProxyConfig objects
-        """
-        from getgather.browser.proxy_loader import load_proxy_configs
-
-        return load_proxy_configs()
-
-    @field_validator("CHROMEFLEET_PROXY_URL")
-    @classmethod
-    def validate_proxy_url_format(cls, v: str) -> str:
-        """Ensure proxy URL doesn't include http:// or https:// prefix."""
-        if not v:  # Allow empty string
-            return v
-
-        if v.startswith(("http://", "https://")):
-            raise ValueError(
-                "CHROMEFLEET_PROXY_URL should not include http:// or https:// prefix. "
-                f"Expected format: [username:password@]host:port, got: {v}"
-            )
-
-        return v
 
 
 settings = Settings()
