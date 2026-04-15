@@ -27,8 +27,8 @@ from getgather.zen_distill import (
     Pattern,
     autoclick as zen_autoclick,
     capture_page_artifacts as zen_capture_page_artifacts,
-    check_error,
     distill as zen_distill,
+    get_error,
     get_new_page,
     get_selector,
     init_zendriver_browser,
@@ -248,8 +248,9 @@ def render(content: str, options: dict[str, str] | None = None) -> str:
 
     title = options.get("title", DEFAULT_TITLE)
     action = options.get("action", "")
+    error_code = options.get("error_code", None)
 
-    return render_form(content, title, action)
+    return render_form(content, title, action, error_code)
 
 
 # Since the browser can't redirect from GET to POST,
@@ -400,11 +401,12 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         if await terminate(distilled):
             logger.info("Finished!")
 
-            error = await check_error(distilled)
-            if error:
+            error = await get_error(distilled)
+            if error is not None:
                 logger.info(
-                    "Distillation reported page error pattern; sign-in still marked complete for polling."
+                    f"Distillation reported page error pattern; sign-in still marked complete for polling. Pattern name: {match.name}"
                 )
+                options["error_code"] = error
 
             if not is_remote_browser(id):
                 completed_signins.add(id)
