@@ -251,20 +251,10 @@ async def mcp_logging_context_middleware(
 ):
     """Set logging context with session IDs for MCP requests."""
     if request.url.path.startswith("/mcp"):
-        # Resolve client IP: explicit header > Fly.io > reverse proxy > TCP
-        # If local/private, fall back to server's public IP (same machine = same public IP).
         origin_ip = request.headers.get("x-origin-ip")
-        fly_client_ip = request.headers.get("fly-client-ip")
-        forwarded_for = request.headers.get("x-forwarded-for")
         if origin_ip:
             client_ip = origin_ip
             ip_source = "x-origin-ip"
-        elif fly_client_ip:
-            client_ip = fly_client_ip
-            ip_source = "fly-client-ip"
-        elif forwarded_for:
-            client_ip = forwarded_for.split(",")[0].strip()
-            ip_source = "x-forwarded-for"
         elif request.client:
             client_ip = request.client.host
             ip_source = "tcp"
