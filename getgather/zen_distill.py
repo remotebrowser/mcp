@@ -349,30 +349,6 @@ async def zen_report_distill_error(
             sentry_sdk.capture_exception(error)
 
 
-async def install_proxy_handler(username: str, password: str, page: zd.Tab):
-    """Install proxy authentication handler for the page.
-
-    Note: This only handles authentication challenges. Request continuation
-    is handled by the resource blocker in get_new_page().
-    """
-
-    async def auth_challenge_handler(event: zd.cdp.fetch.AuthRequired):
-        logger.debug("Supplying proxy authentication...")
-        await page.send(
-            zd.cdp.fetch.continue_with_auth(
-                request_id=event.request_id,
-                auth_challenge_response=zd.cdp.fetch.AuthChallengeResponse(
-                    response="ProvideCredentials",
-                    username=username,
-                    password=password,
-                ),
-            )
-        )
-
-    page.add_handler(zd.cdp.fetch.AuthRequired, auth_challenge_handler)  # type: ignore[arg-type]
-    await page.send(zd.cdp.fetch.enable(handle_auth_requests=True))
-
-
 async def zen_navigate_with_retry(page: zd.Tab, url: str, wait_for_ready: bool = True) -> zd.Tab:
     """Navigate to URL with retry logic for resilient navigation.
 
