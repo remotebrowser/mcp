@@ -21,12 +21,6 @@ from nanoid import generate
 from zendriver.core.connection import ProtocolException
 
 from getgather.browser.chromefleet import create_remote_browser, terminate_remote_browser
-from getgather.browser.resource_blocker import (
-    blocked_domains,
-    images_allowed_for_request_url,
-    load_blocklists,
-    should_be_blocked,
-)
 from getgather.config import FRIENDLY_CHARS, settings
 
 
@@ -441,28 +435,17 @@ async def zen_navigate_with_retry(page: zd.Tab, url: str, wait_for_ready: bool =
 async def get_new_page(browser: zd.Browser) -> zd.Tab:
     page = await browser.get("about:blank", new_tab=True)
 
-    if blocked_domains is None:
-        await load_blocklists()
-
     async def handle_request(event: zd.cdp.fetch.RequestPaused) -> None:
         resource_type = event.resource_type
         request_url = event.request.url
-        images_allowed = images_allowed_for_request_url(request_url)
 
-        if resource_type == zd.cdp.network.ResourceType.IMAGE:
-            logger.debug(
-                f"Image request check: page_url={page.url!r}, request_url={request_url!r}, "
-                f"images_allowed={images_allowed}"
-            )
-
-        deny_type = resource_type in [
+        deny = resource_type in [
+            zd.cdp.network.ResourceType.IMAGE,
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and not images_allowed)
-        deny_url = await should_be_blocked(request_url)
-        should_deny = deny_type or deny_url
+        ]
 
-        if not should_deny:
+        if not deny:
             try:
                 await page.send(zd.cdp.fetch.continue_request(request_id=event.request_id))
             except (ProtocolException, websockets.ConnectionClosedError) as e:
@@ -480,8 +463,7 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
                     raise
             return
 
-        kind = "URL" if deny_url else "resource"
-        logger.trace(f" DENY {kind}: {request_url}")
+        logger.trace(f" DENY resource: {request_url}")
 
         try:
             await page.send(
