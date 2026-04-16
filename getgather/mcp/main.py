@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass
 from functools import cache, cached_property
 from typing import Any, Literal, cast
@@ -95,27 +94,9 @@ class LocationProxyMiddleware(Middleware):
         if browser_session_id:
             log_context["browser_session_id"] = browser_session_id
 
-        # Initialize request_info data
-        info_data: dict[str, str | None] = {}
-
-        # Handle x-location header (contains city, state, country, postal_code)
-        location = headers.get("x-location", None)
-        if location is not None:
-            try:
-                location_data: dict[str, str | None] = json.loads(location)
-                info_data.update(location_data)
-            except json.JSONDecodeError:
-                with logger.contextualize(**log_context):
-                    logger.warning(f"Failed to parse x-location header as JSON, {location}")
-
-        # Handle x-proxy-type header (e.g., "proxy-0", "proxy-1", etc.)
         proxy_type = headers.get("x-proxy-type", None)
         if proxy_type is not None:
-            info_data["proxy_type"] = proxy_type
-
-        # Set request_info if we have any data
-        if info_data:
-            request_info.set(RequestInfo(**info_data))  # type: ignore[arg-type]
+            request_info.set(RequestInfo(proxy_type=proxy_type))
 
         tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)  # type: ignore
 
