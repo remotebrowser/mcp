@@ -44,9 +44,6 @@ from getgather.zen_distill import (
 router = APIRouter(prefix="/dpage", tags=["dpage"])
 
 
-active_pages: dict[str, zd.Tab] = {}
-completed_signins: set[str] = set()
-
 # Max seconds for the distillation polling loop in zen_post_dpage (per HTTP request).
 DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
 
@@ -139,13 +136,6 @@ async def _probe_page(
     return terminated
 
 
-async def dpage_close(id: str) -> None:
-    if id in active_pages:
-        page = active_pages[id]
-        await safe_close_page(page)
-        del active_pages[id]
-
-
 async def dpage_check(id: str):
     TICK = 1  # seconds
     TIMEOUT = 120  # seconds
@@ -159,10 +149,6 @@ async def dpage_check(id: str):
     for iteration in range(max):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
-
-        if id in completed_signins:
-            completed_signins.discard(id)
-            return True
 
         browser_id, target_id = remote_parts
         if browser is None:
@@ -239,9 +225,6 @@ FINISHED_MSG = "Finished! You can close this window now."
 @router.post("/{id}", response_class=HTMLResponse)
 async def post_dpage(id: str, request: Request) -> HTMLResponse:
     page: zd.Tab | None = None
-
-    if id in active_pages:
-        page = active_pages[id]
 
     browser_id, page_id = id.split("--")
     browser = await get_remote_browser(browser_id)
