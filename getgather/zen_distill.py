@@ -1038,6 +1038,7 @@ async def distill(
 
             if optional:
                 logger.debug(f"Optional {selector} has no match")
+                target.extract()
                 continue
             found = False
 
