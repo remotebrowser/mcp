@@ -99,6 +99,7 @@ async def _call_chromefleet_api(
         "sec-ch-ua-mobile": mcp_headers.get("sec-ch-ua-mobile", None),
         "sec-ch-ua-platform": mcp_headers.get("sec-ch-ua-platform", None),
         "x-proxy-type": mcp_headers.get("x-proxy-type", None),
+        "x-proxy-username": mcp_headers.get("x-proxy-username", None),
         "x-origin-ip": mcp_headers.get("x-origin-ip", None),
         "x-origin-ua": mcp_headers.get("x-origin-ua", None),
         "x-target-domains": target_domain,
