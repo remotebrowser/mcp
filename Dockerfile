@@ -31,7 +31,6 @@ RUN uv sync --no-dev --no-install-workspace
 # Now copy the actual source code
 COPY getgather /app/getgather
 COPY tests /app/tests
-COPY entrypoint.sh /app/entrypoint.sh
 
 # Install the workspace package
 RUN uv sync --no-dev
@@ -59,10 +58,10 @@ WORKDIR /app
 COPY --from=builder /app/.venv /opt/venv
 COPY --from=builder /app/getgather /app/getgather
 COPY --from=builder /app/tests /app/tests
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
+    USER=getgather \
     PATH="/opt/venv/bin:$PATH"
 
 ARG PORT=23456
@@ -79,4 +78,4 @@ RUN useradd -m -s /bin/bash getgather && \
 
 USER getgather
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["sh", "-c", "exec python -m uvicorn getgather.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'"]
