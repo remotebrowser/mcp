@@ -1,5 +1,9 @@
 An MCP server for extracting personal data from many services: Amazon order history, Garmin activity stats, Zillow favorites, and more.
 
+It works with [Claude Code](https://claude.ai/code), [LM Studio](https://lmstudio.ai), [Gemini CLI](https://google-gemini.github.io/gemini-cli), and many more.
+
+![Screenshot of Claude Code using Remote Browser MCP](claude-code-remotebrowser-mcp.png)
+
 ### Quickstart
 
 Run [Chrome Fleet](https://github.com/remotebrowser/chromefleet), note its service address (e.g. `http://192.168.1.2:8300`), set it as `CHROMEFLEET_URL`, then start this MCP server:
