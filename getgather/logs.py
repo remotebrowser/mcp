@@ -1,53 +1,27 @@
 import logging
 from typing import TYPE_CHECKING
 
-import logfire
 import sentry_sdk
 import yaml
-from fastapi import FastAPI
+from fastapi import Request
 from loguru import logger
 from rich.logging import RichHandler
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 if TYPE_CHECKING:
     from loguru import HandlerConfig, Record
 
 from getgather.config import settings
-
-
-def instrument_fastapi(app: FastAPI):
-    if not settings.LOGFIRE_TOKEN:
-        return
-    logfire.instrument_fastapi(app, capture_headers=True, excluded_urls="/health")
+from getgather.tracing import logfire_loguru_handler, setup_logfire, setup_mcp_tracing
 
 
 def setup_logging():
-    _setup_logfire()
+    setup_logfire()
     _setup_logger()
     _setup_sentry()
-
-
-def _setup_logfire():
-    if not settings.LOGFIRE_TOKEN:
-        logger.warning("Logfire is disabled, no LOGFIRE_TOKEN provided")
-        return
-
-    logger.info("Initializing Logfire")
-    logfire.configure(
-        service_name="mcp-getgather",
-        send_to_logfire="if-token-present",
-        token=settings.LOGFIRE_TOKEN,
-        environment=settings.ENVIRONMENT,
-        code_source=logfire.CodeSource(
-            repository="https://github.com/remotebrowser/mcp-getgather", revision="main"
-        ),
-        distributed_tracing=True,
-        console=False,
-        scrubbing=False,
-    )
-    logfire.instrument_httpx()
 
 
 def _setup_logger():
@@ -74,9 +48,8 @@ def _setup_logger():
         }
     ]
 
-    if settings.LOGFIRE_TOKEN:
-        logfire_handler = logfire.loguru_handler()
-        logfire_handler["level"] = settings.LOG_LEVEL  # Match the log level with other handlers
+    logfire_handler = logfire_loguru_handler()
+    if logfire_handler is not None:
         handlers.append(logfire_handler)
 
     logger.configure(handlers=handlers)
@@ -120,3 +93,24 @@ def _setup_sentry():
         ],
         send_default_pii=True,
     )
+
+
+class MCPLoggingContextMiddleware:
+    """Raw ASGI middleware that attaches per-request MCP identifiers to loguru's
+    contextvars so downstream logs carry `mcp_session_id`."""
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not scope.get("path", "").startswith("/mcp"):
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive)
+        mcp_session_id = setup_mcp_tracing(request)
+
+        context: dict[str, str] = {"mcp_session_id": mcp_session_id}
+        with logger.contextualize(**context):
+            logger.info(f"[MIDDLEWARE] Processing MCP request to {scope['path']}")
+            await self.app(scope, receive, send)

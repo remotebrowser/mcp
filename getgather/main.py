@@ -1,9 +1,8 @@
 import ast
 import asyncio
-import json
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Final
+from typing import Awaitable, Callable, Final
 
 from fastapi import FastAPI, Request
 from fastapi.responses import (
@@ -16,9 +15,10 @@ from loguru import logger
 
 from getgather.auth.auth import setup_mcp_auth
 from getgather.config import settings
-from getgather.logs import instrument_fastapi
+from getgather.logs import MCPLoggingContextMiddleware
 from getgather.mcp.dpage import remote_zen_dpage_mcp_tool, router as dpage_router
 from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
+from getgather.tracing import MCPSessionTraceMiddleware, instrument_fastapi
 
 # Create MCP apps once and reuse for lifespan and mounting
 mcp_apps = create_mcp_apps()
@@ -62,6 +62,7 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
 )
+app.add_middleware(MCPLoggingContextMiddleware)
 instrument_fastapi(app)
 
 
@@ -91,59 +92,10 @@ async def extended_health():
 
 
 @app.middleware("http")
-async def mcp_logging_context_middleware(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-):
-    """Set logging context with session IDs for MCP requests."""
-    if request.url.path.startswith("/mcp"):
-        # Extract session IDs from headers
-        browser_session_id = request.headers.get("x-browser-session-id")
-        mcp_session_id = request.headers.get("mcp-session-id")
-
-        # Build context dict
-        context = {}
-        if browser_session_id:
-            context["browser_session_id"] = browser_session_id
-            request.state.browser_session_id = browser_session_id
-        if mcp_session_id:
-            context["mcp_session_id"] = mcp_session_id
-            request.state.mcp_session_id = mcp_session_id
-
-        # Try to extract signin_id from request body if POST
-        if request.method == "POST":
-            try:
-                body = await request.body()
-                if body:
-                    body_json: Any = json.loads(body.decode("utf-8"))
-                    if isinstance(body_json, dict):
-                        params: Any = body_json.get("params", {})  # type: ignore[misc]
-                        if isinstance(params, dict):  # type: ignore[arg-type]
-                            signin_id: Any = params.get("signin_id")  # type: ignore[misc]
-                            if signin_id:  # type: ignore[arg-type]
-                                context["signin_id"] = signin_id
-            except Exception:
-                pass
-
-        # Use contextualize to set context for all logs in this request
-        with logger.contextualize(**context):
-            logger.info(f"[MIDDLEWARE] Processing MCP request to {request.url.path}")
-            response = await call_next(request)
-
-            # Extract mcp-session-id from response if not in request
-            if not mcp_session_id and "mcp-session-id" in response.headers:
-                with logger.contextualize(mcp_session_id=response.headers["mcp-session-id"]):
-                    logger.debug("Added mcp_session_id from response")
-
-            return response
-
-    return await call_next(request)
-
-
-@app.middleware("http")
 async def mcp_slash_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ):
-    """Make /mcp* and /mcp*/ behave the same without actual redirect."""
+    # Make /mcp* and /mcp*/ behave the same without an actual redirect.
     path = request.url.path
     if path.startswith("/mcp") and not path.endswith("/"):
         request.scope["path"] = f"{path}/"
@@ -176,3 +128,9 @@ def homepage():
 <body><iframe src="{settings.CHROMEFLEET_URL}"></iframe></body>
 </html>"""
     return HTMLResponse(content=html)
+
+
+# Wrap the entire instrumented app so mcp-session-id handling runs BEFORE
+# OTel's FastAPI instrumentation. This reparents request spans under the
+# per-session trace; caller's distributed trace is preserved as a span link.
+app = MCPSessionTraceMiddleware(app)  # type: ignore[assignment]
