@@ -98,13 +98,12 @@ async def get_browsing_history() -> dict[str, Any]:
 
         logger.info(f"Navigating to {current_url}")
 
-        await page.send(zd.cdp.page.reload())
-        logger.info("Page reloaded, waiting for browsing-history API response")
-
         browsing_history_api_url = None
         request_headers = None
         async with page.expect_response(".*browsing-history/.*") as response:
             logger.info("Waiting for browsing-history API response")
+            await page.send(zd.cdp.page.reload())
+            logger.info("Page reloaded, waiting for browsing-history API response")
             response_value = await response.value
             browsing_history_api_url = response_value.response.url
             logger.info(f"Found browsing history API URL: {browsing_history_api_url}")
