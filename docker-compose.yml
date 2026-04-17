@@ -1,9 +1,0 @@
-services:
-  mcp-getgather:
-    image: ghcr.io/mcp-getgather/mcp-getgather:latest
-    container_name: mcp-getgather
-    ports:
-      - 23456:23456  # mcp-getgather server port
-    volumes:
-      - /etc/localtime:/etc/localtime:ro  # use local timezone on MacOS
-      - /etc/timezone:/etc/timezone:ro  # use local timezone on Linux

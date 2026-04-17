@@ -1,101 +1,102 @@
-# Get Gather
+An MCP server for extracting personal data from many services: Amazon order history, Garmin activity stats, Zillow favorites, and more.
 
-GetGather is a containerized service that allows MCP clients to interact with your data and act on your behalf.
+### Quickstart
 
-## Quickstart
-
-### 0. Prerequisite
-
-Install [Docker](https://www.docker.com/products/docker-desktop/).
-
-### 1. Start the container
-
-#### 1.A: Use docker-compose
-
-Download the [docker-compose.yml](https://github.com/mcp-getgather/mcp-getgather/blob/main/docker-compose.yml) file and run
+Run [Chrome Fleet](https://github.com/remotebrowser/chromefleet), note its service address (e.g. `http://192.168.1.2:8300`), set it as `CHROMEFLEET_URL`, then start this MCP server:
 
 ```bash
-docker-compose up
+export CHROMEFLEET_URL=http://192.168.1.1:8300
+docker run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp-getgather
 ```
 
-#### 1.B: Use docker run directly
+Alternative ways to run it:
 
-Run the container with Docker or Podman:
+<details>
+<summary>Docker Compose</summary>
+
+```yaml
+services:
+  remotebrowser-mcp:
+    image: ghcr.io/remotebrowser/mcp-getgather
+    ports:
+      - "23456:23456"
+    environment:
+      - CHROMEFLEET_URL
+    restart: unless-stopped
+```
+
+</details>
+
+<details>
+<summary>Inline podman</summary>
 
 ```bash
-docker run  -v /etc/localtime:/etc/localtime:ro -p 23456:23456 ghcr.io/mcp-getgather/mcp-getgather
+export CHROMEFLEET_URL=http://192.168.1.1:8300
+podman run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp-getgather
 ```
 
-On MacOS `-v /etc/localtime:/etc/localtime:ro` is needed for the service to use your local timezone,
-and on Linux it's `-v /etc/timezone:/etc/timezone:ro` instead.
-On windows, the timezone has to be set directly as `-e TZ=America/Los_Angeles`.
+</details>
 
-Optionally, with `--env-file` if you have an env file.
+<details>
+<summary>Run with Python</summary>
+
+You'll need [uv](https://docs.astral.sh/uv) with [Python](https://python.org) >= 3.11. After cloning this repo:
 
 ```bash
-docker run --env-file ~/getgather.env -p 23456:23456 ghcr.io/mcp-getgather/mcp-getgather
+uv run -m uvicorn getgather.main:app --port 23456
 ```
 
-### 2. Connect to MCP clients
+</details>
 
-For VS Code, Cursor, and other MCP clients which support remote MCP servers:
+### Connect to MCP clients
 
-```json
+**Standard config** works with most tools:
+
+```js
 {
   "mcpServers": {
-    "getgather": {
+    "remotebrowser-mcp": {
       "url": "http://127.0.0.1:23456/mcp"
     }
   }
 }
 ```
 
-For Claude Desktop:
+<details>
+<summary>Claude Code</summary>
 
-```json
-{
-  "mcpServers": {
-    "getgather": {
-      "command": "npx",
-      "args": ["mcp-remote", "http://127.0.0.1:23456/mcp", "--allow-http"]
-    }
-  }
-}
-```
-
-For Codex CLI, use a [`~/.codex/config.toml`](https://github.com/openai/codex/blob/main/docs/config.md#mcp_servers) file:
-
-```toml
-[mcp_servers.getgather]
-command = "npx"
-args = ["mcp-remote", "http://127.0.0.1:23456/mcp", "--allow-http"]
-```
-
-#### (Optional) Enable url opener tool
-
-Choose one of the following options if you'd like the MCP clients to automatically open the authentication link in a browser.
-
-1. Add [playwright-mcp](https://github.com/microsoft/playwright-mcp/) server.
-2. In Claude Desktop, enable "Control Chrome" in "Settings" -> "Extensions".
-
-### 3. Read more
-
-To live stream the container desktop, go to `http://localhost:23456/live`.
-
-Development documentation is located in the [docs](./docs) directory:
-
-- [Local Development Setup](./docs/local-development.md)
-- [Deploying on Dokku](./docs/deploy_dokku.md)
-- [Deploying on Fly.io](./docs/deploy_fly.md)
-- [Deploying on Railway](./docs/deploy_railway.md)
-
-Access AI-enhanced documentation for this repository at [deepwiki.com/mcp-getgather/mcp-getgather](https://deepwiki.com/mcp-getgather/mcp-getgather).
-
-## Build and run locally
-
-After cloning the repo:
+Use the Claude Code CLI to add the MCP server:
 
 ```bash
-docker build -t mcp-getgather .
-docker run -p 23456:23456 mcp-getgather
+claude mcp add --transport http remotebrowser-mcp http://localhost:23456/mcp
 ```
+
+</details>
+
+<details>
+<summary>Claude Desktop</summary>
+
+Follow the MCP install [guide](https://modelcontextprotocol.io/quickstart/user), use the standard config above.
+
+</details>
+
+<details>
+<summary>Gemini CLI</summary>
+
+Follow the MCP install [guide](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md#configure-the-mcp-server-in-settingsjson), use the standard config above.
+
+</details>
+
+<details>
+<summary>LM Studio</summary>
+
+Go to `Program` in the right sidebar -> `Install` -> `Edit mcp.json`. Use the standard config above.
+
+</details>
+
+<details>
+<summary>VS Code</summary>
+
+Follow the MCP install [guide](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server), use the standard config above.
+
+</details>
