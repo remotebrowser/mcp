@@ -47,13 +47,23 @@ def _extract_column(row: dict[str, Any], col: dict[str, Any]) -> str:
         if isinstance(value, str) and "fallback_strip_prefix" in col:
             value = value.removeprefix(col["fallback_strip_prefix"])
 
-    if isinstance(value, list) and "join" in col:
-        join_key = cast(str, col["join"])
-        value = "".join(
-            cast(dict[str, Any], item).get(join_key, "")
-            for item in cast(list[Any], value)
-            if isinstance(item, dict)
-        )
+    if isinstance(value, list) and ("join" in col or "join_path" in col):
+        join_key = cast(str | None, col.get("join"))
+        join_path = cast(str | None, col.get("join_path"))
+        join_separator = cast(str, col.get("join_separator", ""))
+        parts: list[str] = []
+        for item in cast(list[Any], value):
+            if not isinstance(item, dict):
+                continue
+            item_dict = cast(dict[str, Any], item)
+            part = (
+                _resolve_json_path(item_dict, join_path)
+                if join_path
+                else item_dict.get(join_key or "", "")
+            )
+            if part:
+                parts.append(str(part))
+        value = join_separator.join(parts)
 
     if value and "prefix" in col:
         value = col["prefix"] + str(cast(Any, value))
@@ -211,7 +221,7 @@ async def get_liked_videos() -> dict[str, Any]:
     return await _yt_extract(
         "https://www.youtube.com/playlist?list=LL",
         "youtube_liked_videos",
-        "youtube-playlist-videos-script.json",
+        "youtube-liked-videos-script.json",
     )
 
 
