@@ -1,0 +1,38 @@
+{
+  "rows": "contents.twoColumnBrowseResultsRenderer.tabs.0.tabRenderer.content.sectionListRenderer.contents.0.itemSectionRenderer.contents",
+  "row_key": "lockupViewModel",
+  "columns": [
+    {
+      "name": "title",
+      "path": "metadata.lockupMetadataViewModel.title.content"
+    },
+    {
+      "name": "url",
+      "path": "contentId",
+      "prefix": "/watch?v="
+    },
+    {
+      "name": "thumbnail",
+      "path": "contentImage.thumbnailViewModel.image.sources.0.url"
+    },
+    {
+      "name": "channel",
+      "path": "metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows.0.metadataParts.0.text.content"
+    },
+    {
+      "name": "channel_url",
+      "path": "metadata.lockupMetadataViewModel.image.decoratedAvatarViewModel.rendererContext.commandContext.onTap.innertubeCommand.browseEndpoint.canonicalBaseUrl",
+      "fallback_path": "metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows.0.metadataParts.0.text.commandRuns.0.onTap.innertubeCommand.commandMetadata.webCommandMetadata.url"
+    },
+    {
+      "name": "views_and_date",
+      "path": "metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows.1.metadataParts",
+      "join_path": "text.content",
+      "join_separator": " | "
+    },
+    {
+      "name": "duration",
+      "path": "contentImage.thumbnailViewModel.overlays.0.thumbnailBottomOverlayViewModel.badges.0.thumbnailBadgeViewModel.text"
+    }
+  ]
+}
