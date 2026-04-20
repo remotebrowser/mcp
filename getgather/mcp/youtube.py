@@ -149,7 +149,7 @@ def convert_json(data: dict[str, Any], schema: dict[str, Any]) -> list[dict[str,
 
 
 YOUTUBE_BASE = "https://www.youtube.com"
-YOUTUBE_TIMEOUT_SECONDS = 15
+YOUTUBE_TIMEOUT_SECONDS = 2
 PATTERNS_DIR = os.path.join(os.path.dirname(__file__), "patterns")
 
 
