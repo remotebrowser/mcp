@@ -66,7 +66,7 @@ def setup_logfire() -> None:
         token=settings.LOGFIRE_TOKEN,
         environment=settings.ENVIRONMENT,
         code_source=logfire.CodeSource(
-            repository="https://github.com/remotebrowser/mcp-getgather", revision="main"
+            repository="https://github.com/remotebrowser/mcp", revision="main"
         ),
         distributed_tracing=True,
         console=False,

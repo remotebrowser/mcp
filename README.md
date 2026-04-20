@@ -10,7 +10,7 @@ Run [Chrome Fleet](https://github.com/remotebrowser/chromefleet), note its servi
 
 ```bash
 export CHROMEFLEET_URL=http://192.168.1.1:8300
-docker run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp-getgather
+docker run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp
 ```
 
 Alternative ways to run it:
@@ -21,7 +21,7 @@ Alternative ways to run it:
 ```yaml
 services:
   remotebrowser-mcp:
-    image: ghcr.io/remotebrowser/mcp-getgather
+    image: ghcr.io/remotebrowser/mcp
     ports:
       - "23456:23456"
     environment:
@@ -36,7 +36,7 @@ services:
 
 ```bash
 export CHROMEFLEET_URL=http://192.168.1.1:8300
-podman run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp-getgather
+podman run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp
 ```
 
 </details>
