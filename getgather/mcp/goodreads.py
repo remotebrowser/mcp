@@ -3,6 +3,7 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
+from getgather.browser import page_query_selector
 from getgather.mcp.app_ui_html_renderer import book_list_content_template, render_app_ui_html
 from getgather.mcp.dpage import (
     get_base_url,
@@ -11,7 +12,6 @@ from getgather.mcp.dpage import (
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ResourceCSP, ToolUI
-from getgather.zen_distill import page_query_selector
 
 GOODREADS_UI_URI = "ui://list/data?brand=goodreads"
 

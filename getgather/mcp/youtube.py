@@ -6,9 +6,9 @@ from urllib.parse import unquote
 import zendriver as zd
 from loguru import logger
 
+from getgather.browser import get_url
 from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
-from getgather.zen_distill import get_url
 
 youtube_mcp = GatherMCP(brand_id="youtube", name="YouTube MCP")
 

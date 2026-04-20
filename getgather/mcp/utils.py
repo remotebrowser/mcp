@@ -44,7 +44,7 @@ async def retry_with_navigation(
     Raises:
         The last exception if re_raise_on_max_retries is True and max retries reached
     """
-    from getgather.zen_distill import zen_navigate_with_retry
+    from getgather.browser import zen_navigate_with_retry
 
     for attempt in range(1, max_retries + 1):
         logger.info(f"{operation_name} attempt {attempt}/{max_retries}")
