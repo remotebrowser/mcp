@@ -13,31 +13,31 @@ from loguru import logger
 from nanoid import generate
 
 from getgather.auth.auth import get_auth_user
-from getgather.browser.chromefleet import (
+from getgather.browser import (
+    ElementConfig,
     create_remote_browser,
+    get_new_page,
     get_remote_browser,
+    page_batch_actions,
+    page_query_selector,
+    safe_close_page,
     terminate_remote_browser,
+    wait_for_ready_state,
+    zen_navigate_with_retry,
 )
 from getgather.config import settings
 from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
-    ElementConfig,
     Match,
     Pattern,
     autoclick as zen_autoclick,
     capture_page_artifacts as zen_capture_page_artifacts,
     distill as zen_distill,
     get_error,
-    get_new_page,
     get_selector,
     load_distillation_patterns,
-    page_batch_actions,
-    page_query_selector,
     run_distillation_loop as zen_run_distillation_loop,
-    safe_close_page,
     terminate,
-    wait_for_ready_state,
-    zen_navigate_with_retry,
     zen_report_distill_error,
 )
 
