@@ -644,9 +644,13 @@ async def remote_zen_dpage_with_action(
     config: ElementConfig | None = None,
 ) -> dict[str, Any]:
     """Execute an action after signin completion with remote Zendriver."""
+    path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
+    patterns = load_distillation_patterns(path)
+
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
     incognito = is_incognito_request(headers)
+    should_report_error = not incognito
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
@@ -696,6 +700,22 @@ async def remote_zen_dpage_with_action(
         logger.info(f"For user {user_id}: using remote browser {browser_id}")
 
     await zen_navigate_with_retry(page, initial_url)
+
+    terminated, _, _ = await zen_run_distillation_loop(
+        location=initial_url,
+        patterns=patterns,
+        browser=browser,
+        timeout=timeout,
+        interactive=False,
+        close_page=False,
+        page=page,
+        report_error=should_report_error,
+    )
+    if terminated:
+        result = await action(page, browser)
+        await safe_close_page(page)
+        return result
+
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
     response = _signin_flow_response(dpage_id)
