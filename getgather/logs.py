@@ -14,8 +14,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 if TYPE_CHECKING:
     from loguru import HandlerConfig, Record
 
+from getgather.client_ip import client_ip_var, resolve_client_ip
 from getgather.config import settings
-from getgather.request_info import client_ip_var, resolve_client_ip
 from getgather.tracing import logfire_loguru_handler, setup_logfire, setup_mcp_tracing
 
 
@@ -98,8 +98,7 @@ def _setup_sentry():
 
 class MCPLoggingContextMiddleware:
     """Raw ASGI middleware that attaches per-request MCP identifiers to loguru's
-    contextvars so downstream logs carry `mcp_session_id`, and stashes the resolved
-    client IP on `client_ip_var` for the ChromeFleet HTTP client to forward."""
+    contextvars so downstream logs carry `mcp_session_id`, and populates `client_ip_var`."""
 
     def __init__(self, app: ASGIApp):
         self.app = app

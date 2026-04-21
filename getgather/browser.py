@@ -18,8 +18,8 @@ from zendriver.core._contradict import ContraDict
 from zendriver.core.config import Config
 from zendriver.core.connection import Connection, ProtocolException
 
+from getgather.client_ip import client_ip_var
 from getgather.config import settings
-from getgather.request_info import client_ip_var
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
