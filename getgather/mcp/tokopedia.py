@@ -270,7 +270,7 @@ async def get_wishlist(page_number: int = 1) -> dict[str, Any]:
 
         return {"wishlist": results}
 
-    return await remote_zen_dpage_with_action("https://www.tokopedia.com", action)
+    return await remote_zen_dpage_with_action("https://www.tokopedia.com/wishlist/all", action)
 
 
 @tokopedia_mcp.tool
