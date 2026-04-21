@@ -4,13 +4,12 @@ from typing import Any, cast
 import zendriver as zd
 from loguru import logger
 
-from getgather.browser import zen_navigate_with_retry
+from getgather.browser import retry_with_navigation, zen_navigate_with_retry
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
 
 doordash_mcp = GatherMCP(brand_id="doordash", name="Doordash MCP")
 

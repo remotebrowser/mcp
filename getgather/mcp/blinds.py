@@ -4,13 +4,12 @@ from typing import Any, cast
 import zendriver as zd
 from loguru import logger
 
-from getgather.browser import ElementConfig, zen_navigate_with_retry
+from getgather.browser import ElementConfig, retry_with_navigation, zen_navigate_with_retry
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
 
 blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
