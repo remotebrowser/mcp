@@ -2,7 +2,7 @@ name: Deploy to Dokku
 
 on:
   push:
-    branches: [local-amazon]
+    branches: [local-amazon-deployer]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
