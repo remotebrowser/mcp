@@ -3,10 +3,9 @@ from typing import Any
 import zendriver as zd
 from loguru import logger
 
-from getgather.browser import page_query_selector, zen_navigate_with_retry
+from getgather.browser import page_query_selector, retry_with_navigation, zen_navigate_with_retry
 from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
 
 nordstrom_mcp = GatherMCP(brand_id="nordstrom", name="Nordstrom MCP")

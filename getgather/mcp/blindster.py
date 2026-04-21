@@ -5,13 +5,13 @@ import httpx
 import zendriver as zd
 from zendriver.core.connection import ProtocolException
 
+from getgather.browser import retry_with_navigation
 from getgather.logs import logger
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
 from getgather.mcp.registry import GatherMCP
-from getgather.mcp.utils import retry_with_navigation
 from getgather.zen_actions import parse_response_json
 
 blindster_mcp = GatherMCP(brand_id="blindster", name="Blindster MCP")

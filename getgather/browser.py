@@ -1,8 +1,9 @@
 import asyncio
 import json
 import random
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import Literal, TypeVar, cast
 from urllib.parse import urlparse
 
 import asyncio_atexit
@@ -776,6 +777,58 @@ async def page_batch_extract(
     except Exception as error:
         logger.debug(f"Batch extract failed: {error}")
     return None
+
+
+T = TypeVar("T")
+
+
+async def retry_with_navigation(
+    tab: zd.Tab,
+    operation: Callable[[], Awaitable[T]],
+    navigation_url: str | None = None,
+    max_retries: int = 3,
+    timeout_seconds: float | None = None,
+    exceptions: tuple[type[Exception], ...] = (Exception,),
+    default_on_max_retries: T | None = None,
+    re_raise_on_max_retries: bool = False,
+    operation_name: str = "operation",
+) -> T:
+    for attempt in range(1, max_retries + 1):
+        logger.info(f"{operation_name} attempt {attempt}/{max_retries}")
+
+        try:
+            if navigation_url:
+                await zen_navigate_with_retry(tab, navigation_url, wait_for_ready=False)
+
+            if timeout_seconds is not None:
+                result = await asyncio.wait_for(operation(), timeout=timeout_seconds)
+            else:
+                result = await operation()
+
+            logger.info(f"Successfully completed {operation_name}.")
+            return result
+
+        except exceptions as e:
+            error_type = type(e).__name__
+            logger.warning(
+                f"{operation_name} attempt {attempt}/{max_retries} failed with {error_type}: {e}"
+            )
+
+            if attempt == max_retries:
+                logger.error(f"Max retries reached for {operation_name}.")
+                if re_raise_on_max_retries:
+                    raise
+                if default_on_max_retries is not None:
+                    return default_on_max_retries
+                raise ValueError(
+                    f"Max retries reached for {operation_name} and no default value or re-raise specified"
+                )
+
+            logger.info(f"Retrying {operation_name}...")
+
+    if default_on_max_retries is not None:
+        return default_on_max_retries
+    raise RuntimeError(f"Unexpected end of retry loop for {operation_name}")
 
 
 async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dict[str, bool] | None:
