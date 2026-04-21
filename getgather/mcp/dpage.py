@@ -701,7 +701,7 @@ async def remote_zen_dpage_with_action(
 
     await zen_navigate_with_retry(page, initial_url)
 
-    terminated = await zen_run_distillation_loop(
+    terminated, _, _ = await zen_run_distillation_loop(
         location=initial_url,
         patterns=patterns,
         browser=browser,
