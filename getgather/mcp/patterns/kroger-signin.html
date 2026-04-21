@@ -1,0 +1,26 @@
+<html gg-domain="kroger">
+  <head>
+    <title>Kroger Sign In</title>
+  </head>
+
+  <body>
+    <p gg-optional gg-match="div#claimVerificationServerError[aria-hidden='false']"></p>
+
+    <input
+      autofocus
+      name="email"
+      type="email"
+      placeholder="Email"
+      gg-match="form#attributeVerification input#signInName"
+    />
+    <input
+      name="password"
+      type="password"
+      placeholder="Password"
+      gg-match="form#attributeVerification input#password"
+    />
+    <button type="submit" gg-match="form#attributeVerification button#continue:not([disabled])">
+      Sign in
+    </button>
+  </body>
+</html>

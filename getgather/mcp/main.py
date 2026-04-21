@@ -23,6 +23,7 @@ from getgather.mcp import (
     doordash,
     garmin,
     goodreads,
+    kroger,
     nordstrom,
     shopee,
     tokopedia,
@@ -46,6 +47,7 @@ _brand_modules = (
     tokopedia,
     wayfair,
     youtube,
+    kroger,
 )
 
 from getgather.auth.auth import get_auth_user
@@ -154,7 +156,7 @@ class LocationProxyMiddleware(Middleware):
 MCP_BUNDLES: dict[str, list[str]] = {
     "media": ["bbc", "cnn", "espn", "groundnews", "npr", "nytimes"],
     "books": ["goodreads"],
-    "shopping": ["amazon", "amazonca", "shopee", "wayfair"],
+    "shopping": ["amazon", "amazonca", "shopee", "wayfair", "kroger"],
     "sports": ["garmin"],
     "food": ["doordash"],
 }
