@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from loguru import HandlerConfig, Record
 
 from getgather.config import settings
+from getgather.request_info import client_ip_var, resolve_client_ip
 from getgather.tracing import logfire_loguru_handler, setup_logfire, setup_mcp_tracing
 
 
@@ -97,7 +98,8 @@ def _setup_sentry():
 
 class MCPLoggingContextMiddleware:
     """Raw ASGI middleware that attaches per-request MCP identifiers to loguru's
-    contextvars so downstream logs carry `mcp_session_id`."""
+    contextvars so downstream logs carry `mcp_session_id`, and stashes the resolved
+    client IP on `client_ip_var` for the ChromeFleet HTTP client to forward."""
 
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -109,6 +111,11 @@ class MCPLoggingContextMiddleware:
 
         request = Request(scope, receive)
         mcp_session_id = setup_mcp_tracing(request)
+
+        client_ip, ip_source = await resolve_client_ip(request)
+        if client_ip:
+            client_ip_var.set(client_ip)
+            logger.debug(f"[CLIENT IP] {client_ip} (source: {ip_source})")
 
         context: dict[str, str] = {"mcp_session_id": mcp_session_id}
         with logger.contextualize(**context):
