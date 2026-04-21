@@ -58,7 +58,6 @@ from getgather.mcp.dpage import (
 )
 from getgather.mcp.registry import GatherMCP
 from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
-from getgather.request_info import RequestInfo, request_info
 
 
 def _inject_app_ui_content_meta(
@@ -132,10 +131,6 @@ class LocationProxyMiddleware(Middleware):
         if browser_session_id:
             log_context["browser_session_id"] = browser_session_id
 
-        proxy_type = headers.get("x-proxy-type", None)
-        if proxy_type is not None:
-            request_info.set(RequestInfo(proxy_type=proxy_type))
-
         tool = await context.fastmcp_context.fastmcp.get_tool(context.message.name)  # type: ignore
 
         if "general_tool" in tool.tags:  # pyright: ignore[reportOptionalMemberAccess]
@@ -148,8 +143,6 @@ class LocationProxyMiddleware(Middleware):
         # Use contextualize to set context for all logs during tool execution
         with logger.contextualize(**log_context):
             logger.info(f"[AuthMiddleware Context]: {context.message}")
-            if proxy_type:
-                logger.info(f"Received x-proxy-type header: {proxy_type}")
             return await call_next(context)
 
 
