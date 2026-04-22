@@ -38,6 +38,7 @@ dev = [
   "ruff>=0.11.6",
   "yamlfix>=1.6.1",
   "python-fasthtml>=0.12.21",
+  "pyinstaller>=6.19.0",
 ]
 
 [tool.ruff]
