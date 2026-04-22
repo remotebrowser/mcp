@@ -3,10 +3,10 @@ from typing import Any
 import zendriver as zd
 
 from getgather.mcp.dpage import remote_zen_dpage_with_action
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-alfagift_mcp = GatherMCP(brand_id="alfagift", name="Alfagift MCP")
+alfagift_mcp = MCPTool(brand_id="alfagift", name="Alfagift MCP")
 
 
 @alfagift_mcp.tool

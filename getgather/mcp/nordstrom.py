@@ -5,10 +5,10 @@ from loguru import logger
 
 from getgather.browser import page_query_selector, retry_with_navigation, zen_navigate_with_retry
 from getgather.mcp.dpage import remote_zen_dpage_with_action
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-nordstrom_mcp = GatherMCP(brand_id="nordstrom", name="Nordstrom MCP")
+nordstrom_mcp = MCPTool(brand_id="nordstrom", name="Nordstrom MCP")
 
 
 async def get_order_details_with_retry(

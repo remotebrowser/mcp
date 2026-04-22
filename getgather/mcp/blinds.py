@@ -9,10 +9,10 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-blinds_mcp = GatherMCP(brand_id="blinds", name="Blinds MCP")
+blinds_mcp = MCPTool(brand_id="blinds", name="Blinds MCP")
 
 # Element configuration for typing delays
 blinds_config = ElementConfig(typing_clear_delay=0.75)
