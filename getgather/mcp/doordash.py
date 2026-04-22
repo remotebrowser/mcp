@@ -9,9 +9,9 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 
-doordash_mcp = GatherMCP(brand_id="doordash", name="Doordash MCP")
+doordash_mcp = MCPTool(brand_id="doordash", name="Doordash MCP")
 
 
 @doordash_mcp.tool

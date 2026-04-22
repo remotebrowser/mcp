@@ -3,9 +3,9 @@ from typing import Any
 from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 
-kroger_mcp = GatherMCP(
+kroger_mcp = MCPTool(
     brand_id="kroger",
     name="Kroger MCP",
 )

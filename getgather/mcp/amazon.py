@@ -12,14 +12,14 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.zen_distill import (
     convert,
     load_distillation_patterns,
     run_distillation_loop,
 )
 
-amazon_mcp = GatherMCP(brand_id="amazon", name="Amazon MCP")
+amazon_mcp = MCPTool(brand_id="amazon", name="Amazon MCP")
 
 
 def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:

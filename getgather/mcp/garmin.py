@@ -6,13 +6,13 @@ import zendriver as zd
 from loguru import logger
 
 from getgather.mcp.dpage import remote_zen_dpage_with_action
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 from getgather.zen_distill import load_distillation_patterns, run_distillation_loop
 
 GARMIN_TIMEOUT_SECONDS = 15
 
-garmin_mcp = GatherMCP(brand_id="garmin", name="Garmin MCP")
+garmin_mcp = MCPTool(brand_id="garmin", name="Garmin MCP")
 
 
 async def _garmin_add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> dict[str, Any]:

@@ -10,7 +10,7 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.mcp.ui import UI_MIME_TYPE, ResourceCSP, ToolUI
 
 GOODREADS_UI_URI = "ui://list/data?brand=goodreads"
@@ -23,7 +23,7 @@ goodreads_app_ui = ToolUI(
     ),
 )
 
-goodreads_mcp = GatherMCP(
+goodreads_mcp = MCPTool(
     brand_id="goodreads",
     name="Goodreads MCP",
     app_ui=goodreads_app_ui,
