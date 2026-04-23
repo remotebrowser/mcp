@@ -52,13 +52,15 @@ def _inject_traceparent_into_websockets():
 
 
 async def _create_browser_from_cdp_websocket(
-    websocket_url: str, config: Config | None = None
+    *,
+    browser_id: str,
+    websocket_url: str,
+    config: Config | None = None,
 ) -> zd.Browser:
     parsed = urlparse(websocket_url)
     host = parsed.hostname or "127.0.0.1"
     host = f"[{host.strip('[]')}]" if ":" in host else host  # handle ipv6 addresses
     port = parsed.port or (443 if parsed.scheme in ("wss", "https") else 80)
-    browser_id = parsed.path.rsplit("/", 1)[-1]
 
     if not config:
         config = Config(host=host, port=port, browser_executable_path="remote")
@@ -116,6 +118,7 @@ async def _create_browser_from_cdp_websocket(
 
     asyncio_atexit.register(browser_atexit)  # type: ignore[reportUnknownMemberType]
 
+    instance.id = browser_id  # type: ignore[attr-defined]
     return instance
 
 
@@ -188,8 +191,9 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
-    browser = await _create_browser_from_cdp_websocket(cdp_websocket_url)
-    browser.id = browser_id  # type: ignore[attr-defined]
+    browser = await _create_browser_from_cdp_websocket(
+        browser_id=browser_id, websocket_url=cdp_websocket_url
+    )
     return browser
 
 
@@ -206,8 +210,9 @@ async def create_remote_browser(
     cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
-    browser = await _create_browser_from_cdp_websocket(cdp_websocket_url)
-    browser.id = browser_id  # type: ignore[attr-defined]
+    browser = await _create_browser_from_cdp_websocket(
+        browser_id=browser_id, websocket_url=cdp_websocket_url
+    )
     return browser
 
 
