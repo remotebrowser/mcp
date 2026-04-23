@@ -1,10 +1,10 @@
-<html gg-domain="google" gg-priority="2">
+<html>
   <head>
     <title>Google Activity</title>
   </head>
   <body>
     <div
-      gg-match="div[jsname='dMNVAe':contains(normalize-space(.), 'A text message with a 6-digit verification code')]"
+      gg-match="//div[@class='dMNVAe' and contains(normalize-space(.), 'A text message with a 6-digit verification code')]"
     ></div>
     <input
       autofocus
@@ -14,6 +14,8 @@
       placeholder="Enter the code"
       aria-label="Enter the code"
     />
-    <button type="submit" gg-match="//button[@jsname='LgbsSe']">Next</button>
+
+    <input type="text" value="submit" name="submit" style="display: none" />
+    <button gg-autoclick gg-match="div#idvPreregisteredPhoneNext">I've done this</button>
   </body>
 </html>
