@@ -1,4 +1,3 @@
-import json
 from typing import Any, cast
 
 import zendriver as zd
@@ -26,41 +25,51 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
 
     async def fetch_orders() -> dict[str, Any]:
         orders = None
-        async with tab.expect_response(".*/getConsumerOrdersWithDetails.*") as response:
-            await zen_navigate_with_retry(
-                tab, "https://www.doordash.com/orders", wait_for_ready=False
-            )
-            logger.info("Response listener active.")
-            response_value = await response.value
-            order_details_url = response_value.response.url
-            logger.info(f"Found order details API URL: {order_details_url}")
-            request_value = await response.request
-            request_body = request_value.post_data
-            headers_js = json.dumps(request_value.headers or {})
-            offset = (page_number - 1) * 10
-            orders = await tab.evaluate(
-                f"""
-                    (async () => {{
-                        const headers = {headers_js};
-                        const body = JSON.stringify({{...{request_body}, "variables": {{...{request_body}.variables, "offset": {offset}}} }})
-                        const res = await fetch('{order_details_url}', {{
-                            method: 'POST',
-                            credentials: 'include',
-                            headers,
-                            body
-                        }});
-                        if (!res.ok) {{
-                            const error_text = await res.text();
-                            throw new Error(`HTTP error! status: ${{res.status}} - ${{error_text}}`);
-                        }}
-                        return await res.json();
-                    }})()
-                """,
-                True,
-            )
-            orders = cast(dict[str, Any], orders)
 
-        return orders
+        await zen_navigate_with_retry(tab, "https://www.doordash.com/orders", wait_for_ready=False)
+        offset = (page_number - 1) * 10
+        orders = await tab.evaluate(
+            f"""
+                (async () => {{
+                    const httpRequest = await new Promise(resolve => {{
+                        const originalFetch = window.fetch;
+                        window.fetch = async function (...args) {{
+                            if(args[0].includes('/getConsumerOrdersWithDetails') && args[1].method === 'POST'){{
+                                window.fetch = originalFetch;
+                                resolve(args);
+                            }}
+                            const response = await originalFetch.apply(this, args);
+                            return response;
+                        }};
+                    }})
+                    
+                    const url = httpRequest[0]
+                    const headers = httpRequest[1].headers
+                    const originalBody = JSON.parse(httpRequest[1].body);
+                    const body = {{
+                        ...originalBody,
+                        variables: {{
+                            ...originalBody.variables,
+                            offset: {offset}
+                        }}
+                    }};
+                    
+                    const res = await fetch(url, {{
+                        method: 'POST',
+                        credentials: 'include',
+                        headers,
+                        body: JSON.stringify(body)
+                    }});
+                    if (!res.ok) {{
+                        const error_text = await res.text();
+                        throw new Error(`HTTP error! status: ${{res.status}} - ${{error_text}}`);
+                    }}
+                    return await res.json();
+                }})()
+            """,
+            True,
+        )
+        return cast(dict[str, Any], orders)
 
     return await retry_with_navigation(
         tab=tab,
@@ -68,7 +77,7 @@ async def get_orders_from_api(tab: zd.Tab, page_number: int = 1) -> dict[str, An
         max_retries=3,
         exceptions=(Exception,),
         re_raise_on_max_retries=True,
-        timeout_seconds=120,
+        timeout_seconds=30,
         operation_name=f"get_orders_from_api (page_number={page_number})",
     )
 
