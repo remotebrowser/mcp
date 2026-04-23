@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 
 MCP_SESSION_ID_HEADER = b"mcp-session-id"
+SIGNIN_ID_HEADER = b"x-signin-id"
 TRACEPARENT_HEADER = b"traceparent"
 TRACESTATE_HEADER = b"tracestate"
 
@@ -96,6 +97,8 @@ _SESSION_INSTRUMENTATION_SCOPE = InstrumentationScope("getgather.session")
 
 
 def _mcp_endpoint_from_path(path: str) -> str:
+    if path.startswith("/dpage"):
+        return "dpage"
     return path.removeprefix("/mcp").strip("/").split("/")[0] or "root"
 
 
@@ -114,15 +117,28 @@ class MCPSessionTraceMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope.get("path", "").startswith("/mcp"):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        is_mcp = path.startswith("/mcp")
+        is_dpage = path.startswith("/dpage/")
+        if not (is_mcp or is_dpage):
             await self.app(scope, receive, send)
             return
 
         headers: list[tuple[bytes, bytes]] = list(scope["headers"])
         header_map: dict[bytes, bytes] = {k: v for k, v in headers}
 
-        raw_session_id = header_map.get(MCP_SESSION_ID_HEADER, b"").decode() or None
-        mcp_session_id = raw_session_id or uuid.uuid4().hex
+        request_mcp_session_id = self._get_mcp_session_id_from_request(path, header_map)
+        if not request_mcp_session_id and is_dpage:
+            # No session embedded in the dpage id — can't reparent meaningfully.
+            await self.app(scope, receive, send)
+            return
+
+        # Generate a new mcp_session_id if one wasn't embedded in the request
+        mcp_session_id = request_mcp_session_id or uuid.uuid4().hex
 
         caller_traceparent = header_map.get(TRACEPARENT_HEADER, b"").decode() or None
         caller_tracestate = header_map.get(TRACESTATE_HEADER, b"").decode() or None
@@ -156,6 +172,30 @@ class MCPSessionTraceMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_session_id)
+
+    @classmethod
+    def _get_mcp_session_id_from_request(
+        cls, path: str, header_map: dict[bytes, bytes]
+    ) -> str | None:
+        from getgather.mcp.dpage import SignInId
+
+        # Prefer the session embedded in a sign-in id (header for /mcp/*,
+        # path for /dpage/*) so a tool-retry after sign-in lands in the
+        # original sign-in trace instead of a fresh mcp-session-id trace.
+        embedded_session: str | None = None
+        signin_header = header_map.get(SIGNIN_ID_HEADER, b"").decode() or None
+        if signin_header:
+            try:
+                embedded_session = SignInId.from_str(signin_header).mcp_session_id
+            except ValueError:
+                embedded_session = None
+
+        is_dpage = path.startswith("/dpage/")
+        if embedded_session is None and is_dpage:
+            dpage_signin = SignInId.from_dpage_path(path)
+            embedded_session = dpage_signin.mcp_session_id if dpage_signin else None
+
+        return embedded_session or (header_map.get(MCP_SESSION_ID_HEADER, b"").decode() or None)
 
     @classmethod
     def _traceparent_for_mcp_session(cls, mcp_session_id: str) -> bytes:
