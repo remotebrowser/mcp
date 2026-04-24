@@ -2,17 +2,20 @@ import asyncio
 import json
 import random
 from collections.abc import Awaitable, Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal, TypeVar, cast
+from typing import Any, Literal, TypeVar, cast
 from urllib.parse import urlparse
 
 import asyncio_atexit
 import httpx
+import logfire
 import websockets
 import zendriver as zd
 from fastmcp.server.dependencies import get_http_headers
 from httpx_retries import Retry, RetryTransport
 from loguru import logger
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from zendriver.core import util
 from zendriver.core._contradict import ContraDict
 from zendriver.core.config import Config
@@ -24,8 +27,35 @@ from getgather.config import settings
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
 
+@contextmanager
+def _inject_traceparent_into_websockets():
+    # Zendriver calls `websockets.connect(url, ...)` with no hook for headers.
+    # Swap the module-level symbol so our CDP handshake carries W3C traceparent,
+    # letting flyfleet's FastAPI OTel instrumentation parent the /cdp/{browser_id}
+    # span under the current getgather trace.
+    original_connect = websockets.connect
+
+    def traced_connect(*args: Any, **kwargs: Any) -> Any:
+        carrier: dict[str, str] = {}
+        TraceContextTextMapPropagator().inject(carrier)
+        if carrier:
+            merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
+            merged.update(carrier)
+            kwargs["additional_headers"] = merged
+        return original_connect(*args, **kwargs)
+
+    websockets.connect = traced_connect  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        websockets.connect = original_connect  # type: ignore[assignment]
+
+
 async def _create_browser_from_cdp_websocket(
-    websocket_url: str, config: Config | None = None
+    *,
+    browser_id: str,
+    websocket_url: str,
+    config: Config | None = None,
 ) -> zd.Browser:
     parsed = urlparse(websocket_url)
     host = parsed.hostname or "127.0.0.1"
@@ -55,22 +85,30 @@ async def _create_browser_from_cdp_websocket(
         except StopIteration:
             logger.debug("Ignored transient target update race: StopIteration")
 
-    if instance.config.autodiscover_targets:
-        instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
-            _safe_handle_target_update
-        ]
-        instance.connection.handlers[zd.cdp.target.TargetCreated] = [  # type: ignore[reportUnknownMemberType]
-            _safe_handle_target_update
-        ]
-        instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
-            _safe_handle_target_update
-        ]
-        instance.connection.handlers[zd.cdp.target.TargetCrashed] = [  # type: ignore[reportUnknownMemberType]
-            _safe_handle_target_update
-        ]
-        await instance.connection.send(zd.cdp.target.set_discover_targets(discover=True))
+    with (
+        logfire.span(
+            "cdp websocket connect {browser_id}",
+            browser_id=browser_id,
+            cdp_url=websocket_url,
+        ),
+        _inject_traceparent_into_websockets(),
+    ):
+        if instance.config.autodiscover_targets:
+            instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
+                _safe_handle_target_update
+            ]
+            instance.connection.handlers[zd.cdp.target.TargetCreated] = [  # type: ignore[reportUnknownMemberType]
+                _safe_handle_target_update
+            ]
+            instance.connection.handlers[zd.cdp.target.TargetDestroyed] = [  # type: ignore[reportUnknownMemberType]
+                _safe_handle_target_update
+            ]
+            instance.connection.handlers[zd.cdp.target.TargetCrashed] = [  # type: ignore[reportUnknownMemberType]
+                _safe_handle_target_update
+            ]
+            await instance.connection.send(zd.cdp.target.set_discover_targets(discover=True))
 
-    await instance.update_targets()
+        await instance.update_targets()
     util.get_registered_instances().add(instance)
 
     async def browser_atexit() -> None:
@@ -80,6 +118,7 @@ async def _create_browser_from_cdp_websocket(
 
     asyncio_atexit.register(browser_atexit)  # type: ignore[reportUnknownMemberType]
 
+    instance.id = browser_id  # type: ignore[attr-defined]
     return instance
 
 
@@ -152,8 +191,9 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
-    browser = await _create_browser_from_cdp_websocket(cdp_websocket_url)
-    browser.id = browser_id  # type: ignore[attr-defined]
+    browser = await _create_browser_from_cdp_websocket(
+        browser_id=browser_id, websocket_url=cdp_websocket_url
+    )
     return browser
 
 
@@ -170,8 +210,9 @@ async def create_remote_browser(
     cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
-    browser = await _create_browser_from_cdp_websocket(cdp_websocket_url)
-    browser.id = browser_id  # type: ignore[attr-defined]
+    browser = await _create_browser_from_cdp_websocket(
+        browser_id=browser_id, websocket_url=cdp_websocket_url
+    )
     return browser
 
 
