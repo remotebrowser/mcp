@@ -286,7 +286,6 @@ async def get_purchase_history_with_details(
             location=f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
             patterns=patterns,
             browser=browser,
-            interactive=False,
             timeout=10,  # need to increase timeout for business account pagination, since its SPA
             page=page,
             close_page=False,

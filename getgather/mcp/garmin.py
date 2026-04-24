@@ -26,7 +26,6 @@ async def _garmin_add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> d
         timeout=10,
         page=tab,
         close_page=False,
-        interactive=False,
     )
 
     activities = converted if converted else []

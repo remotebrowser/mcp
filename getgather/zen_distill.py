@@ -497,7 +497,6 @@ async def run_distillation_loop(
     patterns: list[Pattern],
     browser: zd.Browser,
     timeout: int = 15,
-    interactive: bool = True,
     close_page: bool = True,
     page: zd.Tab | None = None,
     error_reporter: ErrorReporter | None = None,
@@ -559,10 +558,6 @@ async def run_distillation_loop(
                     if close_page:
                         await safe_close_page(page)
                     return (True, distilled, converted)
-
-                if interactive:
-                    await autoclick(page, distilled, "[gg-autoclick]")
-                    await autoclick(page, distilled, "button[type=submit]")
 
                 current.distilled = distilled
 

@@ -92,7 +92,6 @@ async def test_distillation_loop(location: str):
             patterns=patterns,
             browser=browser,
             timeout=30,
-            interactive=True,
         )
         result = converted if converted else distilled
         assert result, "No result found when one was expected."
@@ -384,7 +383,6 @@ async def test_distillation_captures_screenshot_without_pattern(
             patterns=patterns,
             browser=browser,
             timeout=2,
-            interactive=False,
             error_reporter=make_error_reporter(browser, f"{ACME_HOSTNAME}/random-info-page"),
         )
 
