@@ -36,6 +36,7 @@ from getgather.zen_distill import (
     get_error,
     get_selector,
     load_distillation_patterns,
+    make_error_reporter,
     run_distillation_loop as zen_run_distillation_loop,
     terminate,
     zen_report_distill_error,
@@ -131,7 +132,6 @@ async def _probe_page(
         interactive=False,
         close_page=False,
         page=page,
-        report_error=False,
     )
     return terminated
 
@@ -568,7 +568,6 @@ async def remote_zen_dpage_mcp_tool(
 
     browser = None
     page = None
-    should_report_error = True
 
     if signin_id:
         browser_id, _ = signin_id.split("--")
@@ -579,7 +578,6 @@ async def remote_zen_dpage_mcp_tool(
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
     elif incognito:
-        should_report_error = False
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
         browser = await create_remote_browser(
@@ -603,6 +601,7 @@ async def remote_zen_dpage_mcp_tool(
     logger.info(f"Navigating remote browser to {initial_url}")
     await zen_navigate_with_retry(page, initial_url)
 
+    error_reporter = make_error_reporter(browser, initial_url) if not incognito else None
     terminated, distilled, converted = await zen_run_distillation_loop(
         location=initial_url,
         patterns=patterns,
@@ -611,7 +610,7 @@ async def remote_zen_dpage_mcp_tool(
         interactive=False,
         close_page=False,
         page=page,
-        report_error=should_report_error,  # don't report error if we are hit this tool for the first time (for signin)
+        error_reporter=error_reporter,
     )
     if terminated:
         await safe_close_page(page)
@@ -650,7 +649,6 @@ async def remote_zen_dpage_with_action(
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
     incognito = is_incognito_request(headers)
-    should_report_error = not incognito
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
@@ -701,6 +699,7 @@ async def remote_zen_dpage_with_action(
 
     await zen_navigate_with_retry(page, initial_url)
 
+    error_reporter = make_error_reporter(browser, initial_url) if not incognito else None
     terminated, _, _ = await zen_run_distillation_loop(
         location=initial_url,
         patterns=patterns,
@@ -709,7 +708,7 @@ async def remote_zen_dpage_with_action(
         interactive=False,
         close_page=False,
         page=page,
-        report_error=should_report_error,
+        error_reporter=error_reporter,
     )
     if terminated:
         result = await action(page, browser)
