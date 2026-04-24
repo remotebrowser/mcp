@@ -129,7 +129,6 @@ async def _probe_page(
         patterns=patterns,
         browser=browser,
         timeout=timeout,
-        interactive=False,
         close_page=False,
         page=page,
     )
@@ -607,7 +606,6 @@ async def remote_zen_dpage_mcp_tool(
         patterns=patterns,
         browser=browser,
         timeout=timeout,
-        interactive=False,
         close_page=False,
         page=page,
         error_reporter=error_reporter,
@@ -705,7 +703,6 @@ async def remote_zen_dpage_with_action(
         patterns=patterns,
         browser=browser,
         timeout=timeout,
-        interactive=False,
         close_page=False,
         page=page,
         error_reporter=error_reporter,
