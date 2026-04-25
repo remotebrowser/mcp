@@ -288,7 +288,6 @@ async def get_purchase_history_with_details(
             browser=browser,
             timeout=10,  # need to increase timeout for business account pagination, since its SPA
             page=page,
-            close_page=False,
         )
         if orders is None:
             return {"amazonca_purchase_history": []}

@@ -22,7 +22,6 @@ from getgather.browser import (
     get_new_page,
     page_batch_extract,
     page_query_selector,
-    safe_close_page,
     terminate_remote_browser,
     wait_for_ready_state,
     zen_navigate_with_retry,
@@ -497,7 +496,6 @@ async def run_distillation_loop(
     patterns: list[Pattern],
     browser: zd.Browser,
     timeout: int = 15,
-    close_page: bool = True,
     page: zd.Tab | None = None,
     error_reporter: ErrorReporter | None = None,
 ) -> tuple[bool, str, ConversionResult | None]:
@@ -555,8 +553,6 @@ async def run_distillation_loop(
 
                 if await terminate(distilled):
                     converted = await convert(distilled, pattern_path=match.name)
-                    if close_page:
-                        await safe_close_page(page)
                     return (True, distilled, converted)
 
                 current.distilled = distilled
@@ -571,8 +567,6 @@ async def run_distillation_loop(
             hostname=hostname,
             iteration=max,
         )
-    if close_page:
-        await safe_close_page(page)
     return (False, current.distilled, None)
 
 
