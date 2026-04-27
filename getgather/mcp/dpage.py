@@ -2,7 +2,8 @@ import asyncio
 import ipaddress
 import os
 import urllib.parse
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Self
 
 import zendriver as zd
 from bs4 import BeautifulSoup, Tag
@@ -50,6 +51,60 @@ DEFAULT_DPAGE_POST_POLL_TIMEOUT = 60
 
 FRIENDLY_CHARS: str = "23456789abcdefghijkmnpqrstuvwxyz"
 
+SIGN_IN_ID_DELIMITER = "--"
+
+
+@dataclass(frozen=True)
+class SignInId:
+    browser_id: str
+    target_id: str
+    mcp_session_id: str | None = None
+
+    def __str__(self) -> str:
+        parts = [self.browser_id, self.target_id]
+        if self.mcp_session_id:
+            parts.append(self.mcp_session_id)
+        return SIGN_IN_ID_DELIMITER.join(parts)
+
+    @classmethod
+    def from_str(cls, value: str) -> Self:
+        parts = value.split(SIGN_IN_ID_DELIMITER, 2)
+        if len(parts) == 3:
+            browser_id, target_id, mcp_session_id = parts
+            return cls(browser_id, target_id, mcp_session_id or None)
+        if len(parts) == 2:
+            browser_id, target_id = parts
+            return cls(browser_id, target_id, None)
+        raise ValueError(f"Invalid SignInId: {value!r}")
+
+    @classmethod
+    def from_dpage_path(cls, path: str) -> Self | None:
+        if not path.startswith("/dpage/"):
+            return None
+        id_str = path.removeprefix("/dpage/").split("/", 1)[0]
+        if not id_str:
+            return None
+        try:
+            return cls.from_str(id_str)
+        except ValueError:
+            return None
+
+    @classmethod
+    def from_request(cls, request: Request) -> Self | None:
+        raw = request.headers.get("x-signin-id")
+        signin_id = cls.from_str(raw) if raw else cls.from_dpage_path(request.url.path)
+        if signin_id is None:
+            return None
+        if signin_id.mcp_session_id is None:
+            header_session = request.headers.get("mcp-session-id")
+            if header_session:
+                signin_id = cls(signin_id.browser_id, signin_id.target_id, header_session)
+        return signin_id
+
+
+def _mcp_session_id_from_headers() -> str | None:
+    return get_http_headers(include_all=True).get("mcp-session-id") or None
+
 
 def _find_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
     """Find a browser tab by its target ID."""
@@ -59,14 +114,15 @@ def _find_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
     return None
 
 
-def _signin_flow_response(dpage_id: str) -> dict[str, Any]:
+def _signin_flow_response(signin_id: SignInId) -> dict[str, Any]:
     """Build the standard sign-in flow response dict."""
     base_url = get_base_url()
-    url = f"{base_url}/dpage/{dpage_id}"
+    signin_id_str = str(signin_id)
+    url = f"{base_url}/dpage/{signin_id_str}"
     return {
         "url": url,
         "message": f"Continue to sign in in your browser at {url}.",
-        "signin_id": dpage_id,
+        "signin_id": signin_id_str,
         "system_message": (
             f"Try open the url {url} in a browser with a tool if available. "
             "Give the url to the user so the user can open it manually in their browser. "
@@ -139,7 +195,7 @@ async def dpage_check(id: str):
     TIMEOUT = 120  # seconds
     max = TIMEOUT // TICK
 
-    remote_parts = id.split("--", 1)
+    signin_id = SignInId.from_str(id)
     browser: zd.Browser | None = None
     path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
     probe_patterns = load_distillation_patterns(path)
@@ -148,13 +204,12 @@ async def dpage_check(id: str):
         logger.debug(f"Checking dpage {id}: {iteration + 1} of {max}")
         await asyncio.sleep(TICK)
 
-        browser_id, target_id = remote_parts
         if browser is None:
-            browser = await get_remote_browser(browser_id)
+            browser = await get_remote_browser(signin_id.browser_id)
         if browser is None:
             continue
 
-        page = _find_tab(browser, target_id)
+        page = _find_tab(browser, signin_id.target_id)
         if page is None:
             browser = None
             continue
@@ -173,7 +228,7 @@ async def dpage_check(id: str):
 
 
 async def dpage_finalize(id: str):
-    browser_id, _ = id.split("--")
+    browser_id = SignInId.from_str(id).browser_id
     if browser := await get_remote_browser(browser_id):
         await terminate_remote_browser(browser)
         return True
@@ -222,17 +277,15 @@ FINISHED_MSG = "Finished! You can close this window now."
 
 @router.post("/{id}", response_class=HTMLResponse)
 async def post_dpage(id: str, request: Request) -> HTMLResponse:
-    page: zd.Tab | None = None
+    signin_id = SignInId.from_request(request)
+    if signin_id is None:
+        raise HTTPException(status_code=400, detail="Missing or invalid sign-in id")
 
-    browser_id, page_id = id.split("--")
-    browser = await get_remote_browser(browser_id)
+    browser = await get_remote_browser(signin_id.browser_id)
     if browser is None:
         raise HTTPException(status_code=404, detail="Remote browser not found")
-    for tab in browser.tabs:
-        if tab.target_id == page_id:
-            page = tab
-            break
 
+    page = _find_tab(browser, signin_id.target_id)
     if page is None:
         raise HTTPException(status_code=404, detail="Page not found")
 
@@ -561,20 +614,24 @@ async def remote_zen_dpage_mcp_tool(
     patterns = load_distillation_patterns(path)
 
     headers = get_http_headers(include_all=True)
-    signin_id = headers.get("x-signin-id") or None
+    incoming_raw = headers.get("x-signin-id") or None
+    incoming = SignInId.from_str(incoming_raw) if incoming_raw else None
+    mcp_session_id = _mcp_session_id_from_headers()
     incognito = is_incognito_request(headers)
 
     browser = None
     page = None
 
-    if signin_id:
-        browser_id, _ = signin_id.split("--")
+    if incoming:
+        browser_id = incoming.browser_id
         browser = await get_remote_browser(browser_id)
         if browser is None:
             raise HTTPException(status_code=400, detail="Remote browser not found")
         logger.info(f"Continue with browser {browser_id} (signed in, opening new page")
         page = await get_new_page(browser)
-        dpage_id = f"{browser_id}--{page.target_id}"
+        signin_id = SignInId(
+            browser_id, str(page.target_id), incoming.mcp_session_id or mcp_session_id
+        )
     elif incognito:
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
@@ -582,7 +639,7 @@ async def remote_zen_dpage_mcp_tool(
             browser_id, target_domain=_target_domain_from_initial_url(initial_url)
         )
         page = await get_new_page(browser)
-        dpage_id = f"{browser_id}--{page.target_id}"
+        signin_id = SignInId(browser_id, str(page.target_id), mcp_session_id)
         logger.info(f"Start with an ephemeral browser {browser_id}")
     else:
         user_id = get_auth_user().user_id
@@ -593,7 +650,7 @@ async def remote_zen_dpage_mcp_tool(
                 browser_id, target_domain=_target_domain_from_initial_url(initial_url)
             )
         page = await get_new_page(browser)
-        dpage_id = f"{browser_id}--{page.target_id}"
+        signin_id = SignInId(browser_id, str(page.target_id), mcp_session_id)
         logger.info(f"For user {user_id}: using browser {browser_id}")
 
     logger.info(f"Navigating remote browser to {initial_url}")
@@ -615,21 +672,12 @@ async def remote_zen_dpage_mcp_tool(
 
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
-    base_url = get_base_url()
-    url = f"{base_url}/dpage/{dpage_id}"
-    logger.info(f"Continue with the sign in at {url}", extra={"url": url, "id": dpage_id})
-    return {
-        "url": url,
-        "message": f"Continue to sign in in your browser at {url}.",
-        "signin_id": dpage_id,
-        "system_message": (
-            f"Try open the url {url} in a browser with a tool if available. "
-            "Give the url to the user so the user can open it manually in their browser. "
-            "Then call check_signin with the signin_id to see when sign-in finished (it does not return tool data). "
-            "Call the same MCP tool again to get the result. "
-            "For incognito or explicit session flows, send the x-signin-id header on the retry. "
-        ),
-    }
+    response = _signin_flow_response(signin_id)
+    logger.info(
+        f"Continue with the sign in at {response['url']}",
+        extra={"url": response["url"], "id": response["signin_id"]},
+    )
+    return response
 
 
 async def remote_zen_dpage_with_action(
@@ -643,13 +691,15 @@ async def remote_zen_dpage_with_action(
     patterns = load_distillation_patterns(path)
 
     headers = get_http_headers(include_all=True)
-    signin_id = headers.get("x-signin-id") or None
+    incoming_raw = headers.get("x-signin-id") or None
+    incoming = SignInId.from_str(incoming_raw) if incoming_raw else None
+    mcp_session_id = _mcp_session_id_from_headers()
     incognito = is_incognito_request(headers)
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
-    if signin_id:
-        probe_browser = await get_remote_browser(signin_id.split("--")[0])
+    if incoming:
+        probe_browser = await get_remote_browser(incoming.browser_id)
     elif not incognito:
         probe_browser = await get_remote_browser(str(get_auth_user().user_id))
     if probe_browser is not None:
@@ -659,19 +709,22 @@ async def remote_zen_dpage_with_action(
 
     # Create interactive sign-in flow (client retries tool after check_signin)
     page = None
-    if signin_id:
-        browser_id, page_id = signin_id.split("--")
-        dpage_id = signin_id
+    if incoming:
+        browser_id = incoming.browser_id
         browser = await get_remote_browser(browser_id)
         if browser is None:
             raise HTTPException(status_code=400, detail="Remote browser not found")
-        page = _find_tab(browser, page_id)
+        page = _find_tab(browser, incoming.target_id)
+        session_id = incoming.mcp_session_id or mcp_session_id
         if page is None:
-            logger.info(f"Tab {page_id} no longer exists, opening new tab on browser {browser_id}")
+            logger.info(
+                f"Tab {incoming.target_id} no longer exists, opening new tab on browser {browser_id}"
+            )
             page = await get_new_page(browser)
-            dpage_id = f"{browser_id}--{page.target_id}"
+            signin_id = SignInId(browser_id, str(page.target_id), session_id)
         else:
-            logger.info(f"Continue with remote browser {browser_id} and page {page_id}")
+            logger.info(f"Continue with remote browser {browser_id} and page {incoming.target_id}")
+            signin_id = SignInId(browser_id, incoming.target_id, session_id)
     elif incognito:
         prefix = "E"
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
@@ -679,7 +732,7 @@ async def remote_zen_dpage_with_action(
             browser_id, target_domain=_target_domain_from_initial_url(initial_url)
         )
         page = await get_new_page(browser)
-        dpage_id = f"{browser_id}--{page.target_id}"
+        signin_id = SignInId(browser_id, str(page.target_id), mcp_session_id)
         logger.info(f"Start with ephemeral remote browser {browser_id}")
     else:
         user_id = get_auth_user().user_id
@@ -690,7 +743,7 @@ async def remote_zen_dpage_with_action(
                 browser_id, target_domain=_target_domain_from_initial_url(initial_url)
             )
         page = await get_new_page(browser)
-        dpage_id = f"{browser_id}--{page.target_id}"
+        signin_id = SignInId(browser_id, str(page.target_id), mcp_session_id)
         logger.info(f"For user {user_id}: using remote browser {browser_id}")
 
     await zen_navigate_with_retry(page, initial_url)
@@ -711,9 +764,9 @@ async def remote_zen_dpage_with_action(
 
     page.hostname = urllib.parse.urlparse(initial_url).hostname  # type: ignore[attr-defined]
 
-    response = _signin_flow_response(dpage_id)
+    response = _signin_flow_response(signin_id)
     logger.info(
         f"remote_zen_dpage_with_action: Continue with sign in at {response['url']}",
-        extra={"url": response["url"], "id": dpage_id},
+        extra={"url": response["url"], "id": response["signin_id"]},
     )
     return response
