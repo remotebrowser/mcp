@@ -1,0 +1,15 @@
+<html gg-domain="amazon">
+  <head>
+    <title>Approve notification</title>
+  </head>
+  <body>
+    <h2
+      gg-match="//span[contains(@class, 'transaction-approval-word-break') and contains(normalize-space(.), 'approve the notification sent to')]"
+    >
+      Approve the notification sent to
+    </h2>
+    <div gg-match-html="#channelDetailsWithImprovedLayout"></div>
+    <input type="text" value="submit" name="submit" style="display: none" />
+    <button type="submit">I've done this</button>
+  </body>
+</html>
