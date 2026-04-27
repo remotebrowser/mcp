@@ -14,6 +14,16 @@
       url: https://www.agoda.com/account/bookings.html?sort=BookingStartDate&state=Completed&page=1
       result_key: agoda_complete_bookings
 
+- id: alfagift
+  name: Alfagift MCP
+  custom: true
+  module: alfagift
+  tools:
+    - function_name: get_cart
+      description: Get cart alfagift.
+    - function_name: get_order_done
+      description: Get order done alfagift.
+
 - id: aliexpress
   name: AliExpress MCP
   tools:
@@ -38,6 +48,62 @@
       description: Get the list of items in the cart from Amain Hobbies
       url: https://www.amainhobbies.com/cart
       result_key: amain_cart
+
+- id: amazon
+  name: Amazon MCP
+  custom: true
+  module: amazon
+  tools:
+    - function_name: get_browsing_history
+      description: Get browsing history from amazon.
+    - function_name: get_prime_library
+      description: Get Prime Video purchases and rentals library from Amazon.
+    - function_name: get_purchase_history
+      description: Get purchase/order history of amazon.
+    - function_name: get_purchase_history_with_details
+      description: Get purchase/order history of amazon with details.
+    - function_name: get_watch_history
+      description: Get video watch history from Amazon.
+    - function_name: get_watchlist
+      description: Get Prime Video watchlist from Amazon.
+    - function_name: search_product
+      description: Search product on amazon.
+    - function_name: search_purchase_history
+      description: Search purchase history from amazon.
+    - function_name: signin
+      description: Signin to amazon.
+
+- id: amazonca
+  name: Amazon CA MCP
+  custom: true
+  module: amazonca
+  tools:
+    - function_name: get_browsing_history
+      description: Get browsing history from Amazon Canada.
+    - function_name: get_prime_library
+      description: Get Prime Video purchases and rentals library from Amazon Canada.
+    - function_name: get_purchase_history
+      description: Get purchase/order history of Amazon Canada.
+    - function_name: get_purchase_history_with_details
+      description: Get purchase/order history of Amazon Canada with details.
+    - function_name: get_watch_history
+      description: Get video watch history from Amazon Canada Prime Video.
+    - function_name: get_watchlist
+      description: Get Prime Video watchlist from Amazon Canada.
+    - function_name: search_product
+      description: Search product on Amazon Canada.
+    - function_name: search_purchase_history
+      description: Search purchase history from Amazon Canada.
+
+- id: americanairlines
+  name: American Airlines MCP
+  custom: true
+  module: americanairlines
+  tools:
+    - function_name: get_recent_activity
+      description: Get recent activity (purchase history) of americanairlines.
+    - function_name: get_upcoming_flights
+      description: Get upcoming flights of americanairlines.
 
 - id: ashley
   name: Ashley MCP
@@ -75,6 +141,26 @@
       url: https://www.bedbathandbeyond.com/cart
       result_key: bedbathandbeyond_cart
 
+- id: blinds
+  name: Blinds MCP
+  custom: true
+  module: blinds
+  tools:
+    - function_name: get_favorites
+      description: Get favorites of blinds.
+    - function_name: get_orders
+      description: Get orders of blinds.
+
+- id: blindster
+  name: Blindster MCP
+  custom: true
+  module: blindster
+  tools:
+    - function_name: get_carts
+      description: Get carts of blindster.
+    - function_name: get_orders
+      description: Get orders of blindster.
+
 - id: booking
   name: Booking MCP
   tools:
@@ -82,6 +168,14 @@
       description: Get past trip of booking.com.
       url: https://secure.booking.com/mytrips.html
       result_key: booking_past_trips
+
+- id: calendar
+  name: Calendar MCP
+  custom: true
+  module: calendar
+  tools:
+    - function_name: create_calendar_event
+      description: Generate a generic calendar event with datetime and timezone support.
 
 - id: chewy
   name: Chewy MCP
@@ -118,6 +212,16 @@
       url: https://www.delta.com/mytrips
       result_key: delta_trips
 
+- id: doordash
+  name: Doordash MCP
+  custom: true
+  module: doordash
+  tools:
+    - function_name: get_orders
+      description: Get the orders from a user's Doordash account.
+    - function_name: get_orders_with_pagination
+      description: Get the order history from a user's Doordash account with pagination.
+
 - id: ebay
   name: Ebay MCP
   tools:
@@ -145,6 +249,20 @@
       url: https://www.expedia.com/mytrips
       result_key: expedia_past_trips
 
+- id: garmin
+  name: Garmin MCP
+  custom: true
+  module: garmin
+  tools:
+    - function_name: calculate_calories_burned
+      description: Calculate calories burned for a specific activity.
+    - function_name: calculate_tss
+      description: Calculate the TSS for a specific activity.
+    - function_name: get_activities
+      description: Get the activity history from a user's account.
+    - function_name: get_activity_stats
+      description: Get the stats for a specific activity.
+
 - id: gofood
   name: Gofood MCP
   tools:
@@ -153,6 +271,16 @@
       url: https://gofood.co.id/en/orders
       result_key: gofood_purchase_history
       timeout: 15
+
+- id: goodreads
+  name: Goodreads MCP
+  custom: true
+  module: goodreads
+  tools:
+    - function_name: get_book_details
+      description: Get details (title, author, rating, description) of a book on Goodreads.
+    - function_name: get_book_list
+      description: Get the book list from a user's Goodreads account.
 
 - id: google
   name: Google MCP
@@ -229,6 +357,14 @@
       url: https://www.amazon.com/hz/mycd/digital-console/contentlist/booksAll/dateDsc/
       result_key: kindle_book_list
 
+- id: kroger
+  name: Kroger MCP
+  custom: true
+  module: kroger
+  tools:
+    - function_name: get_purchases
+      description: Get purchases from a user Kroger account.
+
 - id: lazada
   name: Lazada MCP
   tools:
@@ -285,6 +421,14 @@
       description: Get orders of nike.
       url: https://www.nike.com/orders
       result_key: nike_orders
+
+- id: nordstrom
+  name: Nordstrom MCP
+  custom: true
+  module: nordstrom
+  tools:
+    - function_name: get_order_history
+      description: Get the details of an order from Nordstrom.
 
 - id: npr
   name: NPR MCP
@@ -364,6 +508,16 @@
       url: https://us.shein.com/my/orders.html
       result_key: shein_orders
 
+- id: shopee
+  name: Shopee MCP
+  custom: true
+  module: shopee
+  tools:
+    - function_name: get_purchase_history
+      description: Get purchase history of shopee.
+    - function_name: search_product
+      description: Search product on shopee.
+
 - id: starbucks
   name: Starbucks MCP
   tools:
@@ -380,6 +534,28 @@
       url: https://www.thriftbooks.com/cart
       result_key: thriftbooks_cart
 
+- id: tokopedia
+  name: Tokopedia MCP
+  custom: true
+  module: tokopedia
+  tools:
+    - function_name: get_cart
+      description: Get cart of tokopedia.
+    - function_name: get_product_details
+      description: Get product details from tokopedia.
+    - function_name: get_purchase_history
+      description: Get purchase history of tokopedia.
+    - function_name: get_shop_details
+      description: Get store details from tokopedia.
+    - function_name: get_wishlist
+      description: Get wishlist from tokopedia.
+    - function_name: remote_action_product_in_cart
+      description: Action a product in cart of tokopedia.
+    - function_name: search_product
+      description: Search products on Tokopedia.
+    - function_name: search_shop
+      description: Search shop on tokopedia.
+
 - id: traveloka
   name: Traveloka MCP
   tools:
@@ -387,6 +563,36 @@
       description: Get the saved list from Traveloka
       url: https://www.traveloka.com/en-id/user/saved/list
       result_key: traveloka_saved_list
+
+- id: wayfair
+  name: Wayfair MCP
+  custom: true
+  module: wayfair
+  tools:
+    - function_name: get_cart
+      description: Get cart of wayfair.
+    - function_name: get_order_history
+      description: Get order history of wayfair.
+    - function_name: get_order_history_details
+      description: Get order history details of wayfair.
+    - function_name: get_wishlist_details
+      description: Get wishlist details of wayfair.
+    - function_name: get_wishlists
+      description: Get wishlists of wayfair.
+
+- id: youtube
+  name: YouTube MCP
+  custom: true
+  module: youtube
+  tools:
+    - function_name: get_channel_subscriptions
+      description: Get channel subscriptions from YouTube.
+    - function_name: get_liked_videos
+      description: Get liked videos from YouTube.
+    - function_name: get_watch_history
+      description: Get watch history from YouTube.
+    - function_name: get_watch_later
+      description: Get watch later playlist from YouTube.
 
 - id: zillow
   name: Zillow MCP

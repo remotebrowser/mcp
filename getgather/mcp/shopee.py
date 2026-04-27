@@ -5,7 +5,7 @@ from getgather.mcp.registry import MCPTool
 
 SHOPEE_TIMEOUT_SECONDS = 15
 
-shopee_mcp = MCPTool(brand_id="shopee", name="Shopee MCP")
+shopee_mcp = MCPTool.registry["shopee"]
 
 
 @shopee_mcp.tool

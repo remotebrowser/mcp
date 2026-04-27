@@ -23,11 +23,8 @@ goodreads_app_ui = ToolUI(
     ),
 )
 
-goodreads_mcp = MCPTool(
-    brand_id="goodreads",
-    name="Goodreads MCP",
-    app_ui=goodreads_app_ui,
-)
+goodreads_mcp = MCPTool.registry["goodreads"]
+goodreads_mcp.app_ui = goodreads_app_ui
 
 
 async def _goodreads_book_details_action(tab: zd.Tab, _browser: zd.Browser) -> dict[str, Any]:

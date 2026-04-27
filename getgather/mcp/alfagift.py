@@ -6,7 +6,7 @@ from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-alfagift_mcp = MCPTool(brand_id="alfagift", name="Alfagift MCP")
+alfagift_mcp = MCPTool.registry["alfagift"]
 
 
 @alfagift_mcp.tool

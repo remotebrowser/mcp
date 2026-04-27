@@ -9,7 +9,7 @@ from fastmcp import Context
 from getgather.mcp.registry import MCPTool
 
 # Create a generic calendar MCP
-calendar_mcp = MCPTool(brand_id="calendar", name="Calendar MCP")
+calendar_mcp = MCPTool.registry["calendar"]
 
 
 def escape_ics_text(value: str) -> str:

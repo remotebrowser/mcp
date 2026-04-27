@@ -3,7 +3,7 @@ from typing import Any
 from getgather.mcp.dpage import remote_zen_dpage_mcp_tool
 from getgather.mcp.registry import MCPTool
 
-wayfair_mcp = MCPTool(brand_id="wayfair", name="Wayfair MCP")
+wayfair_mcp = MCPTool.registry["wayfair"]
 
 
 @wayfair_mcp.tool

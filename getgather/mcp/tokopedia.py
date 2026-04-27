@@ -14,7 +14,7 @@ from getgather.mcp.dpage import (
 from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-tokopedia_mcp = MCPTool(brand_id="tokopedia", name="Tokopedia MCP")
+tokopedia_mcp = MCPTool.registry["tokopedia"]
 
 
 @tokopedia_mcp.tool

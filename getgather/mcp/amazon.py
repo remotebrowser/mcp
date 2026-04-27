@@ -19,7 +19,7 @@ from getgather.zen_distill import (
     run_distillation_loop,
 )
 
-amazon_mcp = MCPTool(brand_id="amazon", name="Amazon MCP")
+amazon_mcp = MCPTool.registry["amazon"]
 
 
 def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:

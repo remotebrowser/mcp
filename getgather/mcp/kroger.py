@@ -5,10 +5,7 @@ from getgather.mcp.dpage import (
 )
 from getgather.mcp.registry import MCPTool
 
-kroger_mcp = MCPTool(
-    brand_id="kroger",
-    name="Kroger MCP",
-)
+kroger_mcp = MCPTool.registry["kroger"]
 
 
 @kroger_mcp.tool

@@ -12,7 +12,7 @@ from getgather.zen_distill import load_distillation_patterns, run_distillation_l
 
 GARMIN_TIMEOUT_SECONDS = 15
 
-garmin_mcp = MCPTool(brand_id="garmin", name="Garmin MCP")
+garmin_mcp = MCPTool.registry["garmin"]
 
 
 async def _garmin_add_activity_ids_action(tab: zd.Tab, browser: zd.Browser) -> dict[str, Any]:
