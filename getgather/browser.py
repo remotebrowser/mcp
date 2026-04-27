@@ -181,6 +181,14 @@ async def _call_chromefleet_api(
         return response
 
 
+def find_browser_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
+    """Find a browser tab by its target ID."""
+    for tab in browser.tabs:
+        if tab.target_id == target_id:
+            return tab
+    return None
+
+
 async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     logger.debug(f"Finding the ChromeFleet browser: {browser_id}")
     try:

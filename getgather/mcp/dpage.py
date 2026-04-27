@@ -17,6 +17,7 @@ from getgather.auth.auth import get_auth_user
 from getgather.browser import (
     ElementConfig,
     create_remote_browser,
+    find_browser_tab,
     get_new_page,
     get_remote_browser,
     page_batch_actions,
@@ -104,14 +105,6 @@ class SignInId:
 
 def _mcp_session_id_from_headers() -> str | None:
     return get_http_headers(include_all=True).get("mcp-session-id") or None
-
-
-def _find_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
-    """Find a browser tab by its target ID."""
-    for tab in browser.tabs:
-        if tab.target_id == target_id:
-            return tab
-    return None
 
 
 def _signin_flow_response(signin_id: SignInId) -> dict[str, Any]:
@@ -209,7 +202,7 @@ async def dpage_check(id: str):
         if browser is None:
             continue
 
-        page = _find_tab(browser, signin_id.target_id)
+        page = find_browser_tab(browser, signin_id.target_id)
         if page is None:
             browser = None
             continue
@@ -285,7 +278,7 @@ async def post_dpage(id: str, request: Request) -> HTMLResponse:
     if browser is None:
         raise HTTPException(status_code=404, detail="Remote browser not found")
 
-    page = _find_tab(browser, signin_id.target_id)
+    page = find_browser_tab(browser, signin_id.target_id)
     if page is None:
         raise HTTPException(status_code=404, detail="Page not found")
 
@@ -714,7 +707,7 @@ async def remote_zen_dpage_with_action(
         browser = await get_remote_browser(browser_id)
         if browser is None:
             raise HTTPException(status_code=400, detail="Remote browser not found")
-        page = _find_tab(browser, incoming.target_id)
+        page = find_browser_tab(browser, incoming.target_id)
         session_id = incoming.mcp_session_id or mcp_session_id
         if page is None:
             logger.info(
