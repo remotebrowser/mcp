@@ -30,14 +30,14 @@ from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
     Match,
     Pattern,
-    autoclick as zen_autoclick,
-    capture_page_artifacts as zen_capture_page_artifacts,
-    distill as zen_distill,
+    autoclick,
+    capture_page_artifacts,
+    distill,
     get_error,
     get_selector,
     load_distillation_patterns,
     make_error_reporter,
-    run_distillation_loop as zen_run_distillation_loop,
+    run_distillation_loop,
     terminate,
     zen_report_distill_error,
 )
@@ -124,7 +124,7 @@ async def _probe_page(
     if patterns is None:
         path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
         patterns = load_distillation_patterns(path)
-    terminated, _, _ = await zen_run_distillation_loop(
+    terminated, _, _ = await run_distillation_loop(
         location=location,
         patterns=patterns,
         browser=browser,
@@ -282,7 +282,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     current = Match(name="", priority=-1, distilled="")
 
     if settings.LOG_LEVEL == "DEBUG":
-        await zen_capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
+        await capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
 
     # Force browser to complete rendering by evaluating document state
     try:
@@ -302,7 +302,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         except Exception:
             current_url = page.url
         hostname = str(urllib.parse.urlparse(current_url).hostname) if current_url else None
-        match = await zen_distill(hostname, page, patterns)
+        match = await distill(hostname, page, patterns)
         if not match:
             logger.info("No matched pattern found")
             continue
@@ -346,7 +346,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             button = document.find("button", value=str(fields.get("button")))
             if button:
                 logger.info(f"Clicking button button[value={fields.get('button')}]")
-                await zen_autoclick(page, distilled, f"button[value={fields.get('button')}]")
+                await autoclick(page, distilled, f"button[value={fields.get('button')}]")
                 continue
 
         processed_radio_groups: set[str] = set()
@@ -600,7 +600,7 @@ async def remote_zen_dpage_mcp_tool(
     await zen_navigate_with_retry(page, initial_url)
 
     error_reporter = make_error_reporter(browser, initial_url) if not incognito else None
-    terminated, distilled, converted = await zen_run_distillation_loop(
+    terminated, distilled, converted = await run_distillation_loop(
         location=initial_url,
         patterns=patterns,
         browser=browser,
@@ -696,7 +696,7 @@ async def remote_zen_dpage_with_action(
     await zen_navigate_with_retry(page, initial_url)
 
     error_reporter = make_error_reporter(browser, initial_url) if not incognito else None
-    terminated, _, _ = await zen_run_distillation_loop(
+    terminated, _, _ = await run_distillation_loop(
         location=initial_url,
         patterns=patterns,
         browser=browser,
