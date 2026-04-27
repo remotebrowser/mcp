@@ -3,6 +3,7 @@ import json
 import os
 import re
 import urllib.parse
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
@@ -334,9 +335,8 @@ async def distill(
 
     for item in patterns:
         name = item.name
-        pattern = item.pattern
 
-        root = pattern.find("html")
+        root = item.pattern.find("html")
         gg_priority = root.get("gg-priority", "-1") if isinstance(root, Tag) else "-1"
         try:
             priority = int(str(gg_priority).lstrip("= "))
@@ -350,6 +350,7 @@ async def distill(
                 logger.trace(f"Skipping {name} due to mismatched domain {domain}")
                 continue
 
+        pattern = deepcopy(item.pattern)
         logger.debug(f"Checking {name} with priority {priority}")
 
         targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
