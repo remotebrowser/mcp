@@ -6,7 +6,7 @@ from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-americanairlines_mcp = MCPTool(brand_id="americanairlines", name="American Airlines MCP")
+americanairlines_mcp = MCPTool.registry["americanairlines"]
 
 
 @americanairlines_mcp.tool

@@ -12,7 +12,7 @@ from getgather.mcp.dpage import (
 from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-blinds_mcp = MCPTool(brand_id="blinds", name="Blinds MCP")
+blinds_mcp = MCPTool.registry["blinds"]
 
 # Element configuration for typing delays
 blinds_config = ElementConfig(typing_clear_delay=0.75)

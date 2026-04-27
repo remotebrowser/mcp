@@ -8,7 +8,7 @@ from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-nordstrom_mcp = MCPTool(brand_id="nordstrom", name="Nordstrom MCP")
+nordstrom_mcp = MCPTool.registry["nordstrom"]
 
 
 async def get_order_details_with_retry(

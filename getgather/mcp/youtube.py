@@ -10,7 +10,7 @@ from getgather.browser import get_url
 from getgather.mcp.dpage import remote_zen_dpage_with_action
 from getgather.mcp.registry import MCPTool
 
-youtube_mcp = MCPTool(brand_id="youtube", name="YouTube MCP")
+youtube_mcp = MCPTool.registry["youtube"]
 
 
 def _resolve_json_path(obj: dict[str, Any] | list[Any] | None, path: str) -> Any:

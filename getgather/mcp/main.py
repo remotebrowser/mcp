@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 from dataclasses import dataclass
 from functools import cache, cached_property
 from typing import Any, Literal, cast
@@ -12,44 +11,7 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from loguru import logger
 from pydantic import BaseModel
 
-from getgather.mcp import (
-    alfagift,
-    amazon,
-    amazonca,
-    americanairlines,
-    blinds,
-    blindster,
-    calendar,
-    doordash,
-    garmin,
-    goodreads,
-    kroger,
-    nordstrom,
-    shopee,
-    tokopedia,
-    wayfair,
-    youtube,
-)
-
-_brand_modules = (
-    alfagift,
-    amazon,
-    amazonca,
-    americanairlines,
-    blinds,
-    blindster,
-    calendar,
-    doordash,
-    garmin,
-    goodreads,
-    nordstrom,
-    shopee,
-    tokopedia,
-    wayfair,
-    youtube,
-    kroger,
-)
-
+import getgather.mcp.declarative_mcp  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from getgather.auth.auth import get_auth_user
 from getgather.mcp.dpage import (
     dpage_check,
@@ -169,10 +131,6 @@ class MCPApp:
 
 @cache
 def create_mcp_apps() -> list[MCPApp]:
-    from getgather.mcp.declarative_mcp import create_declarative_mcp_tools
-
-    create_declarative_mcp_tools()
-
     apps: list[MCPApp] = []
     apps.append(
         MCPApp(

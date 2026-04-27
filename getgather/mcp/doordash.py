@@ -10,7 +10,7 @@ from getgather.mcp.dpage import (
 )
 from getgather.mcp.registry import MCPTool
 
-doordash_mcp = MCPTool(brand_id="doordash", name="Doordash MCP")
+doordash_mcp = MCPTool.registry["doordash"]
 
 
 @doordash_mcp.tool

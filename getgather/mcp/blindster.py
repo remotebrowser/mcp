@@ -14,7 +14,7 @@ from getgather.mcp.dpage import (
 from getgather.mcp.registry import MCPTool
 from getgather.zen_actions import parse_response_json
 
-blindster_mcp = MCPTool(brand_id="blindster", name="Blindster MCP")
+blindster_mcp = MCPTool.registry["blindster"]
 
 
 @blindster_mcp.tool

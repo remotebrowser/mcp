@@ -44,18 +44,19 @@ uv run python tests/manual.py call-tool --mcp media --tool bbc_get_saved_article
 - `/mcp-<brand_id>` — one app per brand (e.g. `/mcp-amazon`)
 - `/mcp-<category>` — category bundles defined in `MCP_BUNDLES` (media, books, shopping, sports, food)
 
-Each brand registers itself at import time by instantiating `GatherMCP(brand_id=..., name=...)` in `getgather/mcp/<brand>.py`. The constructor inserts into `GatherMCP.registry`. The parent MCP app then `mount()`s each brand MCP with its brand*id as namespace, so tools appear as `<brand_id>*<tool_name>`(e.g.`goodreads_get_book_list`).
+All brands are registered in `getgather/mcp/mcp-tools.yaml`. `declarative_mcp.py` creates `MCPTool` instances from the YAML config at import time (module-level), populating `MCPTool.registry`. The parent MCP app then `mount()`s each brand MCP with its `brand_id` as namespace, so tools appear as `<brand_id>_<tool_name>` (e.g. `goodreads_get_book_list`).
 
-Adding a new brand requires two steps: (1) create the module with a `GatherMCP` instance and `@<brand>_mcp.tool` functions, (2) add an import to `_brand_modules` in `getgather/mcp/main.py`.
+Adding a new brand requires: (1) add a YAML entry in `mcp-tools.yaml` with `id`, `name`, and `tools` list, plus `custom: true` and `module: <module_name>` if it has a custom Python module, (2) if custom, the module must look up its MCPTool via `MCPTool.registry["<brand_id>"]` and register tools with `@brand_mcp.tool`.
 
 ### Declarative vs imperative brands
 
-Simple brands (one URL → one distilled result) are declared in YAML at `getgather/mcp/mcp-tools.yaml` and auto-registered via `declarative_mcp.create_declarative_mcp_tools()`. Two tool kinds:
+All brands are declared in YAML at `getgather/mcp/mcp-tools.yaml`. `declarative_mcp.create_declarative_mcp_tools()` runs at module level and creates `MCPTool` instances from YAML for every brand. Two registration modes:
 
-- default: `remote_zen_dpage_mcp_tool(url, result_key, timeout)` — full sign-in flow via dpage
-- `short_lived: true`: `short_lived_mcp_tool(location, pattern_wildcard, result_key, hostname)` — one-off scrape for public pages (CNN, ESPN, Ground News, NPR, NYTimes)
+- **Declarative** (no `custom: true`): tools are auto-generated from YAML config. Two tool kinds:
+  - default: `remote_zen_dpage_mcp_tool(url, result_key, timeout)` — full sign-in flow via dpage
+  - `short_lived: true`: `short_lived_mcp_tool(location, pattern_wildcard, result_key, hostname)` — one-off scrape for public pages (CNN, ESPN, Ground News, NPR, NYTimes)
 
-Brands needing custom logic (post-signin actions, JSON response interception, multi-page flows) have their own `.py` module (amazon, blinds, goodreads, tokopedia, youtube, etc.) using `remote_zen_dpage_with_action(initial_url, action)` where `action` is an `async (page, browser) -> dict`.
+- **Custom** (`custom: true`, `module: <name>`): declarative_mcp creates the MCPTool, then dynamically imports the brand module. The module looks up `MCPTool.registry["<brand_id>"]` and uses `@brand_mcp.tool` to register tools with custom logic (post-signin actions, JSON response interception, multi-page flows) via `remote_zen_dpage_with_action(initial_url, action)` where `action` is an `async (page, browser) -> dict`.
 
 ### Distillation engine (`zen_distill.py`)
 
