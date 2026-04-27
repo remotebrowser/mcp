@@ -335,8 +335,9 @@ async def distill(
 
     for item in patterns:
         name = item.name
+        pattern = deepcopy(item.pattern)
 
-        root = item.pattern.find("html")
+        root = pattern.find("html")
         gg_priority = root.get("gg-priority", "-1") if isinstance(root, Tag) else "-1"
         try:
             priority = int(str(gg_priority).lstrip("= "))
@@ -350,7 +351,6 @@ async def distill(
                 logger.trace(f"Skipping {name} due to mismatched domain {domain}")
                 continue
 
-        pattern = deepcopy(item.pattern)
         logger.debug(f"Checking {name} with priority {priority}")
 
         targets = pattern.find_all(attrs={"gg-match": True}) + pattern.find_all(
