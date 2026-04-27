@@ -30,13 +30,14 @@ from getgather.mcp.html_renderer import DEFAULT_TITLE, render_form
 from getgather.zen_distill import (
     Match,
     Pattern,
-    autoclick as zen_autoclick,
-    capture_page_artifacts as zen_capture_page_artifacts,
-    distill as zen_distill,
+    autoclick,
+    capture_page_artifacts,
+    distill,
     get_error,
     get_selector,
     load_distillation_patterns,
-    run_distillation_loop as zen_run_distillation_loop,
+    make_error_reporter,
+    run_distillation_loop,
     terminate,
     zen_report_distill_error,
 )
@@ -123,15 +124,12 @@ async def _probe_page(
     if patterns is None:
         path = os.path.join(os.path.dirname(__file__), "patterns", "**/*.html")
         patterns = load_distillation_patterns(path)
-    terminated, _, _ = await zen_run_distillation_loop(
+    terminated, _, _ = await run_distillation_loop(
         location=location,
         patterns=patterns,
         browser=browser,
         timeout=timeout,
-        interactive=False,
-        close_page=False,
         page=page,
-        report_error=False,
     )
     return terminated
 
@@ -284,7 +282,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
     current = Match(name="", priority=-1, distilled="")
 
     if settings.LOG_LEVEL == "DEBUG":
-        await zen_capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
+        await capture_page_artifacts(page, identifier=id, prefix="dpage_debug")
 
     # Force browser to complete rendering by evaluating document state
     try:
@@ -304,7 +302,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
         except Exception:
             current_url = page.url
         hostname = str(urllib.parse.urlparse(current_url).hostname) if current_url else None
-        match = await zen_distill(hostname, page, patterns)
+        match = await distill(hostname, page, patterns)
         if not match:
             logger.info("No matched pattern found")
             continue
@@ -348,7 +346,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
             button = document.find("button", value=str(fields.get("button")))
             if button:
                 logger.info(f"Clicking button button[value={fields.get('button')}]")
-                await zen_autoclick(page, distilled, f"button[value={fields.get('button')}]")
+                await autoclick(page, distilled, f"button[value={fields.get('button')}]")
                 continue
 
         processed_radio_groups: set[str] = set()
@@ -568,7 +566,6 @@ async def remote_zen_dpage_mcp_tool(
 
     browser = None
     page = None
-    should_report_error = True
 
     if signin_id:
         browser_id, _ = signin_id.split("--")
@@ -579,7 +576,6 @@ async def remote_zen_dpage_mcp_tool(
         page = await get_new_page(browser)
         dpage_id = f"{browser_id}--{page.target_id}"
     elif incognito:
-        should_report_error = False
         prefix = "E"  # for Ephemeral
         browser_id = prefix + generate(FRIENDLY_CHARS, 7)
         browser = await create_remote_browser(
@@ -603,15 +599,14 @@ async def remote_zen_dpage_mcp_tool(
     logger.info(f"Navigating remote browser to {initial_url}")
     await zen_navigate_with_retry(page, initial_url)
 
-    terminated, distilled, converted = await zen_run_distillation_loop(
+    error_reporter = make_error_reporter(browser, initial_url) if not incognito else None
+    terminated, distilled, converted = await run_distillation_loop(
         location=initial_url,
         patterns=patterns,
         browser=browser,
         timeout=timeout,
-        interactive=False,
-        close_page=False,
         page=page,
-        report_error=should_report_error,  # don't report error if we are hit this tool for the first time (for signin)
+        error_reporter=error_reporter,
     )
     if terminated:
         await safe_close_page(page)
@@ -650,7 +645,6 @@ async def remote_zen_dpage_with_action(
     headers = get_http_headers(include_all=True)
     signin_id = headers.get("x-signin-id") or None
     incognito = is_incognito_request(headers)
-    should_report_error = not incognito
 
     # Probe any existing browser for an authenticated session before opening dpage.
     probe_browser = None
@@ -701,15 +695,14 @@ async def remote_zen_dpage_with_action(
 
     await zen_navigate_with_retry(page, initial_url)
 
-    terminated, _, _ = await zen_run_distillation_loop(
+    error_reporter = make_error_reporter(browser, initial_url) if not incognito else None
+    terminated, _, _ = await run_distillation_loop(
         location=initial_url,
         patterns=patterns,
         browser=browser,
         timeout=timeout,
-        interactive=False,
-        close_page=False,
         page=page,
-        report_error=should_report_error,
+        error_reporter=error_reporter,
     )
     if terminated:
         result = await action(page, browser)
