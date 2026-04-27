@@ -1,51 +1,31 @@
 <html gg-domain="google">
-  <head>
-    <title>Google Activity</title>
-  </head>
-  <body>
-    <!-- <div gg-match="//span[@jsname='I74d0c']"></div> -->
 
-    <formdata>
-      <button type="submit" name="submit" value="submit" style="display: none"></button>
-      <input type="text" value="none" name="none" style="display: none" />
-    </formdata>
+<head>
+  <title>Google Activity</title>
+</head>
 
-    <!-- Tap Yes on phone or tablet -->
-    <button
-      name="phone-tap-yes"
-      value="phone-tap-yes"
-      gg-optional
-      gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='39'][.//div[@jsname='fmcmS'][not(contains(., 'recovery'))]]"
-    >
-      Tap Yes on your phone or tablet
-    </button>
+<body>
+  <input type="text" value="none" name="none" style="display: none" />
+  <button type="submit" name="submit" value="submit" style="display: none"></button>
 
-    <!-- Google Authenticator -->
-    <div
-      gg-optional
-      gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='6']"
-    >
-      <button name="authenticator" value="authenticator" gg-optional></button>
-    </div>
+  <!-- Tap Yes on phone or tablet -->
+  <button name="button" value="phone-tap-yes" gg-optional
+    gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='39'][.//div[@jsname='fmcmS'][not(contains(., 'recovery'))]]">
+  </button>
 
-    <!-- SMS verification code -->
-    <button
-      name="sms"
-      value="sms"
-      gg-optional
-      gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='9']"
-    >
-      Get a verification code at your phone
-    </button>
+  <!-- Google Authenticator -->
+  <button name="button" value="authenticator" gg-optional
+    gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='6']"></button>
 
-    <!-- Tap Yes on recovery email device -->
-    <button
-      name="recovery-email-tap"
-      value="recovery-email-tap"
-      gg-optional
-      gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='39'][.//div[@jsname='fmcmS'][contains(., 'recovery')]]"
-    >
-      Tap Yes on your recovery email device
-    </button>
-  </body>
+  <!-- SMS verification code -->
+  <button name="button" value="sms" gg-optional
+    gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='9']">
+  </button>
+
+  <!-- Tap Yes on recovery email device -->
+  <button name="button" value="recovery-email-tap" gg-optional
+    gg-match="//div[@jsname='EBHGs'][not(@aria-disabled='true')][@data-challengetype='39'][.//div[@jsname='fmcmS'][contains(., 'recovery')]]">
+  </button>
+</body>
+
 </html>
