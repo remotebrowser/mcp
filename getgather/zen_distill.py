@@ -3,6 +3,7 @@ import json
 import os
 import re
 import urllib.parse
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
@@ -334,7 +335,7 @@ async def distill(
 
     for item in patterns:
         name = item.name
-        pattern = item.pattern
+        pattern = deepcopy(item.pattern)
 
         root = pattern.find("html")
         gg_priority = root.get("gg-priority", "-1") if isinstance(root, Tag) else "-1"
