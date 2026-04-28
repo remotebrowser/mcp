@@ -352,7 +352,7 @@ async def safe_close_page(page: zd.Tab) -> None:
             await page.send(zd.cdp.target.close_target(target_id=normalized_target_id))
         else:
             await page.close()
-        logger.warning("Page closed successfully")
+        logger.info("Page closed successfully")
     except Exception as e:
         logger.warning(f"Error closing page: {e}")
 
