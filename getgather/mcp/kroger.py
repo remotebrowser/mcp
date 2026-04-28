@@ -7,12 +7,9 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 
-kroger_mcp = GatherMCP(
-    brand_id="kroger",
-    name="Kroger MCP",
-)
+kroger_mcp = MCPTool.registry["kroger"]
 
 
 @kroger_mcp.tool

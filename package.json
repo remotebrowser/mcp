@@ -17,6 +17,7 @@
     "yaml:check:format": "uv run yamlfix --check $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\\.venv/|node_modules/|mcp-tools\\.yaml')",
     "yaml:format": "uv run yamlfix $(find . -type f -name '*.yml' -o -name '*.yaml' | grep -v -E '\\.venv/|node_modules/|mcp-tools\\.yaml')",
     "check:all": "npm run frontend:check:format && npm run backend:check:format && npm run backend:check:type-safety && npm run yaml:check:format",
+    "package": "uv run --group dev pyinstaller remotebrowser-mcp.spec",
     "prepare": "husky"
   },
   "devDependencies": {

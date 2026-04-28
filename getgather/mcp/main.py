@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 from dataclasses import dataclass
 from functools import cache, cached_property
 from typing import Any, Literal, cast
@@ -12,51 +11,14 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from loguru import logger
 from pydantic import BaseModel
 
-from getgather.mcp import (
-    alfagift,
-    amazon,
-    amazonca,
-    americanairlines,
-    blinds,
-    blindster,
-    calendar,
-    doordash,
-    garmin,
-    goodreads,
-    kroger,
-    nordstrom,
-    shopee,
-    tokopedia,
-    wayfair,
-    youtube,
-)
-
-_brand_modules = (
-    alfagift,
-    amazon,
-    amazonca,
-    americanairlines,
-    blinds,
-    blindster,
-    calendar,
-    doordash,
-    garmin,
-    goodreads,
-    nordstrom,
-    shopee,
-    tokopedia,
-    wayfair,
-    youtube,
-    kroger,
-)
-
+import getgather.mcp.declarative_mcp  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from getgather.auth.auth import get_auth_user
 from getgather.mcp.dpage import (
     dpage_check,
     dpage_finalize,
     remote_zen_dpage_mcp_tool,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.mcp.ui import UI_MIME_TYPE, ui_to_meta_dict
 
 
@@ -169,20 +131,16 @@ class MCPApp:
 
 @cache
 def create_mcp_apps() -> list[MCPApp]:
-    from getgather.mcp.declarative_mcp import create_declarative_mcp_tools
-
-    create_declarative_mcp_tools()
-
     apps: list[MCPApp] = []
     apps.append(
         MCPApp(
             name="all",
             type="all",
             route="/mcp",
-            brand_ids=list(GatherMCP.registry.keys()),
+            brand_ids=list(MCPTool.registry.keys()),
         )
     )
-    # Add individual brand MCPs from GatherMCP registry
+    # Add individual brand MCPs from MCPTool registry
     apps.extend([
         MCPApp(
             name=brand_id,
@@ -190,7 +148,7 @@ def create_mcp_apps() -> list[MCPApp]:
             route=f"/mcp-{brand_id}",
             brand_ids=[brand_id],
         )
-        for brand_id in GatherMCP.registry.keys()
+        for brand_id in MCPTool.registry.keys()
     ])
     apps.extend([
         MCPApp(
@@ -258,8 +216,8 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
 
     for brand_id in brand_ids:
         brand_id_str = brand_id
-        if brand_id_str in GatherMCP.registry:
-            gather_mcp = GatherMCP.registry[brand_id_str]
+        if brand_id_str in MCPTool.registry:
+            gather_mcp = MCPTool.registry[brand_id_str]
             logger.info(
                 f"Mounting {gather_mcp.name} (distillation-based) to MCP bundle {bundle_name}"
             )
@@ -273,7 +231,7 @@ def _create_mcp_app(bundle_name: str, brand_ids: list[str]):
                 logger.info(f"MCP App UI enabled for {brand_id_str}: {resource_uri}")
                 app_ui_content_meta[str(resource_uri)] = {"ui": ui_to_meta_dict(app_ui)}
 
-                def _make_ui_resource(server: GatherMCP, ui_uri: str):
+                def _make_ui_resource(server: MCPTool, ui_uri: str):
                     async def _read() -> str | bytes | ResourceResult:
                         resource = await server.get_resource(ui_uri)
                         return await resource.read()  # pyright: ignore[reportOptionalMemberAccess]

@@ -2,7 +2,7 @@ import ast
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
-from typing import Awaitable, Callable, Final
+from typing import Awaitable, Callable
 
 from fastapi import FastAPI, Request
 from fastapi.responses import (
@@ -71,9 +71,6 @@ def health():
     return PlainTextResponse(
         content=f"OK {int(datetime.now().timestamp())} GIT_REV: {settings.GIT_REV}"
     )
-
-
-IP_CHECK_URL: Final[str] = "https://ip.fly.dev/ip"
 
 
 @app.get("/extended-health")

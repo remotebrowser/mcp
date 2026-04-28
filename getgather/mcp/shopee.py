@@ -1,11 +1,11 @@
 from typing import Any
 
 from getgather.mcp.dpage import remote_zen_dpage_mcp_tool
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 
 SHOPEE_TIMEOUT_SECONDS = 15
 
-shopee_mcp = GatherMCP(brand_id="shopee", name="Shopee MCP")
+shopee_mcp = MCPTool.registry["shopee"]
 
 
 @shopee_mcp.tool

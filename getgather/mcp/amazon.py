@@ -12,14 +12,14 @@ from getgather.mcp.dpage import (
     remote_zen_dpage_mcp_tool,
     remote_zen_dpage_with_action,
 )
-from getgather.mcp.registry import GatherMCP
+from getgather.mcp.registry import MCPTool
 from getgather.zen_distill import (
     convert,
     load_distillation_patterns,
     run_distillation_loop,
 )
 
-amazon_mcp = GatherMCP(brand_id="amazon", name="Amazon MCP")
+amazon_mcp = MCPTool.registry["amazon"]
 
 
 def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:
@@ -287,10 +287,8 @@ async def get_purchase_history_with_details(
             location=f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
             patterns=patterns,
             browser=browser,
-            interactive=False,
             timeout=10,  # need to increase timeout for business account pagination, since its SPA
             page=page,
-            close_page=False,
         )
         if orders is None:
             return {"amazon_purchase_history": []}

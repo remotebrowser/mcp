@@ -3,11 +3,12 @@ import json
 import os
 import re
 import urllib.parse
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Callable, Coroutine, cast
 from urllib.parse import urlunparse
 
 import sentry_sdk
@@ -22,7 +23,6 @@ from getgather.browser import (
     get_new_page,
     page_batch_extract,
     page_query_selector,
-    safe_close_page,
     terminate_remote_browser,
     wait_for_ready_state,
     zen_navigate_with_retry,
@@ -44,6 +44,8 @@ class Match:
 
 
 ConversionResult = list[dict[str, str | list[str]]]
+
+ErrorReporter = Callable[..., Coroutine[Any, Any, None]]
 
 NETWORK_ERROR_PATTERNS = (
     "err-timed-out",
@@ -301,6 +303,28 @@ async def zen_report_distill_error(
             sentry_sdk.capture_exception(error)
 
 
+def make_error_reporter(browser: zd.Browser, location: str | None = None) -> ErrorReporter:
+    profile_id = cast(str, browser.id)  # type: ignore[attr-defined]
+
+    async def _report(
+        *,
+        error: Exception,
+        page: zd.Tab | None,
+        hostname: str,
+        iteration: int,
+    ) -> None:
+        await zen_report_distill_error(
+            error=error,
+            page=page,
+            profile_id=profile_id,
+            location=location or "",
+            hostname=hostname,
+            iteration=iteration,
+        )
+
+    return _report
+
+
 async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
@@ -311,7 +335,7 @@ async def distill(
 
     for item in patterns:
         name = item.name
-        pattern = item.pattern
+        pattern = deepcopy(item.pattern)
 
         root = pattern.find("html")
         gg_priority = root.get("gg-priority", "-1") if isinstance(root, Tag) else "-1"
@@ -473,10 +497,8 @@ async def run_distillation_loop(
     patterns: list[Pattern],
     browser: zd.Browser,
     timeout: int = 15,
-    interactive: bool = True,
-    close_page: bool = True,
     page: zd.Tab | None = None,
-    report_error: bool = True,
+    error_reporter: ErrorReporter | None = None,
 ) -> tuple[bool, str, ConversionResult | None]:
     """Run the distillation loop with zendriver.
 
@@ -498,15 +520,13 @@ async def run_distillation_loop(
             try:
                 await zen_navigate_with_retry(page, location)
             except Exception as error:
-                # Error already logged by retry wrapper, just report and re-raise
-                await zen_report_distill_error(
-                    error=error,
-                    page=page,
-                    profile_id=browser.id,  # type: ignore[attr-defined]
-                    location=location,
-                    hostname=hostname,
-                    iteration=0,
-                )
+                if error_reporter is not None:
+                    await error_reporter(
+                        error=error,
+                        page=page,
+                        hostname=hostname,
+                        iteration=0,
+                    )
                 raise ValueError(f"Failed to navigate to {location}: {error}")
 
     TICK = 1  # seconds
@@ -534,30 +554,20 @@ async def run_distillation_loop(
 
                 if await terminate(distilled):
                     converted = await convert(distilled, pattern_path=match.name)
-                    if close_page:
-                        await safe_close_page(page)
                     return (True, distilled, converted)
-
-                if interactive:
-                    await autoclick(page, distilled, "[gg-autoclick]")
-                    await autoclick(page, distilled, "button[type=submit]")
 
                 current.distilled = distilled
 
         else:
             logger.debug(f"No matched pattern found")
 
-    if report_error:
-        await zen_report_distill_error(
+    if error_reporter is not None:
+        await error_reporter(
             error=ValueError("No matched pattern found"),
             page=page,
-            profile_id=browser.id,  # type: ignore[attr-defined]
-            location=location or "",
             hostname=hostname,
             iteration=max,
         )
-    if close_page:
-        await safe_close_page(page)
     return (False, current.distilled, None)
 
 

@@ -1,38 +1,36 @@
 {
-  "rows": "contents.twoColumnBrowseResultsRenderer.tabs.0.tabRenderer.content.sectionListRenderer.contents.0.itemSectionRenderer.contents",
-  "row_key": "lockupViewModel",
+  "rows": "contents.twoColumnBrowseResultsRenderer.tabs.0.tabRenderer.content.sectionListRenderer.contents.0.itemSectionRenderer.contents.0.playlistVideoListRenderer.contents",
+  "row_key": "playlistVideoRenderer",
   "columns": [
     {
       "name": "title",
-      "path": "metadata.lockupMetadataViewModel.title.content"
+      "path": "title.runs.0.text"
     },
     {
       "name": "url",
-      "path": "contentId",
+      "path": "videoId",
       "prefix": "/watch?v="
     },
     {
       "name": "thumbnail",
-      "path": "contentImage.thumbnailViewModel.image.sources.0.url"
+      "path": "thumbnail.thumbnails.0.url"
     },
     {
       "name": "channel",
-      "path": "metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows.0.metadataParts.0.text.content"
+      "path": "shortBylineText.runs.0.text"
     },
     {
       "name": "channel_url",
-      "path": "metadata.lockupMetadataViewModel.image.decoratedAvatarViewModel.rendererContext.commandContext.onTap.innertubeCommand.browseEndpoint.canonicalBaseUrl",
-      "fallback_path": "metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows.0.metadataParts.0.text.commandRuns.0.onTap.innertubeCommand.commandMetadata.webCommandMetadata.url"
+      "path": "shortBylineText.runs.0.navigationEndpoint.browseEndpoint.canonicalBaseUrl"
     },
     {
       "name": "views_and_date",
-      "path": "metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows.1.metadataParts",
-      "join_path": "text.content",
-      "join_separator": " | "
+      "path": "videoInfo.runs",
+      "join": "text"
     },
     {
       "name": "duration",
-      "path": "contentImage.thumbnailViewModel.overlays.0.thumbnailBottomOverlayViewModel.badges.0.thumbnailBadgeViewModel.text"
+      "path": "lengthText.simpleText"
     }
   ]
 }
