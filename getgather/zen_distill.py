@@ -463,7 +463,7 @@ async def distill(
         for item in result:
             logger.debug(f" - {item.name} with priority {item.priority}")
         match = result[0]
-        logger.debug(f"✓ Best match: {match.name}")
+        logger.info(f"✓ Best match: {match.name}")
 
         if reload_on_error and any(pattern in match.name for pattern in NETWORK_ERROR_PATTERNS):
             logger.info(f"Error pattern detected: {match.name}")
