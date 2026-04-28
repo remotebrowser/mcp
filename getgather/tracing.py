@@ -3,29 +3,31 @@
 Owns all observability wiring:
 - Logfire configuration and FastAPI/httpx instrumentation
 - Loguru → Logfire handler
-- Per-request `mcp-session-id` generation, propagation, and session-trace
-  reparenting via a raw ASGI middleware
+- Per-request `mcp-session-id` generation/echo and per-session trace grouping
+  via a raw ASGI middleware
 
-The `mcp-session-id` header exists solely for observability. The MCP server
-runs in stateless_http mode (for multi-instance deployment), so it doesn't
-assign session IDs on its own. We generate one per client and echo it back
-so the client SDK reuses it across requests.
+The goal is that every log emitted while processing requests sharing one
+`mcp-session-id` lives under one Logfire trace. Two cases:
 
-To make all spans for a session appear under one clickable trace in Logfire,
-we reparent every request's spans under a deterministic "MCP Session" root
-span. The outer ASGI middleware rewrites the incoming W3C traceparent to
-point at the session root BEFORE OpenTelemetry's FastAPI instrumentation
-extracts it — otherwise OTel would parent spans under the caller's trace.
-The caller's original traceparent is stashed in the scope so the inner
-FastAPI middleware can attach it as a span link for discoverability.
+- **Caller sends a W3C `traceparent`.** The caller owns the trace. We leave
+  `traceparent`/`tracestate` untouched so OTel's distributed-tracing
+  propagation parents server spans naturally under the caller's trace. We
+  only tag spans with `mcp.mcp_session_id` for filtering.
 
-The session ID is a uuid4().hex (32 hex chars), which doubles as a valid
-OTel trace_id — so the session ID literally IS the trace ID and can be
-pasted into Logfire to find the trace.
+- **Caller sends no `traceparent`.** We mint a deterministic root span whose
+  `trace_id` IS the `mcp_session_id` (a uuid4().hex is 32 hex chars = 128
+  bits, a valid OTel trace_id), and rewrite the scope `traceparent` to point
+  at it BEFORE OTel's FastAPI instrumentation extracts it. All requests for
+  the session collapse into one trace whose id is the session id — pasteable
+  into Logfire to find the trace.
+
+The MCP server runs in stateless_http mode (multi-instance deployment), so
+the server doesn't track sessions itself. We generate a session id when the
+client doesn't supply one and echo `mcp-session-id` back so the client SDK
+reuses it across requests.
 """
 
 import hashlib
-import os
 import uuid
 from typing import TYPE_CHECKING
 
@@ -35,7 +37,7 @@ from loguru import logger
 from opentelemetry import trace
 from opentelemetry.sdk.trace import _Span as SDKSpan  # pyright: ignore[reportPrivateUsage]
 from opentelemetry.sdk.util.instrumentation import InstrumentationScope
-from opentelemetry.trace import Link, SpanContext, TraceFlags
+from opentelemetry.trace import SpanContext, TraceFlags
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -51,8 +53,6 @@ TRACEPARENT_HEADER = b"traceparent"
 TRACESTATE_HEADER = b"tracestate"
 
 SCOPE_SESSION_ID_KEY = "mcp_session_id"
-SCOPE_CALLER_TRACEPARENT_KEY = "mcp_session_caller_traceparent"
-SCOPE_CALLER_TRACESTATE_KEY = "mcp_session_caller_tracestate"
 
 
 def setup_logfire() -> None:
@@ -103,14 +103,20 @@ def _mcp_endpoint_from_path(path: str) -> str:
 
 
 class MCPSessionTraceMiddleware:
-    """Raw ASGI middleware that reparents /mcp request spans under a session trace.
+    """Raw ASGI middleware that groups MCP/dpage requests into a session trace.
 
     Must wrap the FastAPI app from OUTSIDE OpenTelemetry's instrumentation.
     OTel's FastAPIInstrumentor wraps the entire user-middleware stack via
     `build_middleware_stack`, so a `@app.middleware("http")` runs too late —
-    OTel has already extracted traceparent and parented the request span
-    under the caller's trace. This middleware rewrites the scope headers
-    BEFORE the instrumented app sees them.
+    OTel has already extracted traceparent and parented the request span.
+    This middleware decides what scope headers OTel will see.
+
+    Behavior:
+    - If the caller sent a valid W3C `traceparent`, leave it alone — the
+      caller owns the trace, server spans parent under it naturally.
+    - Otherwise, inject a deterministic `traceparent` pointing at a per-session
+      root span whose trace_id == mcp_session_id, so all requests for that
+      session land in one trace.
     """
 
     def __init__(self, app: ASGIApp):
@@ -137,29 +143,32 @@ class MCPSessionTraceMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Generate a new mcp_session_id if one wasn't embedded in the request
         mcp_session_id = request_mcp_session_id or uuid.uuid4().hex
-
-        caller_traceparent = header_map.get(TRACEPARENT_HEADER, b"").decode() or None
-        caller_tracestate = header_map.get(TRACESTATE_HEADER, b"").decode() or None
-
-        endpoint = _mcp_endpoint_from_path(scope.get("path", ""))
-        self._emit_mcp_session_root_span_once(mcp_session_id, endpoint)
-        session_traceparent = self._traceparent_for_mcp_session(mcp_session_id)
-
-        # Strip traceparent/tracestate/mcp-session-id; append our rewritten versions.
-        stripped = [
-            (k, v)
-            for k, v in headers
-            if k not in (TRACEPARENT_HEADER, TRACESTATE_HEADER, MCP_SESSION_ID_HEADER)
-        ]
-        stripped.append((TRACEPARENT_HEADER, session_traceparent))
-        stripped.append((MCP_SESSION_ID_HEADER, mcp_session_id.encode()))
-        scope["headers"] = stripped
-
         scope[SCOPE_SESSION_ID_KEY] = mcp_session_id
-        scope[SCOPE_CALLER_TRACEPARENT_KEY] = caller_traceparent
-        scope[SCOPE_CALLER_TRACESTATE_KEY] = caller_tracestate
+
+        caller_has_trace = self._has_valid_caller_traceparent(header_map)
+
+        if caller_has_trace:
+            # Case 1: caller owns the trace. Don't touch traceparent/tracestate;
+            # just canonicalize the mcp-session-id header so downstream code
+            # sees the (possibly server-generated) value.
+            new_headers = [(k, v) for k, v in headers if k != MCP_SESSION_ID_HEADER]
+            new_headers.append((MCP_SESSION_ID_HEADER, mcp_session_id.encode()))
+            scope["headers"] = new_headers
+        else:
+            # Case 2: no caller trace. Mint a session-deterministic traceparent
+            # so OTel parents the request span under our session root.
+            endpoint = _mcp_endpoint_from_path(path)
+            self._emit_mcp_session_root_span_once(mcp_session_id, endpoint)
+            session_traceparent = self._traceparent_for_mcp_session(mcp_session_id)
+            stripped = [
+                (k, v)
+                for k, v in headers
+                if k not in (TRACEPARENT_HEADER, TRACESTATE_HEADER, MCP_SESSION_ID_HEADER)
+            ]
+            stripped.append((TRACEPARENT_HEADER, session_traceparent))
+            stripped.append((MCP_SESSION_ID_HEADER, mcp_session_id.encode()))
+            scope["headers"] = stripped
 
         session_id_header_bytes = mcp_session_id.encode()
 
@@ -196,6 +205,18 @@ class MCPSessionTraceMiddleware:
             embedded_session = dpage_signin.mcp_session_id if dpage_signin else None
 
         return embedded_session or (header_map.get(MCP_SESSION_ID_HEADER, b"").decode() or None)
+
+    @classmethod
+    def _has_valid_caller_traceparent(cls, header_map: dict[bytes, bytes]) -> bool:
+        traceparent = header_map.get(TRACEPARENT_HEADER, b"").decode()
+        if not traceparent:
+            return False
+        carrier: dict[str, str] = {"traceparent": traceparent}
+        tracestate = header_map.get(TRACESTATE_HEADER, b"").decode()
+        if tracestate:
+            carrier["tracestate"] = tracestate
+        extracted = TraceContextTextMapPropagator().extract(carrier=carrier)
+        return trace.get_current_span(extracted).get_span_context().is_valid
 
     @classmethod
     def _traceparent_for_mcp_session(cls, mcp_session_id: str) -> bytes:
@@ -254,99 +275,6 @@ class MCPSessionTraceMiddleware:
 
 def setup_mcp_tracing(request: Request) -> str:
     mcp_session_id: str = request.scope[SCOPE_SESSION_ID_KEY]
-
-    if not settings.LOGFIRE_TOKEN:
-        return mcp_session_id
-
-    endpoint = _mcp_endpoint_from_path(request.url.path)
-
-    # 1. ensure the mcp_session_id is set in the current span
-    trace.get_current_span().set_attribute("mcp.mcp_session_id", mcp_session_id)
-
-    caller_traceparent = request.scope.get(SCOPE_CALLER_TRACEPARENT_KEY)
-    if not caller_traceparent:
-        return mcp_session_id
-
-    caller_tracestate = request.scope.get(SCOPE_CALLER_TRACESTATE_KEY)
-
-    # 2. link the current span to the caller
-    _link_current_span_to_caller(caller_traceparent, caller_tracestate)
-
-    # 3. link the caller trace to the current span via a bridge span
-    _emit_caller_trace_bridge_span(caller_traceparent, caller_tracestate, mcp_session_id, endpoint)
-
+    if settings.LOGFIRE_TOKEN:
+        trace.get_current_span().set_attribute("mcp.mcp_session_id", mcp_session_id)
     return mcp_session_id
-
-
-def _link_current_span_to_caller(
-    caller_traceparent: str, caller_tracestate: str | None = None
-) -> None:
-    carrier: dict[str, str] = {"traceparent": caller_traceparent}
-    if caller_tracestate:
-        carrier["tracestate"] = caller_tracestate
-    extracted = TraceContextTextMapPropagator().extract(carrier=carrier)
-    caller_span_context = trace.get_current_span(extracted).get_span_context()
-    if not caller_span_context.is_valid:
-        return
-    attributes: dict[str, str] = {"caller.traceparent": caller_traceparent}
-    if caller_tracestate:
-        attributes["caller.tracestate"] = caller_tracestate
-    trace.get_current_span().add_link(caller_span_context, attributes)
-
-
-def _emit_caller_trace_bridge_span(
-    caller_traceparent: str,
-    caller_tracestate: str | None,
-    mcp_session_id: str,
-    endpoint: str,
-) -> None:
-    # Emits a short-lived span parented to the CALLER's trace (not ours),
-    # holding an OTel span link to the current server request span. Because
-    # its trace_id/parent come from the incoming traceparent, Logfire ingests
-    # it into the client's trace — appearing as a child of the caller's
-    # httpx span. Clicking its link navigates client → server session trace.
-    carrier: dict[str, str] = {"traceparent": caller_traceparent}
-    if caller_tracestate:
-        carrier["tracestate"] = caller_tracestate
-    extracted = TraceContextTextMapPropagator().extract(carrier=carrier)
-    caller_ctx = trace.get_current_span(extracted).get_span_context()
-    if not caller_ctx.is_valid:
-        return
-
-    server_ctx = trace.get_current_span().get_span_context()
-    if not server_ctx.is_valid:
-        return
-
-    provider = trace.get_tracer_provider()
-    sdk_provider = getattr(provider, "provider", provider)  # unwrap logfire proxy
-    span_processor = getattr(sdk_provider, "_active_span_processor", None)
-    resource = getattr(sdk_provider, "resource", None)
-    if span_processor is None or resource is None:
-        return
-
-    # Fresh span_id in the caller's trace. Force non-zero.
-    bridge_span_id = int.from_bytes(os.urandom(8)) or 1
-    bridge_ctx = SpanContext(
-        trace_id=caller_ctx.trace_id,
-        span_id=bridge_span_id,
-        is_remote=False,
-        trace_flags=TraceFlags(1),  # force sampled; don't inherit caller's flags
-    )
-
-    span = SDKSpan(
-        name=f"MCP bridge, endpoint {endpoint}, session {mcp_session_id}",
-        context=bridge_ctx,
-        parent=caller_ctx,
-        resource=resource,
-        span_processor=span_processor,
-        instrumentation_scope=_SESSION_INSTRUMENTATION_SCOPE,
-        attributes={
-            "mcp.mcp_session_id": mcp_session_id,
-            "mcp.endpoint": endpoint,
-            "server.trace_id": f"{server_ctx.trace_id:032x}",
-            "server.span_id": f"{server_ctx.span_id:016x}",
-        },
-        links=[Link(server_ctx, {"mcp.mcp_session_id": mcp_session_id})],
-    )
-    span.start()
-    span.end()
