@@ -23,6 +23,9 @@ jobs:
           - name: production
             config: prd
             app_name: remotebrowser
+          - name: dev
+            config: dev
+            app_name: remotebrowser-dev
 
     steps:
       - name: Check out source repository
