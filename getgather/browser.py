@@ -44,7 +44,7 @@ def _build_chromefleet_headers(*, target_domain: str | None = None) -> dict[str,
 
 
 @contextmanager
-def _inject_traceparent_into_websockets(extra_headers: dict[str, str] | None = None):
+def _inject_headers_into_websockets(extra_headers: dict[str, str] | None = None):
     # Zendriver calls `websockets.connect(url, ...)` with no hook for headers.
     # Swap the module-level symbol so our CDP handshake carries W3C traceparent,
     # letting flyfleet's FastAPI OTel instrumentation parent the /cdp/{browser_id}
@@ -111,7 +111,7 @@ async def _create_browser_from_cdp_websocket(
             browser_id=browser_id,
             cdp_url=websocket_url,
         ),
-        _inject_traceparent_into_websockets(extra_headers=extra_headers),
+        _inject_headers_into_websockets(extra_headers=extra_headers),
     ):
         if instance.config.autodiscover_targets:
             instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
