@@ -20,16 +20,13 @@ jobs:
       - uses: remotebrowser/shared-github-actions/container-health-check@v1
         with:
           image-name: getgather
-          health-url: http://localhost:23456/health
+          health-checks: |
+            {"url": "http://localhost:23456/health"}
+            {"url": "http://localhost:23456/extended-health"}
           health-timeout-seconds: 180
           extra-config: |
             --network host
             -e CHROMEFLEET_URL=http://localhost:8300
-
-      - name: Run the extended health check validation
-        run: |
-          timeout 180 bash -c \
-            'until curl -fs http://localhost:23456/extended-health | grep -q OK; do sleep 1; done'
 
       - name: Show Chrome Fleet logs
         if: always()
