@@ -128,6 +128,6 @@ def homepage():
 
 
 # Wrap the entire instrumented app so mcp-session-id handling runs BEFORE
-# OTel's FastAPI instrumentation. This reparents request spans under the
-# per-session trace; caller's distributed trace is preserved as a span link.
+# OTel's FastAPI instrumentation. When the caller has its own trace context,
+# we leave it alone; otherwise we parent the request under a session trace.
 app = MCPSessionTraceMiddleware(app)  # type: ignore[assignment]
