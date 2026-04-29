@@ -151,10 +151,7 @@ async def _call_chromefleet_api(
     retries: int = 3,
     raise_for_status: bool = True,
 ):
-    base_url = settings.CHROMEFLEET_URL.rstrip("/")
-    if not base_url:
-        raise ValueError("CHROMEFLEET_URL is not configured")
-
+    base_url = settings.effective_chromefleet_url.rstrip("/")
     url = f"{base_url}/api/v1/browsers/{browser_id}"
 
     headers = _build_chromefleet_headers(target_domain=target_domain)
@@ -197,6 +194,13 @@ def find_browser_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
     return None
 
 
+def _setup_cdp_url(browser_id: str) -> str:
+    cdp_base = settings.effective_chromefleet_url.replace("https://", "wss://").replace(
+        "http://", "ws://"
+    )
+    return f"{cdp_base}/cdp/{browser_id}"
+
+
 async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     logger.debug(f"Finding the ChromeFleet browser: {browser_id}")
     try:
@@ -204,8 +208,7 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     except Exception:
         return None
 
-    cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
-    cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
+    cdp_websocket_url = _setup_cdp_url(browser_id)
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
     browser = await _create_browser_from_cdp_websocket(
         browser_id=browser_id, websocket_url=cdp_websocket_url
@@ -222,8 +225,7 @@ async def create_remote_browser(
     ChromeFleet auto-starts the browser on first CDP access if it doesn't exist.
     """
     logger.info(f"Connecting to ChromeFleet browser: {browser_id}")
-    cdp_base = settings.CHROMEFLEET_URL.replace("https://", "wss://").replace("http://", "ws://")
-    cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
+    cdp_websocket_url = _setup_cdp_url(browser_id)
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
     browser = await _create_browser_from_cdp_websocket(
         browser_id=browser_id, websocket_url=cdp_websocket_url, target_domain=target_domain
