@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "npm run dev:backend",
     "dev:backend": "uv run -m uvicorn getgather.main:app --reload --host 127.0.0.1 --port 23456",
-    "frontend:check:format": "prettier --check \"**/*.{html,js,jsx,ts,tsx,css,json,md}\"",
-    "frontend:format": "prettier --write \"**/*.{html,js,jsx,ts,tsx,css,json,md}\"",
+    "frontend:check:format": "prettier --check \"**/*.{html,js,jsx,ts,tsx,css,json,md}\" \"!**/rfb.min.js\"",
+    "frontend:format": "prettier --write \"**/*.{html,js,jsx,ts,tsx,css,json,md}\" \"!**/rfb.min.js\"",
     "backend:check:format": "uv run ruff check && uv run ruff format --check",
     "backend:format": "uv run ruff format && uv run ruff check --fix",
     "backend:check:type-safety": "uv run pyright .",

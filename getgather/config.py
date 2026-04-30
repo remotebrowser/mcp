@@ -20,10 +20,35 @@ class Settings(AuthSettings, BaseSettings):
 
     CHROMEFLEET_URL: str = ""
 
+    @property
+    def effective_chromefleet_url(self) -> str:
+        """Returns CHROMEFLEET_URL if set, otherwise falls back to the local backend."""
+        return self.CHROMEFLEET_URL or "http://127.0.0.1:23456"
+
+    # Browser fleet (ChromeFleet integrated)
+    CONTAINER_IMAGE: str = "ghcr.io/remotebrowser/chromium-live"
+    CONTAINER_HOST: str = ""
+
+    # Residential proxy (Massive)
+    MASSIVE_PROXY_USERNAME: str = ""
+    MASSIVE_PROXY_PASSWORD: str = ""
+
+    # MaxMind GeoIP
+    MAXMIND_ACCOUNT_ID: int = 0
+    MAXMIND_LICENSE_KEY: str = ""
+
     # Logging
     LOG_LEVEL: str = "INFO"
     SENTRY_DSN: str = ""
     LOGFIRE_TOKEN: str = ""
+
+    @property
+    def MASSIVE_PROXY_ENABLED(self) -> bool:
+        return bool(self.MASSIVE_PROXY_USERNAME and self.MASSIVE_PROXY_PASSWORD)
+
+    @property
+    def MAXMIND_ENABLED(self) -> bool:
+        return bool(self.MAXMIND_ACCOUNT_ID and self.MAXMIND_LICENSE_KEY)
 
     @property
     def data_dir(self) -> Path:

@@ -4,6 +4,7 @@ from PyInstaller.utils.hooks import copy_metadata
 datas = [
     ('getgather/mcp/patterns', 'getgather/mcp/patterns'),
     ('getgather/mcp/mcp-tools.yaml', 'getgather/mcp'),
+    ('getgather/webui', 'getgather/webui'),
 ]
 hiddenimports = []
 

@@ -11,10 +11,12 @@ from fastapi.responses import (
     Response,
 )
 from fastapi.routing import APIRoute
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from getgather.auth.auth import setup_mcp_auth
-from getgather.config import settings
+from getgather.browsers_api_router import router as browsers_router
+from getgather.config import PROJECT_DIR, settings
 from getgather.logs import MCPLoggingContextMiddleware
 from getgather.mcp.dpage import remote_zen_dpage_mcp_tool, router as dpage_router
 from getgather.mcp.main import MCPDoc, create_mcp_apps, mcp_app_docs
@@ -32,8 +34,7 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not settings.CHROMEFLEET_URL:
-        logger.error("CHROMEFLEET_URL is not set. Exiting.")
-        raise SystemExit(1)
+        logger.warning("CHROMEFLEET_URL is not set, falling back to local browsers")
 
     stop_event = asyncio.Event()
 
@@ -102,6 +103,7 @@ async def mcp_slash_middleware(
 
 
 # Mount routers and apps AFTER middleware
+app.include_router(browsers_router)
 app.include_router(dpage_router)
 
 for mcp_app in mcp_apps:
@@ -115,16 +117,25 @@ async def mcp_docs() -> list[MCPDoc]:
     return await asyncio.gather(*[mcp_app_docs(mcp_app) for mcp_app in create_mcp_apps()])
 
 
-@app.get("/")
-def homepage():
-    html = f"""<!DOCTYPE html>
+if settings.CHROMEFLEET_URL:
+
+    @app.get("/")
+    def homepage():
+        html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GetGather</title>
 <style>html,body{{margin:0;padding:0;height:100%;overflow:hidden}}iframe{{border:none;width:100%;height:100%}}</style>
 </head>
 <body><iframe src="{settings.CHROMEFLEET_URL}"></iframe></body>
 </html>"""
-    return HTMLResponse(content=html)
+        return HTMLResponse(content=html)
+
+else:
+    app.mount(
+        "/",
+        StaticFiles(directory=str(PROJECT_DIR / "getgather" / "webui"), html=True),
+        name="webui",
+    )
 
 
 # Wrap the entire instrumented app so mcp-session-id handling runs BEFORE
