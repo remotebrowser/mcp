@@ -5,38 +5,29 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
 jobs:
   container:
     runs-on: ubuntu-22.04
     timeout-minutes: 15
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Run Chrome Fleet
         uses: ./.github/actions/run-chromefleet
         timeout-minutes: 5
 
-      - run: docker build -t getgather .
-
-      - run: docker run -d --network host --name getgather -e CHROMEFLEET_URL getgather
-        env:
-          CHROMEFLEET_URL: http://localhost:8300
-        timeout-minutes: 3
-
-      - name: Run the health check validation
-        run: while ! curl -s 'http://localhost:23456/health' | grep 'OK'; do sleep 1; done
-        timeout-minutes: 3
-
-      - name: Run the extended health check validation
-        run: while ! curl -s 'http://localhost:23456/extended-health' | grep 'OK'; do sleep 1; done
-        timeout-minutes: 3
-
-      - name: Get the container logs
-        run: docker logs --details getgather
-        if: always()
+      - uses: remotebrowser/shared-github-actions/container-health-check@v1
+        with:
+          image-name: getgather
+          health-checks: |
+            {"url": "http://localhost:23456/health"}
+            {"url": "http://localhost:23456/extended-health"}
+          health-timeout-seconds: 180
+          extra-config: |
+            --network host
+            -e CHROMEFLEET_URL=http://localhost:8300
 
       - name: Show Chrome Fleet logs
-        run: cat chromefleet.log
         if: always()
+        run: cat chromefleet.log

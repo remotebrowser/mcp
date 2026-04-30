@@ -1,76 +1,53 @@
-# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
-
 name: Deploy to Fly.io
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+    inputs:
+      demo:
+        description: Deploy remotebrowser (demo)
+        required: false
+        type: boolean
+        default: true
+      dev:
+        description: Deploy remotebrowser-dev
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  deploy:
-    name: Deploy to ${{ matrix.org.name }}
+  prepare-matrix:
     runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.pm.outputs.matrix }}
+    steps:
+      - id: pm
+        uses: remotebrowser/shared-github-actions/prepare-matrix@v1
+        with:
+          entries: |
+            { "env": "demo", "config": "demo", "app_name": "remotebrowser"     }
+            { "env": "dev",  "config": "dev",  "app_name": "remotebrowser-dev" }
+          selections: |
+            ${{ inputs.demo && 'demo' || '' }}
+            ${{ inputs.dev  && 'dev'  || '' }}
+          key-field: env
+
+  deploy:
+    needs: prepare-matrix
+    name: Deploy ${{ matrix.app_name }}
+    runs-on: ubuntu-22.04
+    concurrency: deploy-${{ matrix.app_name }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        org:
-          - name: production
-            config: prd
-            app_name: remotebrowser
-
+        include: ${{ fromJSON(needs.prepare-matrix.outputs.matrix) }}
     steps:
-      - name: Check out source repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: remotebrowser/shared-github-actions/deploy-fly@v1
         with:
-          fetch-depth: 0
-
-      - name: Show 5 most recent commits
-        run: git log --oneline -n 5
-
-      - name: Download environment variables for ${{ matrix.org.config }} config
-        uses: ./.github/actions/download-env
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN_PRD }}
-          project: remotebrowser
-          config: ${{ matrix.org.config }}
-
-      - name: Add GIT_REV to .env file
-        run: |
-          echo "GIT_REV=${{ github.sha }}" >> .env
-          echo "✅ Added GIT_REV to .env file"
-
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Import secrets to ${{ matrix.org.app_name }} app
-        run: |
-          cat .env | flyctl secrets import --app ${{ matrix.org.app_name }} --stage
-
-      - name: Deploy ${{ matrix.org.app_name }} app
-        run: |
-          flyctl deploy --remote-only --app ${{ matrix.org.app_name }}
-
-      - name: Start machines for ${{ matrix.org.app_name }} app
-        run: |
-          flyctl machines start $(flyctl machines list --app ${{ matrix.org.app_name }} --json | jq -r '.[].id') || true
-
-      - name: Run health check validation for ${{ matrix.org.app_name }} app
-        run: |-
-          echo "Checking machine states..."
-          STATES=$(flyctl status -a ${{ matrix.org.app_name }} --json | jq -r '.Machines[].state' | sort -u)
-          echo "Machine states: $STATES"
-
-          if echo "$STATES" | grep -q "started"; then
-            echo "✅ ${{ matrix.org.app_name }} machines are deployed successfully with git revision ${{ github.sha }}"
-            exit 0
-          else
-            echo "⚠️  Warning: ${{ matrix.org.app_name }} machines may not be fully started"
-            echo "This may be expected if using auto-suspend. Check manually if needed."
-            exit 0
-          fi
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          doppler-project: remotebrowser
+          doppler-config: ${{ matrix.config }}
+          app-name: ${{ matrix.app_name }}
