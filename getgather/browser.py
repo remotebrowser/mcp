@@ -1,9 +1,9 @@
 import asyncio
 import json
 import random
-from contextvars import ContextVar
 from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal, TypeVar, cast
 from urllib.parse import urlparse
@@ -85,11 +85,6 @@ def _inject_headers_into_websockets(extra_headers: dict[str, str] | None = None)
     _ensure_ws_connect_patched()
 
     token = _ws_extra_headers_var.set(extra_headers or None)
-    logger.info(
-        "Set websocket header context: target_domain={}, header_keys={}",
-        (extra_headers or {}).get("x-target-domains"),
-        sorted((extra_headers or {}).keys()),
-    )
     try:
         yield
     finally:
@@ -133,11 +128,6 @@ async def _create_browser_from_cdp_websocket(
             logger.debug("Ignored transient target update race: StopIteration")
 
     extra_headers = _build_chromefleet_headers(target_domain=target_domain)
-    logger.info(
-        "Opening CDP websocket for browser_id={} with target_domain={}",
-        browser_id,
-        extra_headers.get("x-target-domains"),
-    )
     with (
         logfire.span(
             "cdp websocket connect {browser_id}",
