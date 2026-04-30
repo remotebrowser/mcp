@@ -30,7 +30,35 @@ _ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
     "_ws_extra_headers_var", default=None
 )
 _ws_connect_patched = False
-_original_websockets_connect: Any = None
+_original_websockets_connect = websockets.connect
+
+
+def _traced_websocket_connect(*args: Any, **kwargs: Any) -> Any:
+    carrier: dict[str, str] = {}
+    TraceContextTextMapPropagator().inject(carrier)
+
+    merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
+    context_headers = _ws_extra_headers_var.get()
+    if context_headers:
+        merged.update(context_headers)
+    if carrier:
+        merged.update(carrier)
+    kwargs["additional_headers"] = merged
+
+    logger.info(
+        "CDP websocket headers attached: target_domain={}, keys={}",
+        merged.get("x-target-domains"),
+        sorted(merged.keys()),
+    )
+    return _original_websockets_connect(*args, **kwargs)
+
+
+def _ensure_ws_connect_patched() -> None:
+    global _ws_connect_patched
+    if _ws_connect_patched:
+        return
+    websockets.connect = _traced_websocket_connect  # type: ignore[assignment]
+    _ws_connect_patched = True
 
 
 def _build_chromefleet_headers(*, target_domain: str | None = None) -> dict[str, str]:
@@ -54,29 +82,7 @@ def _inject_headers_into_websockets(extra_headers: dict[str, str] | None = None)
     # Zendriver calls `websockets.connect(url, ...)` with no hook for headers.
     # Install a single process-wide wrapper once, then pass per-request headers
     # via ContextVar so concurrent requests do not overwrite each other.
-    global _ws_connect_patched, _original_websockets_connect
-    if not _ws_connect_patched:
-        _original_websockets_connect = websockets.connect
-
-        def traced_connect(*args: Any, **kwargs: Any) -> Any:
-            carrier: dict[str, str] = {}
-            TraceContextTextMapPropagator().inject(carrier)
-            merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
-            context_headers = _ws_extra_headers_var.get()
-            if context_headers:
-                merged.update(context_headers)
-            if carrier:
-                merged.update(carrier)
-            kwargs["additional_headers"] = merged
-            logger.info(
-                "CDP websocket headers attached: target_domain={}, keys={}",
-                merged.get("x-target-domains"),
-                sorted(merged.keys()),
-            )
-            return _original_websockets_connect(*args, **kwargs)
-
-        websockets.connect = traced_connect  # type: ignore[assignment]
-        _ws_connect_patched = True
+    _ensure_ws_connect_patched()
 
     token = _ws_extra_headers_var.set(extra_headers or None)
     logger.info(
