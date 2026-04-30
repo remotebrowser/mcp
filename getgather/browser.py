@@ -27,20 +27,36 @@ from getgather.config import settings
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 
 
+def _chromefleet_request_headers(target_domain: str = "") -> dict[str, str]:
+    mcp_headers = get_http_headers(include_all=True)
+    headers: dict[str, str | None] = {
+        "x-forwarded-for": mcp_headers.get("x-forwarded-for", None),
+        "user-agent": mcp_headers.get("user-agent", None),
+        "sec-ch-ua": mcp_headers.get("sec-ch-ua", None),
+        "sec-ch-ua-mobile": mcp_headers.get("sec-ch-ua-mobile", None),
+        "sec-ch-ua-platform": mcp_headers.get("sec-ch-ua-platform", None),
+        "x-origin-ip": mcp_headers.get("x-origin-ip") or client_ip_var.get(),
+        "x-origin-id": mcp_headers.get("x-origin-id", None),
+        "x-origin-ua": mcp_headers.get("x-origin-ua", None),
+        "x-target-domains": target_domain or None,
+    }
+    return {k: v for k, v in headers.items() if v is not None}
+
+
 @contextmanager
-def _inject_traceparent_into_websockets():
+def _inject_request_headers_into_websockets(target_domain: str = ""):
     # Zendriver calls `websockets.connect(url, ...)` with no hook for headers.
-    # Swap the module-level symbol so our CDP handshake carries W3C traceparent,
-    # letting flyfleet's FastAPI OTel instrumentation parent the /cdp/{browser_id}
-    # span under the current getgather trace.
+    # Swap the module-level symbol so our CDP handshake carries W3C traceparent
+    # plus the same proxy-routing headers `_call_chromefleet_api` sends, so
+    # flyfleet's `/cdp/{browser_id}` handler sees matching `x-origin-ip`,
+    # `x-target-domains`, etc. and doesn't fall back to defaults on reconfigure.
     original_connect = websockets.connect
 
     def traced_connect(*args: Any, **kwargs: Any) -> Any:
-        carrier: dict[str, str] = {}
-        TraceContextTextMapPropagator().inject(carrier)
-        if carrier:
-            merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
-            merged.update(carrier)
+        merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
+        merged.update(_chromefleet_request_headers(target_domain))
+        TraceContextTextMapPropagator().inject(merged)
+        if merged:
             kwargs["additional_headers"] = merged
         return original_connect(*args, **kwargs)
 
@@ -55,6 +71,7 @@ async def _create_browser_from_cdp_websocket(
     *,
     browser_id: str,
     websocket_url: str,
+    target_domain: str = "",
     config: Config | None = None,
 ) -> zd.Browser:
     parsed = urlparse(websocket_url)
@@ -91,7 +108,7 @@ async def _create_browser_from_cdp_websocket(
             browser_id=browser_id,
             cdp_url=websocket_url,
         ),
-        _inject_traceparent_into_websockets(),
+        _inject_request_headers_into_websockets(target_domain),
     ):
         if instance.config.autodiscover_targets:
             instance.connection.handlers[zd.cdp.target.TargetInfoChanged] = [  # type: ignore[reportUnknownMemberType]
@@ -137,19 +154,7 @@ async def _call_chromefleet_api(
 
     url = f"{base_url}/api/v1/browsers/{browser_id}"
 
-    mcp_headers = get_http_headers(include_all=True)
-    headers = {
-        "x-forwarded-for": mcp_headers.get("x-forwarded-for", None),
-        "user-agent": mcp_headers.get("user-agent", None),
-        "sec-ch-ua": mcp_headers.get("sec-ch-ua", None),
-        "sec-ch-ua-mobile": mcp_headers.get("sec-ch-ua-mobile", None),
-        "sec-ch-ua-platform": mcp_headers.get("sec-ch-ua-platform", None),
-        "x-origin-ip": mcp_headers.get("x-origin-ip") or client_ip_var.get(),
-        "x-origin-id": mcp_headers.get("x-origin-id", None),
-        "x-origin-ua": mcp_headers.get("x-origin-ua", None),
-        "x-target-domains": target_domain,
-    }
-    headers = {k: v for k, v in headers.items() if v is not None}
+    headers = _chromefleet_request_headers(target_domain)
 
     async with httpx.AsyncClient(
         transport=RetryTransport(
@@ -219,7 +224,9 @@ async def create_remote_browser(
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
     browser = await _create_browser_from_cdp_websocket(
-        browser_id=browser_id, websocket_url=cdp_websocket_url
+        browser_id=browser_id,
+        websocket_url=cdp_websocket_url,
+        target_domain=target_domain,
     )
     return browser
 
