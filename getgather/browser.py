@@ -1,6 +1,7 @@
 import asyncio
 import json
 import random
+from contextvars import ContextVar
 from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -25,6 +26,11 @@ from getgather.client_ip import client_ip_var
 from getgather.config import settings
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
+_ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
+    "_ws_extra_headers_var", default=None
+)
+_ws_connect_patched = False
+_original_websockets_connect: Any = None
 
 
 def _build_chromefleet_headers(*, target_domain: str | None = None) -> dict[str, str]:
@@ -46,27 +52,43 @@ def _build_chromefleet_headers(*, target_domain: str | None = None) -> dict[str,
 @contextmanager
 def _inject_headers_into_websockets(extra_headers: dict[str, str] | None = None):
     # Zendriver calls `websockets.connect(url, ...)` with no hook for headers.
-    # Swap the module-level symbol so our CDP handshake carries W3C traceparent,
-    # letting flyfleet's FastAPI OTel instrumentation parent the /cdp/{browser_id}
-    # span under the current getgather trace.
-    original_connect = websockets.connect
+    # Install a single process-wide wrapper once, then pass per-request headers
+    # via ContextVar so concurrent requests do not overwrite each other.
+    global _ws_connect_patched, _original_websockets_connect
+    if not _ws_connect_patched:
+        _original_websockets_connect = websockets.connect
 
-    def traced_connect(*args: Any, **kwargs: Any) -> Any:
-        carrier: dict[str, str] = {}
-        TraceContextTextMapPropagator().inject(carrier)
-        merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
-        if extra_headers:
-            merged.update(extra_headers)
-        if carrier:
-            merged.update(carrier)
-        kwargs["additional_headers"] = merged
-        return original_connect(*args, **kwargs)
+        def traced_connect(*args: Any, **kwargs: Any) -> Any:
+            carrier: dict[str, str] = {}
+            TraceContextTextMapPropagator().inject(carrier)
+            merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
+            context_headers = _ws_extra_headers_var.get()
+            if context_headers:
+                merged.update(context_headers)
+            if carrier:
+                merged.update(carrier)
+            kwargs["additional_headers"] = merged
+            logger.info(
+                "CDP websocket headers attached: target_domain={}, keys={}",
+                merged.get("x-target-domains"),
+                sorted(merged.keys()),
+            )
+            return _original_websockets_connect(*args, **kwargs)
 
-    websockets.connect = traced_connect  # type: ignore[assignment]
+        websockets.connect = traced_connect  # type: ignore[assignment]
+        _ws_connect_patched = True
+
+    token = _ws_extra_headers_var.set(extra_headers or None)
+    logger.info(
+        "Set websocket header context: target_domain={}, header_keys={}",
+        (extra_headers or {}).get("x-target-domains"),
+        sorted((extra_headers or {}).keys()),
+    )
     try:
         yield
     finally:
-        websockets.connect = original_connect  # type: ignore[assignment]
+        _ws_extra_headers_var.reset(token)
+        logger.info("Reset websocket header context")
 
 
 async def _create_browser_from_cdp_websocket(
@@ -105,6 +127,11 @@ async def _create_browser_from_cdp_websocket(
             logger.debug("Ignored transient target update race: StopIteration")
 
     extra_headers = _build_chromefleet_headers(target_domain=target_domain)
+    logger.info(
+        "Opening CDP websocket for browser_id={} with target_domain={}",
+        browser_id,
+        extra_headers.get("x-target-domains"),
+    )
     with (
         logfire.span(
             "cdp websocket connect {browser_id}",
@@ -197,7 +224,10 @@ def find_browser_tab(browser: zd.Browser, target_id: str) -> zd.Tab | None:
     return None
 
 
-async def get_remote_browser(browser_id: str) -> zd.Browser | None:
+async def get_remote_browser(
+    browser_id: str,
+    target_domain: str | None = "",
+) -> zd.Browser | None:
     logger.debug(f"Finding the ChromeFleet browser: {browser_id}")
     try:
         await _call_chromefleet_api("GET", browser_id)
@@ -208,7 +238,9 @@ async def get_remote_browser(browser_id: str) -> zd.Browser | None:
     cdp_websocket_url = f"{cdp_base}/cdp/{browser_id}"
     logger.debug(f"Connecting to ChromeFleet CDP at {cdp_websocket_url}")
     browser = await _create_browser_from_cdp_websocket(
-        browser_id=browser_id, websocket_url=cdp_websocket_url
+        browser_id=browser_id,
+        websocket_url=cdp_websocket_url,
+        target_domain=target_domain,
     )
     return browser
 
