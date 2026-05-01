@@ -3,6 +3,7 @@ import json
 import random
 from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal, TypeVar, cast
 from urllib.parse import urlparse
@@ -25,6 +26,39 @@ from getgather.client_ip import client_ip_var
 from getgather.config import settings
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
+_ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
+    "_ws_extra_headers_var", default=None
+)
+_ws_connect_patched = False
+_original_websockets_connect = websockets.connect
+
+
+def _traced_websocket_connect(*args: Any, **kwargs: Any) -> Any:
+    carrier: dict[str, str] = {}
+    TraceContextTextMapPropagator().inject(carrier)
+
+    merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
+    context_headers = _ws_extra_headers_var.get()
+    if context_headers:
+        merged.update(context_headers)
+    if carrier:
+        merged.update(carrier)
+    kwargs["additional_headers"] = merged
+
+    logger.info(
+        "CDP websocket headers attached: target_domain={}, keys={}",
+        merged.get("x-target-domains"),
+        sorted(merged.keys()),
+    )
+    return _original_websockets_connect(*args, **kwargs)
+
+
+def _ensure_ws_connect_patched() -> None:
+    global _ws_connect_patched
+    if _ws_connect_patched:
+        return
+    websockets.connect = _traced_websocket_connect  # type: ignore[assignment]
+    _ws_connect_patched = True
 
 
 def _build_chromefleet_headers(*, target_domain: str | None = None) -> dict[str, str]:
@@ -46,27 +80,15 @@ def _build_chromefleet_headers(*, target_domain: str | None = None) -> dict[str,
 @contextmanager
 def _inject_headers_into_websockets(extra_headers: dict[str, str] | None = None):
     # Zendriver calls `websockets.connect(url, ...)` with no hook for headers.
-    # Swap the module-level symbol so our CDP handshake carries W3C traceparent,
-    # letting flyfleet's FastAPI OTel instrumentation parent the /cdp/{browser_id}
-    # span under the current getgather trace.
-    original_connect = websockets.connect
+    # Install a single process-wide wrapper once, then pass per-request headers
+    # via ContextVar so concurrent requests do not overwrite each other.
+    _ensure_ws_connect_patched()
 
-    def traced_connect(*args: Any, **kwargs: Any) -> Any:
-        carrier: dict[str, str] = {}
-        TraceContextTextMapPropagator().inject(carrier)
-        merged: dict[str, str] = dict(kwargs.get("additional_headers") or {})
-        if extra_headers:
-            merged.update(extra_headers)
-        if carrier:
-            merged.update(carrier)
-        kwargs["additional_headers"] = merged
-        return original_connect(*args, **kwargs)
-
-    websockets.connect = traced_connect  # type: ignore[assignment]
+    token = _ws_extra_headers_var.set(extra_headers or None)
     try:
         yield
     finally:
-        websockets.connect = original_connect  # type: ignore[assignment]
+        _ws_extra_headers_var.reset(token)
 
 
 async def _create_browser_from_cdp_websocket(
