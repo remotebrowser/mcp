@@ -1,0 +1,26 @@
+name: Browser API E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  browser-api-e2e-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Prepare back-end environment
+        uses: ./.github/actions/prepare-backend
+
+      - run: uv run -m uvicorn getgather.main:app --port 23456 &
+
+      - name: Run the health check validation
+        run: while ! curl -s 'http://localhost:23456/health' | grep 'OK'; do sleep 1; done
+        timeout-minutes: 3
+
+      - name: Run the browser API E2E tests
+        run: uv run pytest -v -s tests/test_browser_api_e2e.py
