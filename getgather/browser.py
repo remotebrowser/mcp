@@ -265,6 +265,19 @@ async def terminate_remote_browser(browser: zd.Browser) -> None:
     )
 
 
+def _should_block_m_media_amazon_js(url: str) -> bool:
+    """True for scripts on m.media-amazon.com (any path depth, path ends with .js).
+
+    Network.setBlockedURLs only documents single '*' wildcards, not '**', so Fetch
+    interception matches nested paths reliably (same intent as *.js and **/*.js).
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if host != "m.media-amazon.com":
+        return False
+    return (parsed.path or "").lower().endswith(".js")
+
+
 _CREDENTIALS_BLOCK_SCRIPT = r"""
 (() => {
   "use strict";
@@ -295,8 +308,8 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             zd.cdp.network.ResourceType.IMAGE,
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ]
-
+        ] or _should_block_m_media_amazon_js(request_url)
+        
         if not deny:
             try:
                 await page.send(zd.cdp.fetch.continue_request(request_id=event.request_id))
@@ -336,9 +349,13 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
             else:
                 raise
 
+    # Register handler before Fetch.enable so early requests are not missed between enable and handler attach.
     # Enable fetch domain to intercept requests. Will be overridden if proxy auth is set up.
     await page.send(zd.cdp.fetch.enable())
     page.add_handler(zd.cdp.fetch.RequestPaused, handle_request)  # type: ignore[reportUnknownMemberType]
+    # CDP-level block as backup for script URLs (covers cases Fetch may not pause, e.g. some cached paths).
+    await page.send(zd.cdp.network.enable())
+    await page.send(zd.cdp.network.set_blocked_ur_ls(["*://m.media-amazon.com/*.js"]))
 
     # Block the entire Credentials API before page for passkeys
     # Page domain must be enabled before addScriptToEvaluateOnNewDocument, otherwise CDP will reject the script
@@ -1058,3 +1075,4 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
     except Exception as error:
         logger.error(f"Batch actions failed: {error}")
     return None
+
