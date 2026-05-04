@@ -148,9 +148,32 @@ async def _create_browser_from_cdp_websocket(
             instance.connection.handlers[zd.cdp.target.TargetCrashed] = [  # type: ignore[reportUnknownMemberType]
                 _safe_handle_target_update
             ]
-            await instance.connection.send(zd.cdp.target.set_discover_targets(discover=True))
+            try:
+                await asyncio.wait_for(
+                    instance.connection.send(zd.cdp.target.set_discover_targets(discover=True)),
+                    timeout=30.0,
+                )
+            except websockets.ConnectionClosedError as e:
+                raise ConnectionError(
+                    f"CDP WebSocket closed by remote (code={e.rcvd.code if e.rcvd else 'unknown'},"
+                    f" reason={e.rcvd.reason if e.rcvd else ''!r}): browser_id={browser_id}"
+                ) from e
+            except asyncio.TimeoutError:
+                raise ConnectionError(
+                    f"CDP WebSocket handshake timed out after 30s: browser_id={browser_id}"
+                )
 
-        await instance.update_targets()
+        try:
+            await asyncio.wait_for(instance.update_targets(), timeout=30.0)
+        except websockets.ConnectionClosedError as e:
+            raise ConnectionError(
+                f"CDP WebSocket closed by remote (code={e.rcvd.code if e.rcvd else 'unknown'},"
+                f" reason={e.rcvd.reason if e.rcvd else ''!r}): browser_id={browser_id}"
+            ) from e
+        except asyncio.TimeoutError:
+            raise ConnectionError(
+                f"CDP WebSocket update_targets timed out after 30s: browser_id={browser_id}"
+            )
     util.get_registered_instances().add(instance)
 
     async def browser_atexit() -> None:
