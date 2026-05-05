@@ -44,11 +44,13 @@ def _traced_websocket_connect(*args: Any, **kwargs: Any) -> Any:
     if carrier:
         merged.update(carrier)
     kwargs["additional_headers"] = merged
+    kwargs.setdefault("open_timeout", settings.CHROMEFLEET_CDP_OPEN_TIMEOUT_SECONDS)
 
     logger.info(
-        "CDP websocket headers attached: target_domain={}, keys={}",
-        merged.get("x-target-domains"),
-        sorted(merged.keys()),
+        "CDP websocket headers attached",
+        target_domain=merged.get("x-target-domains"),
+        open_timeout=kwargs.get("open_timeout"),
+        keys=sorted(merged.keys()),
     )
     return _original_websockets_connect(*args, **kwargs)
 
