@@ -464,12 +464,14 @@ async def distill(
             logger.debug(f" - {item.name} with priority {item.priority}")
         match = result[0]
 
+        browser_id = getattr(getattr(page, "browser", None), "id", None)
+
         logger.bind(
             event="distill_best_match",
             best_match_name=match.name,
             best_match_priority=match.priority,
             hostname=hostname,
-            browser_id=page.browser.id,  # type: ignore[attr-defined]
+            browser_id=browser_id,
         ).info("Best match selected")
 
         if reload_on_error and any(pattern in match.name for pattern in NETWORK_ERROR_PATTERNS):
