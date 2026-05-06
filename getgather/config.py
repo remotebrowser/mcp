@@ -19,7 +19,7 @@ class Settings(AuthSettings, BaseSettings):
     DATA_DIR: str = ""
 
     CHROMEFLEET_URL: str = ""
-    CHROMEFLEET_CDP_OPEN_TIMEOUT_SECONDS: float = 30.0
+    CHROMEFLEET_CDP_OPEN_TIMEOUT_SECONDS: float = 34.0
 
     @property
     def effective_chromefleet_url(self) -> str:
