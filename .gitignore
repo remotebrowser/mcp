@@ -512,5 +512,9 @@ frontend/__generated__/
 
 .claude/
 
+# Additional blocklists
+blocklists-*.txt
+!blocklists-basic.txt
+
 # local dev configuration files
 /tmp/*

@@ -24,6 +24,7 @@ from zendriver.core.connection import Connection, ProtocolException
 
 from getgather.client_ip import client_ip_var
 from getgather.config import settings
+from getgather.resource_blocker import images_allowed_for_request_url, should_be_blocked
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 _ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
@@ -292,14 +293,22 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
     async def handle_request(event: zd.cdp.fetch.RequestPaused) -> None:
         resource_type = event.resource_type
         request_url = event.request.url
+        images_allowed = images_allowed_for_request_url(request_url)
 
-        deny = resource_type in [
-            zd.cdp.network.ResourceType.IMAGE,
+        if resource_type == zd.cdp.network.ResourceType.IMAGE:
+            logger.debug(
+                f"Image request check: page_url={page.url!r}, request_url={request_url!r}, "
+                f"images_allowed={images_allowed}"
+            )
+
+        deny_type = resource_type in [
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ]
+        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and not images_allowed)
+        deny_url = await should_be_blocked(request_url)
+        should_deny = deny_type or deny_url
 
-        if not deny:
+        if not should_deny:
             try:
                 await page.send(zd.cdp.fetch.continue_request(request_id=event.request_id))
             except (ProtocolException, websockets.ConnectionClosedError) as e:
@@ -317,7 +326,8 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
                     raise
             return
 
-        logger.trace(f" DENY resource: {request_url}")
+        kind = "URL" if deny_url else "resource"
+        logger.trace(f" DENY {kind}: {request_url}")
 
         try:
             await page.send(
