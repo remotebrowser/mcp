@@ -1,58 +1,26 @@
-An MCP server for extracting personal data from many services: Amazon order history, Garmin activity stats, Zillow favorites, and more.
+# Remote Browser
 
-It works with [Claude Code](https://claude.ai/code), [LM Studio](https://lmstudio.ai), [Gemini CLI](https://google-gemini.github.io/gemini-cli), and many more.
+[![PyPI](https://img.shields.io/pypi/v/remotebrowser)](https://pypi.org/project/remotebrowser/)
+
+Remote Browser is an open-source, self-hosted browser orchestration system for AI agent [harness engineering](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents).
+
+It launches and manages multiple isolated, containerized Chrome instances with CDP ([Chrome Devtools Protocol](https://chromedevtools.github.io/devtools-protocol/)) support for scalable web automation. Remote Browser is designed to integrate with AI agent runtimes and browser tools, and works with [OpenClaw](https://openclaw.ai), [Hermes Agent](https://hermes-agent.nousresearch.com), etc.
+
+It also bundles an MCP server for extracting personal data from many services: Amazon order history, Garmin activity stats, Zillow favorites, and more. This MCP server works with [Claude Code](https://claude.ai/code), [LM Studio](https://lmstudio.ai), [Gemini CLI](https://google-gemini.github.io/gemini-cli), and many more.
 
 ![Screenshot of Claude Code using Remote Browser MCP](claude-code-remotebrowser-mcp.png)
 
-### Quickstart
+## Quickstart
 
-Run [Chrome Fleet](https://github.com/remotebrowser/chromefleet), note its service address (e.g. `http://192.168.1.2:8300`), set it as `CHROMEFLEET_URL`, then start this MCP server:
-
-```bash
-export CHROMEFLEET_URL=http://192.168.1.1:8300
-docker run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp
-```
-
-Alternative ways to run it:
-
-<details>
-<summary>Docker Compose</summary>
-
-```yaml
-services:
-  remotebrowser-mcp:
-    image: ghcr.io/remotebrowser/mcp
-    ports:
-      - "23456:23456"
-    environment:
-      - CHROMEFLEET_URL
-    restart: unless-stopped
-```
-
-</details>
-
-<details>
-<summary>Inline podman</summary>
+Remote Browser is a Python app. To run it, you need [uv](https://docs.astral.sh/uv) and [Podman](https://podman.io):
 
 ```bash
-export CHROMEFLEET_URL=http://192.168.1.1:8300
-podman run -p 23456:23456 -e CHROMEFLEET_URL ghcr.io/remotebrowser/mcp
+uvx remotebrowser
 ```
 
-</details>
+Then open `http://localhost:23456`.
 
-<details>
-<summary>Run with Python</summary>
-
-You'll need [uv](https://docs.astral.sh/uv) with [Python](https://python.org) >= 3.11. After cloning this repo:
-
-```bash
-uv run -m uvicorn getgather.main:app --port 23456
-```
-
-</details>
-
-### Connect to MCP clients
+## MCP
 
 **Standard config** works with most tools:
 
@@ -104,3 +72,59 @@ Go to `Program` in the right sidebar -> `Install` -> `Edit mcp.json`. Use the st
 Follow the MCP install [guide](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server), use the standard config above.
 
 </details>
+
+## API
+
+### Start a new browser
+
+`POST /api/v1/browsers/{browser_id}` creates a new browser with the specified `browser_id`. The browser runs in a container.
+
+_Example_: `curl -X POST localhost:8300/api/v1/browsers/xyz123` creates a container named `chromium-xyz123` and returns:
+
+```json
+{ "container_name": "chromium-xyz123", "status": "created" }
+```
+
+### Stop a browser
+
+`DELETE /api/v1/browsers/{browser_id}` terminates the browser with the specified `browser_id` and returns the container name. Returns HTTP 404 if the browser ID is not found.
+
+_Example_: `curl -X DELETE localhost:8300/api/v1/browsers/xyz123` terminates the container named `chromium-xyz123` and returns:
+
+```json
+{ "container_name": "chromium-xyz123", "status": "deleted" }
+```
+
+### Query a browser
+
+`GET /api/v1/browsers/{browser_id}` returns information about the browser with the specified `browser_id`. Returns HTTP 404 if the browser is not found.
+
+_Example_: `curl localhost:8300/api/v1/browsers/xyz123` returns:
+
+```json
+{ "last_activity_timestamp": 1772069081 }
+```
+
+### List all browsers
+
+`GET /api/v1/browsers` returns a JSON array of all running browser IDs.
+
+_Example_: `curl localhost:8300/api/v1/browsers` returns:
+
+```json
+["xyz123", "abc234"]
+```
+
+## Development
+
+To run the development version, clone this repository and run:
+
+```bash
+uv run -m uvicorn getgather.main:app --port 23456
+```
+
+## Deployment
+
+Supported deployment:
+
+- [Deploy using Dokku](deploy-dokku.md)
