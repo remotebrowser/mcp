@@ -900,87 +900,6 @@ wheels = [
 ]
 
 [[package]]
-name = "getgather"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "aiofiles" },
-    { name = "beautifulsoup4" },
-    { name = "fastapi" },
-    { name = "fastmcp" },
-    { name = "geoip2" },
-    { name = "httpx" },
-    { name = "httpx-retries" },
-    { name = "logfire", extra = ["fastapi", "httpx"] },
-    { name = "loguru" },
-    { name = "nanoid" },
-    { name = "py-key-value-aio", extra = ["redis"] },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "sentry-sdk", extra = ["fastapi"] },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "websockets" },
-    { name = "zendriver" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "assertpy" },
-    { name = "faker" },
-    { name = "nanoid" },
-    { name = "pyinstaller" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "python-fasthtml" },
-    { name = "ruff" },
-    { name = "yamlfix" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiofiles", specifier = ">=24.1.0" },
-    { name = "beautifulsoup4", specifier = ">=4.13.4" },
-    { name = "fastapi", specifier = ">=0.115.12" },
-    { name = "fastmcp", specifier = ">=3.0.0,<4" },
-    { name = "geoip2", specifier = ">=5.2.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "httpx-retries", specifier = ">=0.4.6" },
-    { name = "logfire", extras = ["fastapi", "httpx"], specifier = ">=4.13.2" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "nanoid", specifier = ">=2.0.0" },
-    { name = "py-key-value-aio", extras = ["redis"], specifier = ">=0.4.4" },
-    { name = "pydantic", specifier = ">=2.11.3" },
-    { name = "pydantic-settings", specifier = ">=2.9.1" },
-    { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "rich", specifier = ">=14.0.0" },
-    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
-    { name = "websockets", specifier = ">=15.0.1" },
-    { name = "zendriver", specifier = ">=0.14.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "assertpy", specifier = ">=1.1" },
-    { name = "faker", specifier = ">=33.3.0" },
-    { name = "nanoid", specifier = ">=2.0.0" },
-    { name = "pyinstaller", specifier = ">=6.19.0" },
-    { name = "pyright", specifier = ">=1.1.409" },
-    { name = "pytest", specifier = ">=8.3.5" },
-    { name = "pytest-asyncio", specifier = ">=0.23.5" },
-    { name = "pytest-cov", specifier = ">=4.1.0" },
-    { name = "pytest-xdist", specifier = ">=3.7.0" },
-    { name = "python-fasthtml", specifier = ">=0.12.21" },
-    { name = "ruff", specifier = ">=0.11.6" },
-    { name = "yamlfix", specifier = ">=1.6.1" },
-]
-
-[[package]]
 name = "googleapis-common-protos"
 version = "1.70.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2317,6 +2236,87 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/2f/db/98b5c277be99dd18bfd91dd04e1b759cad18d1a338188c936e92f921c7e2/referencing-0.36.2.tar.gz", hash = "sha256:df2e89862cd09deabbdba16944cc3f10feb6b3e6f18e902f7cc25609a34775aa", size = 74744, upload-time = "2025-01-25T08:48:16.138Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/b1/3baf80dc6d2b7bc27a95a67752d0208e410351e3feb4eb78de5f77454d8d/referencing-0.36.2-py3-none-any.whl", hash = "sha256:e8699adbbf8b5c7de96d8ffa0eb5c158b3beafce084968e2ea8bb08c6794dcd0", size = 26775, upload-time = "2025-01-25T08:48:14.241Z" },
+]
+
+[[package]]
+name = "remotebrowser"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "beautifulsoup4" },
+    { name = "fastapi" },
+    { name = "fastmcp" },
+    { name = "geoip2" },
+    { name = "httpx" },
+    { name = "httpx-retries" },
+    { name = "logfire", extra = ["fastapi", "httpx"] },
+    { name = "loguru" },
+    { name = "nanoid" },
+    { name = "py-key-value-aio", extra = ["redis"] },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "sentry-sdk", extra = ["fastapi"] },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
+    { name = "zendriver" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "assertpy" },
+    { name = "faker" },
+    { name = "nanoid" },
+    { name = "pyinstaller" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "python-fasthtml" },
+    { name = "ruff" },
+    { name = "yamlfix" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiofiles", specifier = ">=24.1.0" },
+    { name = "beautifulsoup4", specifier = ">=4.13.4" },
+    { name = "fastapi", specifier = ">=0.115.12" },
+    { name = "fastmcp", specifier = ">=3.0.0,<4" },
+    { name = "geoip2", specifier = ">=5.2.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "httpx-retries", specifier = ">=0.4.6" },
+    { name = "logfire", extras = ["fastapi", "httpx"], specifier = ">=4.13.2" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "nanoid", specifier = ">=2.0.0" },
+    { name = "py-key-value-aio", extras = ["redis"], specifier = ">=0.4.4" },
+    { name = "pydantic", specifier = ">=2.11.3" },
+    { name = "pydantic-settings", specifier = ">=2.9.1" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "rich", specifier = ">=14.0.0" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.29.1" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
+    { name = "websockets", specifier = ">=15.0.1" },
+    { name = "zendriver", specifier = ">=0.14.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "assertpy", specifier = ">=1.1" },
+    { name = "faker", specifier = ">=33.3.0" },
+    { name = "nanoid", specifier = ">=2.0.0" },
+    { name = "pyinstaller", specifier = ">=6.19.0" },
+    { name = "pyright", specifier = ">=1.1.409" },
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=0.23.5" },
+    { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pytest-xdist", specifier = ">=3.7.0" },
+    { name = "python-fasthtml", specifier = ">=0.12.21" },
+    { name = "ruff", specifier = ">=0.11.6" },
+    { name = "yamlfix", specifier = ">=1.6.1" },
 ]
 
 [[package]]

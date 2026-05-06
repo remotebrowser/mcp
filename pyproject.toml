@@ -1,5 +1,5 @@
 [project]
-name = "getgather"
+name = "remotebrowser"
 version = "0.1.0"
 description = "Free your data"
 readme = "README.md"
@@ -42,6 +42,23 @@ dev = [
   "python-fasthtml>=0.12.21",
   "pyinstaller>=6.19.0",
 ]
+
+[project.scripts]
+remotebrowser = "getgather.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["getgather"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"getgather/webui" = "getgather/webui"
+"getgather/mcp/patterns" = "getgather/mcp/patterns"
+
+[tool.hatch.build]
+only-packages = true
 
 [tool.ruff]
 src = ["getgather", "tests"]
