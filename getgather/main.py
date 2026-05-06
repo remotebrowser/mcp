@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Get Gather",
     description="GetGather mcp, frontend, and api",
-    version="0.1.0",
+    version="0.1.1",
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
 )
