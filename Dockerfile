@@ -23,7 +23,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Copy only dependency files first for better layer caching
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 
 # Install dependencies without workspace members
 RUN uv sync --no-dev --no-install-workspace
