@@ -8,7 +8,6 @@
   "reportOptionalSubscript": "warning",
   "reportSelfClsParameterName": "error",
   "reportUnboundVariable": "warning",
-  "reportUndefinedMember": "error",
   "reportUndefinedVariable": "error",
   "reportUninitializedInstanceVariable": "error",
   "reportUntypedClassDecorator": "error",
