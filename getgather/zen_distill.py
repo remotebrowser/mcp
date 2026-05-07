@@ -1178,16 +1178,14 @@ async def distill(
 
         if found and match_count > 0:
             distilled = str(pattern)
-            result.append(
-                (
-                    Match(
-                        name=name,
-                        priority=priority,
-                        distilled=distilled,
-                    ),
-                    optional_visible_text,
-                )
-            )
+            result.append((
+                Match(
+                    name=name,
+                    priority=priority,
+                    distilled=distilled,
+                ),
+                optional_visible_text,
+            ))
 
     result = sorted(result, key=lambda x: x[0].priority)
 
