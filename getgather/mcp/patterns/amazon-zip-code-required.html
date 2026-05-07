@@ -1,0 +1,13 @@
+<html gg-domain="amazon">
+  <head>
+    <title>ZIP code required</title>
+  </head>
+  <body>
+    <h2 gg-match="//h1[contains(normalize-space(.), 'Almost done!')]">Almost done!</h2>
+    <p gg-match-html="//p[contains(normalize-space(.), 'ZIP code')]"></p>
+
+    <label>ZIP code</label>
+    <input gg-match="#ap_zip" type="text" name="zipCode" />
+    <button gg-match="#continue" type="submit">Continue</button>
+  </body>
+</html>
