@@ -24,7 +24,7 @@ from zendriver.core.connection import Connection, ProtocolException
 
 from getgather.client_ip import client_ip_var
 from getgather.config import settings
-from getgather.resource_blocker import images_allowed_for_request_url, should_be_blocked
+from getgather.resource_blocker import should_be_blocked
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 _ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
@@ -293,18 +293,12 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
     async def handle_request(event: zd.cdp.fetch.RequestPaused) -> None:
         resource_type = event.resource_type
         request_url = event.request.url
-        images_allowed = images_allowed_for_request_url(request_url)
-
-        if resource_type == zd.cdp.network.ResourceType.IMAGE:
-            logger.debug(
-                f"Image request check: page_url={page.url!r}, request_url={request_url!r}, "
-                f"images_allowed={images_allowed}"
-            )
 
         deny_type = resource_type in [
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
-        ] or (resource_type == zd.cdp.network.ResourceType.IMAGE and not images_allowed)
+            zd.cdp.network.ResourceType.IMAGE,
+        ]
         deny_url = await should_be_blocked(request_url)
         should_deny = deny_type or deny_url
 
