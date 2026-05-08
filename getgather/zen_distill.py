@@ -1044,7 +1044,7 @@ async def page_batch_extract(
 async def distill(
     hostname: str | None, page: zd.Tab, patterns: list[Pattern], reload_on_error: bool = True
 ) -> Match | None:
-    result: list[Match] = []
+    result: list[tuple[Match, list[str]]] = []
     pattern_runs: list[tuple[str, int, BeautifulSoup, list[dict[str, object]]]] = []
     all_batch_queries: list[dict[str, object]] = []
     next_query_key = 0
@@ -1117,6 +1117,7 @@ async def distill(
     for name, priority, pattern, target_specs in pattern_runs:
         found = True
         match_count = 0
+        optional_visible_text: list[str] = []
 
         for spec in target_specs:
             target = spec.get("target")
@@ -1134,6 +1135,23 @@ async def distill(
             source_found = bool(source.get("found"))
 
             if source_found:
+                if optional:
+                    text_content = ""
+                    raw_text = source.get("text")
+                    if isinstance(raw_text, str):
+                        text_content = raw_text.strip()
+                    if not text_content:
+                        raw_value = source.get("value")
+                        if isinstance(raw_value, str):
+                            text_content = raw_value.strip()
+                    if not text_content:
+                        raw_html = source.get("html")
+                        if isinstance(raw_html, str):
+                            text_content = BeautifulSoup(raw_html, "html.parser").get_text(
+                                " ", strip=True
+                            )
+                    if text_content:
+                        optional_visible_text.append(text_content)
                 if html:
                     target.clear()
                     html_content = source.get("html", "")
@@ -1160,24 +1178,25 @@ async def distill(
 
         if found and match_count > 0:
             distilled = str(pattern)
-            result.append(
+            result.append((
                 Match(
                     name=name,
                     priority=priority,
                     distilled=distilled,
-                )
-            )
+                ),
+                optional_visible_text,
+            ))
 
-    result = sorted(result, key=lambda x: x.priority)
+    result = sorted(result, key=lambda x: x[0].priority)
 
     if len(result) == 0:
         logger.debug("No matches found")
         return None
     else:
         logger.debug(f"Number of matches: {len(result)}")
-        for item in result:
+        for item, _optional_visible_text in result:
             logger.debug(f" - {item.name} with priority {item.priority}")
-        match = result[0]
+        match, optional_visible_text = result[0]
 
         browser_id = getattr(getattr(page, "browser", None), "id", None)
 
@@ -1185,6 +1204,7 @@ async def distill(
             event="distill_best_match",
             best_match_name=match.name,
             best_match_priority=match.priority,
+            best_match_optional_visible_text=optional_visible_text,
             hostname=hostname,
             browser_id=browser_id,
         ).info("Best match selected")
