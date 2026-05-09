@@ -11,7 +11,7 @@ export USER=getgather
 rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 || true
 
 echo "Starting TigerVNC server on DISPLAY=$DISPLAY..."
-Xvnc -alwaysshared ${DISPLAY} -geometry 1920x1080 -depth 24 -rfbport 5900 -SecurityTypes None &
+Xvnc -alwaysshared ${DISPLAY} -geometry 1920x1080 -depth 24 -rfbport 5900 -SecurityTypes None -maxclients 2048 &
 
 echo "Waiting for X server at $DISPLAY..."
 for i in $(seq 1 20); do
