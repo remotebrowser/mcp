@@ -4,10 +4,9 @@
   </head>
   <body>
     <h1 gg-match="//h1[normalize-space(.)='Thank you']">Thank you</h1>
-    <span
-      gg-match="input[name='question_dcq_question_subjective_1'][value='ap_dcq_question_phone_tail_hint']"
-    ></span>
-    <label gg-match="label.a-form-label"></label>
+    <label
+      gg-match="//label[contains(normalize-space(.), 'What is the phone number that ends in')]"
+    ></label>
     <input
       autofocus
       name="dcq_question_subjective_1"
