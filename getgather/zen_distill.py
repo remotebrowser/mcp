@@ -53,6 +53,9 @@ NETWORK_ERROR_PATTERNS = (
     "err-tunnel-connection-failed",
     "err-proxy-connection-failed",
     "err-service-unavailable",
+    "err-connection-closed",
+    "err-empty-response",
+    "err-http-protocol-error",
 )
 
 
