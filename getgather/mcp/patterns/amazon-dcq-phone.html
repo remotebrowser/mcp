@@ -1,0 +1,20 @@
+<html gg-domain="amazon">
+  <head>
+    <title>Amazon Security Question - Phone</title>
+  </head>
+  <body>
+    <h1 gg-match="//h1[normalize-space(.)='Thank you']">Thank you</h1>
+    <span gg-match="input[name='question_dcq_question_subjective_1'][value='ap_dcq_question_phone_tail_hint']"></span>
+    <label gg-match="label.a-form-label"></label>
+    <input
+      autofocus
+      name="dcq_question_subjective_1"
+      type="text"
+      placeholder="Phone number"
+      gg-match="input[name='dcq_question_subjective_1']"
+    />
+    <button type="submit" gg-match="span.cvf-widget-btn-verify-dcq input[type=submit]">
+      Continue
+    </button>
+  </body>
+</html>
