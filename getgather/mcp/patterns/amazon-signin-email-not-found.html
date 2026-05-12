@@ -6,9 +6,9 @@
     <h4
       gg-stop
       gg-error="email_not_found"
-      gg-match-html="//*[@id='auth-error-message-box']//h4[contains(normalize-space(.), 'There was a problem')]"
+      gg-match-html="//*[@id='auth-error-message-box']//div[@class='a-alert-content' and contains(normalize-space(.), 'cannot find an account with that email address')]"
     >
-      There was a problem
+      We cannot find an account with that email address
     </h4>
   </body>
 </html>
