@@ -4,12 +4,6 @@
   </head>
   <body>
     <h1 gg-match="//h1[contains(., 'Authentication required')]">Authentication required</h1>
-    <button
-      type="submit"
-      gg-autoclick
-      gg-match="form[name=claimspicker] input#continue[type=submit]"
-    >
-      Send OTP
-    </button>
+    <div gg-autoclick gg-match="form[name=claimspicker] input#continue[type=submit]">Send OTP</div>
   </body>
 </html>
