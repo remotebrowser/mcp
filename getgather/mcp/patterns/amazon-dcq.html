@@ -1,17 +1,15 @@
 <html gg-domain="amazon">
   <head>
-    <title>Amazon Security Question - Phone</title>
+    <title>Amazon Security Question</title>
   </head>
   <body>
     <h1 gg-match="//h1[normalize-space(.)='Thank you']">Thank you</h1>
-    <label
-      gg-match="//label[contains(normalize-space(.), 'What is the phone number that ends in')]"
-    ></label>
+    <label gg-optional gg-match="label.a-form-label"></label>
     <input
       autofocus
       name="dcq_question_subjective_1"
       type="text"
-      placeholder="Phone number"
+      placeholder="Answer"
       gg-match="input[name='dcq_question_subjective_1']"
     />
     <button type="submit" gg-match="span.cvf-widget-btn-verify-dcq input[type=submit]">
