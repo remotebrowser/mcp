@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 import asyncio_atexit
 import httpx
 import logfire
+import sentry_sdk
 import websockets
 import zendriver as zd
 from fastmcp.server.dependencies import get_http_headers
@@ -880,8 +881,11 @@ async def page_batch_extract(
         result = await page.evaluate(js_code)
         if isinstance(result, dict):
             return cast(dict[str, dict[str, object]], result)
+        logger.warning(f"Batch extract returned unexpected type: {type(result)}")
+        sentry_sdk.capture_message(f"Batch extract returned unexpected type: {type(result)}")
     except Exception as error:
-        logger.debug(f"Batch extract failed: {error}")
+        logger.warning(f"Batch extract failed: {error}")
+        sentry_sdk.capture_exception(error)
     return None
 
 
