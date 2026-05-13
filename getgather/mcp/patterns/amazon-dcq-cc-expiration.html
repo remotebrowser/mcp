@@ -5,18 +5,19 @@
   <body>
     <h1 gg-match="//h1[normalize-space(.)='Thank you']">Thank you</h1>
     <label gg-optional gg-match="//label[contains(normalize-space(.), 'expiration date')]"></label>
-    <select
+    <input
+      autofocus
       name="dcq_question_date_picker_1_1"
+      type="text"
+      placeholder="MM"
       gg-match="select[name='dcq_question_date_picker_1_1']"
-    >
-      <option value="">MM</option>
-    </select>
-    <select
+    />
+    <input
       name="dcq_question_date_picker_1_2"
+      type="text"
+      placeholder="YYYY"
       gg-match="select[name='dcq_question_date_picker_1_2']"
-    >
-      <option value="">YYYY</option>
-    </select>
+    />
     <button type="submit" gg-match="span.cvf-widget-btn-verify-dcq input[type=submit]">
       Continue
     </button>
