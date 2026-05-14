@@ -43,6 +43,7 @@ RUN apt-get update && apt-get install -y \
     sudo \
     ca-certificates \
     iptables \
+    podman \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
