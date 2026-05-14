@@ -24,6 +24,7 @@ from zendriver.core.connection import Connection, ProtocolException
 
 from getgather.client_ip import client_ip_var
 from getgather.config import settings
+from getgather.resource_blocker import should_be_blocked
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
 _ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
@@ -316,13 +317,15 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
         resource_type = event.resource_type
         request_url = event.request.url
 
-        deny = resource_type in [
-            zd.cdp.network.ResourceType.IMAGE,
+        deny_type = resource_type in [
             zd.cdp.network.ResourceType.MEDIA,
             zd.cdp.network.ResourceType.FONT,
+            zd.cdp.network.ResourceType.IMAGE,
         ]
+        deny_url = await should_be_blocked(request_url)
+        should_deny = deny_type or deny_url
 
-        if not deny:
+        if not should_deny:
             try:
                 await page.send(zd.cdp.fetch.continue_request(request_id=event.request_id))
             except (ProtocolException, websockets.ConnectionClosedError) as e:
@@ -340,7 +343,8 @@ async def get_new_page(browser: zd.Browser) -> zd.Tab:
                     raise
             return
 
-        logger.trace(f" DENY resource: {request_url}")
+        kind = "URL" if deny_url else "resource"
+        logger.trace(f" DENY {kind}: {request_url}")
 
         try:
             await page.send(

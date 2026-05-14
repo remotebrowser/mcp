@@ -32,6 +32,12 @@ RUN uv sync --no-dev --no-install-workspace
 COPY getgather /app/getgather
 COPY tests /app/tests
 
+# Grab additional blocklists
+RUN curl -o /app/blocklists-analytics.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/mozilla-shavar-analytics/list.txt
+RUN curl -o /app/blocklists-ads.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/mozilla-shavar-advertising/list.txt
+RUN curl -o /app/blocklists-privacy.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/easyprivacy/list.txt
+RUN curl -o /app/blocklists-adguard.txt https://raw.githubusercontent.com/hectorm/hmirror/master/data/adguard-simplified/list.txt
+
 # Install the workspace package
 RUN uv sync --no-dev
 
@@ -58,6 +64,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /opt/venv
 COPY --from=builder /app/getgather /app/getgather
 COPY --from=builder /app/tests /app/tests
+COPY --from=builder /app/blocklists-*.txt /app/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
