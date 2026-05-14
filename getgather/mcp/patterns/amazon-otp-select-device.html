@@ -1,10 +1,29 @@
-<html gg-domain="amazon">
+<html gg-domain="amazon.com">
   <head>
     <title>Amazon Two-Step Verification</title>
   </head>
   <body>
     <h1 gg-match="//h1[contains(., 'Two-Step Verification')]">Two-Step Verification</h1>
-    <form gg-match="form#auth-select-device-form"></form>
+    <form gg-match="form#auth-select-device-form">
+      <div class="radio-wrapper">
+        <input
+          type="radio"
+          name="otpDeviceContext"
+          gg-match="div.auth-WhatsApp input[type='radio']"
+          value=""
+        />
+        <label gg-optional gg-match="div.auth-WhatsApp .a-radio-label">WhatsApp</label>
+      </div>
+      <div class="radio-wrapper">
+        <input
+          type="radio"
+          name="otpDeviceContext"
+          gg-match="div.auth-VOICE input[type='radio']"
+          value=""
+        />
+        <label gg-optional gg-match="div.auth-VOICE .a-radio-label">Call</label>
+      </div>
+    </form>
     <button type="submit" gg-match="span#auth-send-code">Send OTP</button>
   </body>
 </html>
