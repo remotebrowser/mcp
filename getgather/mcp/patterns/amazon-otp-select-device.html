@@ -5,23 +5,40 @@
   <body>
     <h1 gg-match="//h1[contains(., 'Two-Step Verification')]">Two-Step Verification</h1>
     <form gg-match="form#auth-select-device-form">
-      <div class="radio-wrapper">
-        <input
-          type="radio"
-          name="otpDeviceContext"
-          gg-match="div.auth-WhatsApp input[type='radio']"
-          value=""
-        />
-        <label gg-optional gg-match="div.auth-WhatsApp .a-radio-label">WhatsApp</label>
-      </div>
-      <div class="radio-wrapper">
-        <input
-          type="radio"
-          name="otpDeviceContext"
-          gg-match="div.auth-VOICE input[type='radio']"
-          value=""
-        />
-        <label gg-optional gg-match="div.auth-VOICE .a-radio-label">Call</label>
+      <div class="vertical-radios">
+        <div class="radio-wrapper">
+          <div style="font-size: 0">
+            <input
+              type="radio"
+              name="otpDeviceContext"
+              id="otp-whatsapp"
+              gg-match="div.auth-WhatsApp input[type='radio']"
+              value=""
+              checked
+            />
+          </div>
+          <div>
+            <label for="otp-whatsapp" gg-optional gg-match="div.auth-WhatsApp .a-radio-label"
+              >WhatsApp</label
+            >
+          </div>
+        </div>
+        <div class="radio-wrapper">
+          <div style="font-size: 0">
+            <input
+              type="radio"
+              name="otpDeviceContext"
+              id="otp-voice"
+              gg-match="div.auth-VOICE input[type='radio']"
+              value=""
+            />
+          </div>
+          <div>
+            <label for="otp-voice" gg-optional gg-match="div.auth-VOICE .a-radio-label"
+              >Call</label
+            >
+          </div>
+        </div>
       </div>
     </form>
     <button type="submit" gg-match="span#auth-send-code">Send OTP</button>
