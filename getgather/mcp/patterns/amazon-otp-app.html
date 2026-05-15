@@ -7,10 +7,12 @@
     <h2 gg-match="//span[contains(normalize-space(.), 'Open your Amazon shopping app')]">
       Open your Amazon shopping app
     </h2>
+    <p gg-optional gg-match="div#signInPrompt span"></p>
     <input
       autofocus
       name="otp"
       type="tel"
+      inputmode="numeric"
       placeholder="Enter security code"
       gg-match="input#input-box-otp"
     />
