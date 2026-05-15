@@ -907,7 +907,9 @@ async def page_query_selector(
                 if skip_visibility_check or await element.is_visible():
                     return element
         return None
-    except (asyncio.TimeoutError, Exception):
+    except (asyncio.TimeoutError, Exception) as error:
+        logger.warning(f"page_query_selector failed: {error}")
+        sentry_sdk.capture_exception(error)
         return None
 
 
