@@ -22,7 +22,7 @@ async def _get_order_history_action(tab: zd.Tab, _: zd.Browser) -> dict[str, Any
         """,
         await_promise=False,
     )
-    return {"walmart_order_history": cast(dict[str, Any], result)}
+    return {"order_history": cast(dict[str, Any], result)}
 
 
 @walmart_mcp.tool
