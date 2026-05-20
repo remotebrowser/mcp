@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,7 +25,8 @@ class Settings(AuthSettings, BaseSettings):
     @property
     def effective_chromefleet_url(self) -> str:
         """Returns CHROMEFLEET_URL if set, otherwise falls back to the local backend."""
-        return self.CHROMEFLEET_URL or "http://127.0.0.1:23456"
+        port = os.getenv("PORT", "23456")
+        return self.CHROMEFLEET_URL or f"http://127.0.0.1:{port}"
 
     # Browser fleet (ChromeFleet integrated)
     CONTAINER_IMAGE: str = "ghcr.io/remotebrowser/chromium-live"
