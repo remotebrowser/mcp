@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, cast
 
@@ -19,11 +20,56 @@ from getgather.zen_distill import (
     run_distillation_loop,
 )
 
-amazon_mcp = MCPTool.registry["amazon"]
+
+@dataclass(frozen=True)
+class AmazonCountry:
+    """Configuration for an Amazon country domain."""
+
+    domain: str
+    purchase_history_key: str
+    watch_history_result_key: str
+    watchlist_result_key: str
+    prime_library_result_key: str
+    watch_history_url: str
+    watchlist_url: str
+    prime_library_url: str
+    browsing_history_url: str
+
+    @property
+    def base_url(self) -> str:
+        return f"https://www.{self.domain}"
+
+    @property
+    def signin_url(self) -> str:
+        return f"{self.base_url}/ax/account/manage"
 
 
-def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:
-    # Normalize order IDs (e.g. turn 'Order #114-3381700-2661062' into '114-3381700-2661062')
+AMAZON_US = AmazonCountry(
+    domain="amazon.com",
+    purchase_history_key="amazon_purchase_history",
+    watch_history_result_key="amazon_watch_history",
+    watchlist_result_key="amazon_prime_watchlist",
+    prime_library_result_key="amazon_prime_library",
+    watch_history_url="https://www.amazon.com/gp/video/settings/watch-history",
+    watchlist_url="https://www.amazon.com/gp/video/mystuff/watchlist",
+    prime_library_url="https://www.amazon.com/gp/video/mystuff/library",
+    browsing_history_url="https://www.amazon.com/gp/history?ref_=nav_AccountFlyout_browsinghistory",
+)
+
+AMAZON_CA = AmazonCountry(
+    domain="amazon.ca",
+    purchase_history_key="amazonca_purchase_history",
+    watch_history_result_key="amazon_ca_watch_history",
+    watchlist_result_key="amazon_ca_prime_watchlist",
+    prime_library_result_key="amazon_ca_prime_library",
+    watch_history_url="https://www.primevideo.com/region/na/settings/watch-history/ref=atv_set_watch-history",
+    watchlist_url="https://www.primevideo.com/region/na/mystuff/watchlist",
+    prime_library_url="https://www.primevideo.com/region/na/mystuff/library",
+    browsing_history_url="https://www.amazon.ca/gp/history?ref_=nav_AccountFlyout_browsinghistory",
+)
+
+
+def _normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | None:
     if order_id is None:
         return order_id
     if isinstance(order_id, list):
@@ -33,21 +79,18 @@ def normalize_order_id(order_id: str | list[str] | None) -> str | list[str] | No
     return order_id
 
 
-@amazon_mcp.tool
-async def search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
-    """Search purchase history from amazon."""
+async def _search_purchase_history(
+    country: AmazonCountry, keyword: str, page_number: int = 1
+) -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool(
-        f"https://www.amazon.com/your-orders/search?page={page_number}&search={keyword}",
+        f"{country.base_url}/your-orders/search?page={page_number}&search={keyword}",
         "order_history",
     )
 
 
-@amazon_mcp.tool
-async def get_purchase_history(
-    year: str | int | None = None, start_index: int = 0
+async def _get_purchase_history(
+    country: AmazonCountry, year: str | int | None = None, start_index: int = 0
 ) -> dict[str, Any]:
-    """Get purchase/order history of a amazon with dpage."""
-
     if year is None:
         target_year = datetime.now().year
     elif isinstance(year, str):
@@ -63,24 +106,19 @@ async def get_purchase_history(
         raise ValueError(f"Year {target_year} is out of valid range (1900-{current_year + 1})")
 
     return await remote_zen_dpage_mcp_tool(
-        f"https://www.amazon.com/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
-        "amazon_purchase_history",
+        f"{country.base_url}/your-orders/orders?timeFilter=year-{target_year}&startIndex={start_index}",
+        country.purchase_history_key,
     )
 
 
-@amazon_mcp.tool
-async def search_product(keyword: str) -> dict[str, Any]:
-    """Search product on amazon."""
+async def _search_product(country: AmazonCountry, keyword: str) -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool(
-        f"https://www.amazon.com/s?k={keyword}",
+        f"{country.base_url}/s?k={keyword}",
         "product_list",
     )
 
 
-@amazon_mcp.tool
-async def get_browsing_history() -> dict[str, Any]:
-    """Get browsing history from amazon."""
-
+async def _get_browsing_history(country: AmazonCountry) -> dict[str, Any]:
     async def get_browsing_history_action(page: zd.Tab, _) -> dict[str, Any]:
         current_url = await get_url(page)
         logger.info(f"Getting browsing history from {current_url}")
@@ -112,7 +150,6 @@ async def get_browsing_history() -> dict[str, Any]:
                 f"Request headers captured: {len(request_headers) if request_headers else 0} headers"
             )
 
-        # Extract output from data-client-recs-list attribute
         logger.info("Extracting browsing history IDs from data-client-recs-list attribute")
 
         raw_attribute = await page.evaluate("""
@@ -128,12 +165,11 @@ async def get_browsing_history() -> dict[str, Any]:
         output = [json.dumps(item) for item in json.loads(raw_attribute_str)]
         logger.info(f"Extracted {len(output)} browsing history IDs")
 
-        async def get_browsing_history(start_index: int, end_index: int):
+        async def get_browsing_history_batch(start_index: int, end_index: int):
             logger.info(
                 f"Getting browsing history batch: indices {start_index} to {end_index} (batch size: {end_index - start_index})"
             )
 
-            # Convert headers dict to JavaScript object format
             headers_js = json.dumps(request_headers or {})
             ids_js = json.dumps(output[start_index:end_index])
             logger.info(
@@ -218,7 +254,7 @@ async def get_browsing_history() -> dict[str, Any]:
                     f"Converted batch {start_index}-{end_index}: found {len(converted)} items"
                 )
                 for item in converted:
-                    item["url"] = f"https://www.amazon.com{item['url']}"
+                    item["url"] = f"{country.base_url}{item['url']}"
             else:
                 logger.warning(f"Conversion returned None for batch {start_index}-{end_index}")
             return converted
@@ -226,7 +262,7 @@ async def get_browsing_history() -> dict[str, Any]:
         num_batches = (len(output) + 99) // 100
         logger.info(f"Fetching browsing history in {num_batches} batch(es) of up to 100 items each")
         browsing_history_list = await asyncio.gather(*[
-            get_browsing_history(i, i + 100) for i in range(0, len(output), 100)
+            get_browsing_history_batch(i, i + 100) for i in range(0, len(output), 100)
         ])
         flattened_history: list[Any] = []
         for idx, batch in enumerate(browsing_history_list):
@@ -240,17 +276,17 @@ async def get_browsing_history() -> dict[str, Any]:
         return {"browsing_history_data": flattened_history}
 
     return await remote_zen_dpage_with_action(
-        "https://www.amazon.com/gp/history?ref_=nav_AccountFlyout_browsinghistory",
+        country.browsing_history_url,
         action=get_browsing_history_action,
     )
 
 
-@amazon_mcp.tool
-async def get_purchase_history_with_details(
-    year: str | int | None = None, start_index: int = 0, timeFilter: str | None = None
+async def _get_purchase_history_with_details(
+    country: AmazonCountry,
+    year: str | int | None = None,
+    start_index: int = 0,
+    timeFilter: str | None = None,
 ) -> dict[str, Any]:
-    """Get purchase/order history of a amazon with dpage."""
-
     if year is None:
         target_year = datetime.now().year
     elif isinstance(year, str):
@@ -280,32 +316,28 @@ async def get_purchase_history_with_details(
         logger.debug(f"Loading patterns from {path}")
         patterns = load_distillation_patterns(path)
         logger.debug(f"Loaded {len(patterns)} patterns")
-        page_index = int(
-            (start_index / 10) + 1
-        )  # for business account pagination, it use page_index, not start_index
+        page_index = int((start_index / 10) + 1)
         _, _, orders = await run_distillation_loop(
-            location=f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
+            location=f"{country.base_url}/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}#pagination/${page_index}/time/${year}/",
             patterns=patterns,
             browser=browser,
-            timeout=10,  # need to increase timeout for business account pagination, since its SPA
+            timeout=10,
             page=page,
         )
         if orders is None:
-            return {"amazon_purchase_history": []}
+            return {country.purchase_history_key: []}
 
         for order in orders:
-            order["order_id"] = normalize_order_id(order.get("order_id")) or ""
+            order["order_id"] = _normalize_order_id(order.get("order_id")) or ""
 
         async def get_order_details(order: dict[str, Any]):
             order_id = order["order_id"]
             store_logo = order.get("store_logo")
 
-            # If we already have product prices, return early
             product_prices = order.get("product_prices")
             if isinstance(product_prices, list):
                 return {"order_id": order_id}
 
-            # Determine order type based on brand logo alt text
             order_type = "regular"
             if store_logo:
                 store_logo_text = str(store_logo).lower()
@@ -316,8 +348,7 @@ async def get_purchase_history_with_details(
 
             match order_type:
                 case "wholefoods":
-                    # Use Whole Foods URL format
-                    url = f"https://www.amazon.com/fopo/order-details?orderID={order_id}&ref=ppx_yo2ov_dt_b_fed_wwgs_wfm_ATVPDKIKX0DER&page=itemmod"
+                    url = f"{country.base_url}/fopo/order-details?orderID={order_id}&ref=ppx_yo2ov_dt_b_fed_wwgs_wfm_ATVPDKIKX0DER&page=itemmod"
                     js_code = f"""
                         (async () => {{
                             const res = await fetch('{url}', {{
@@ -376,8 +407,7 @@ async def get_purchase_history_with_details(
                     """
 
                 case "fresh":
-                    # Use Fresh URL format
-                    url = f"https://www.amazon.com/uff/your-account/order-details?orderID={order_id}&ref=ppx_yo2ov_dt_b_fed_wwgs_yo_odp_A1VC38T7YXB528&page=itemmod"
+                    url = f"{country.base_url}/uff/your-account/order-details?orderID={order_id}&ref=ppx_yo2ov_dt_b_fed_wwgs_yo_odp_A1VC38T7YXB528&page=itemmod"
                     js_code = f"""
                         (async () => {{
                             const res = await fetch('{url}', {{
@@ -433,7 +463,7 @@ async def get_purchase_history_with_details(
                                 paymentMethod = "GIFT_CARD";
                                 paymentGiftCardAmount = doc.querySelector("span#ufpo-giftCardAmount-amount")?.textContent?.trim();
                             }}
-                            
+
                             return {{
                                 prices,
                                 productNames,
@@ -446,8 +476,7 @@ async def get_purchase_history_with_details(
                     """
 
                 case _:
-                    # Use regular order URL format
-                    url = f"https://www.amazon.com/gp/css/summary/print.html?orderID={order_id}&ref=ppx_yo2ov_dt_b_fed_invoice_pos"
+                    url = f"{country.base_url}/gp/css/summary/print.html?orderID={order_id}&ref=ppx_yo2ov_dt_b_fed_invoice_pos"
                     js_code = f"""
                         (async () => {{
                             const res = await fetch('{url}', {{
@@ -463,21 +492,20 @@ async def get_purchase_history_with_details(
                             const prices = Array.from(rows)
                                 .map(row => row.querySelector("span.a-price span.a-offscreen")?.textContent?.trim())
                                 .filter(Boolean);
-                                
+
                             const paymentElement = doc.querySelector("div.pmts-payment-instrument-billing-address");
                             const paymentInfoElements = Array.from(doc.querySelectorAll("span.pmts-payments-instrument-detail-box-paystationpaymentmethod"));
-                            
+
                             const isGiftCard = !!paymentInfoElements?.find(el => el.textContent?.toLowerCase().includes("gift card"));
-                            
-                            // This element only exists for BNPL orders
+
                             const bnplElement = paymentElement?.querySelector("span.pmts-payments-instrument-supplemental-box-paystationpaymentmethod");
-                            
+
                             let paymentInfo = paymentInfoElements[0]?.textContent?.trim();
                             let paymentInfoDetail = "";
                             let paymentGiftCardAmount = "";
                             let paymentMethod = "";
-                            
-                            
+
+
                             if (bnplElement) {{
                                 paymentInfoDetail = bnplElement?.textContent?.trim();
                                 paymentMethod = "BNPL";
@@ -495,7 +523,7 @@ async def get_purchase_history_with_details(
                                                             ?.trim();
                                 paymentMethod = "GIFT_CARD";
                             }}
-                            
+
                             return {{
                                 prices,
                                 paymentInfo,
@@ -530,7 +558,6 @@ async def get_purchase_history_with_details(
                     continue
                 if details.get("prices") is not None:
                     order["product_prices"] = details["prices"]
-                # For Fresh/Whole Foods orders, replace product information with the complete details
                 if order.get("store_logo") and details.get("productNames"):
                     order["product_names"] = details["productNames"]
                     order["product_urls"] = details["productUrls"]
@@ -542,45 +569,157 @@ async def get_purchase_history_with_details(
         except Exception as e:
             logger.error(f"Error getting order details for order: {e}")
             pass
-        return {"amazon_purchase_history": orders}
+        return {country.purchase_history_key: orders}
 
     return await remote_zen_dpage_with_action(
-        f"https://www.amazon.com/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
+        f"{country.base_url}/your-orders/orders?timeFilter={timeFilter}&startIndex={start_index}",
         action=get_order_details_action,
     )
 
 
-@amazon_mcp.tool
-async def signin() -> dict[str, Any]:
-    """Signin to amazon."""
+async def _signin(country: AmazonCountry) -> dict[str, Any]:
     return await remote_zen_dpage_mcp_tool(
-        f"https://www.amazon.com/ax/account/manage",
+        country.signin_url,
         "signin",
     )
 
 
-@amazon_mcp.tool
-async def get_watch_history() -> dict[str, Any]:
+async def _get_watch_history(country: AmazonCountry) -> dict[str, Any]:
+    return await remote_zen_dpage_mcp_tool(
+        country.watch_history_url,
+        country.watch_history_result_key,
+    )
+
+
+async def _get_watchlist(country: AmazonCountry) -> dict[str, Any]:
+    return await remote_zen_dpage_mcp_tool(
+        country.watchlist_url,
+        country.watchlist_result_key,
+    )
+
+
+async def _get_prime_library(country: AmazonCountry) -> dict[str, Any]:
+    return await remote_zen_dpage_mcp_tool(
+        country.prime_library_url,
+        country.prime_library_result_key,
+    )
+
+
+amazon_us_mcp = MCPTool(brand_id="amazon", name="Amazon MCP")
+amazon_ca_mcp = MCPTool(brand_id="amazonca", name="Amazon CA MCP")
+
+
+@amazon_us_mcp.tool("search_purchase_history")
+async def amazon_us_search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
+    """Search purchase history from amazon."""
+    return await _search_purchase_history(AMAZON_US, keyword, page_number)
+
+
+@amazon_us_mcp.tool("get_purchase_history")
+async def amazon_us_get_purchase_history(
+    year: str | int | None = None, start_index: int = 0
+) -> dict[str, Any]:
+    """Get purchase/order history of a amazon with dpage."""
+    return await _get_purchase_history(AMAZON_US, year, start_index)
+
+
+@amazon_us_mcp.tool("search_product")
+async def amazon_us_search_product(keyword: str) -> dict[str, Any]:
+    """Search product on amazon."""
+    return await _search_product(AMAZON_US, keyword)
+
+
+@amazon_us_mcp.tool("get_browsing_history")
+async def amazon_us_get_browsing_history() -> dict[str, Any]:
+    """Get browsing history from amazon."""
+    return await _get_browsing_history(AMAZON_US)
+
+
+@amazon_us_mcp.tool("get_purchase_history_with_details")
+async def amazon_us_get_purchase_history_with_details(
+    year: str | int | None = None, start_index: int = 0, timeFilter: str | None = None
+) -> dict[str, Any]:
+    """Get purchase/order history of a amazon with dpage."""
+    return await _get_purchase_history_with_details(AMAZON_US, year, start_index, timeFilter)
+
+
+@amazon_us_mcp.tool("signin")
+async def amazon_us_signin() -> dict[str, Any]:
+    """Signin to amazon."""
+    return await _signin(AMAZON_US)
+
+
+@amazon_us_mcp.tool("get_watch_history")
+async def amazon_us_get_watch_history() -> dict[str, Any]:
     """Get video watch history from Amazon."""
-    return await remote_zen_dpage_mcp_tool(
-        "https://www.amazon.com/gp/video/settings/watch-history",
-        "amazon_watch_history",
-    )
+    return await _get_watch_history(AMAZON_US)
 
 
-@amazon_mcp.tool
-async def get_watchlist() -> dict[str, Any]:
+@amazon_us_mcp.tool("get_watchlist")
+async def amazon_us_get_watchlist() -> dict[str, Any]:
     """Get Prime Video watchlist from Amazon."""
-    return await remote_zen_dpage_mcp_tool(
-        "https://www.amazon.com/gp/video/mystuff/watchlist",
-        "amazon_prime_watchlist",
-    )
+    return await _get_watchlist(AMAZON_US)
 
 
-@amazon_mcp.tool
-async def get_prime_library() -> dict[str, Any]:
+@amazon_us_mcp.tool("get_prime_library")
+async def amazon_us_get_prime_library() -> dict[str, Any]:
     """Get Prime Video purchases and rentals library from Amazon."""
-    return await remote_zen_dpage_mcp_tool(
-        "https://www.amazon.com/gp/video/mystuff/library",
-        "amazon_prime_library",
-    )
+    return await _get_prime_library(AMAZON_US)
+
+
+@amazon_ca_mcp.tool("search_purchase_history")
+async def amazon_ca_search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
+    """Search purchase history from amazon."""
+    return await _search_purchase_history(AMAZON_CA, keyword, page_number)
+
+
+@amazon_ca_mcp.tool("get_purchase_history")
+async def amazon_ca_get_purchase_history(
+    year: str | int | None = None, start_index: int = 0
+) -> dict[str, Any]:
+    """Get purchase/order history of a amazon with dpage."""
+    return await _get_purchase_history(AMAZON_CA, year, start_index)
+
+
+@amazon_ca_mcp.tool("search_product")
+async def amazon_ca_search_product(keyword: str) -> dict[str, Any]:
+    """Search product on amazon."""
+    return await _search_product(AMAZON_CA, keyword)
+
+
+@amazon_ca_mcp.tool("get_browsing_history")
+async def amazon_ca_get_browsing_history() -> dict[str, Any]:
+    """Get browsing history from amazon."""
+    return await _get_browsing_history(AMAZON_CA)
+
+
+@amazon_ca_mcp.tool("get_purchase_history_with_details")
+async def amazon_ca_get_purchase_history_with_details(
+    year: str | int | None = None, start_index: int = 0, timeFilter: str | None = None
+) -> dict[str, Any]:
+    """Get purchase/order history of a amazon with dpage."""
+    return await _get_purchase_history_with_details(AMAZON_CA, year, start_index, timeFilter)
+
+
+@amazon_ca_mcp.tool("signin")
+async def amazon_ca_signin() -> dict[str, Any]:
+    """Signin to amazon."""
+    return await _signin(AMAZON_CA)
+
+
+@amazon_ca_mcp.tool("get_watch_history")
+async def amazon_ca_get_watch_history() -> dict[str, Any]:
+    """Get video watch history from Amazon Canada Prime Video."""
+    return await _get_watch_history(AMAZON_CA)
+
+
+@amazon_ca_mcp.tool("get_watchlist")
+async def amazon_ca_get_watchlist() -> dict[str, Any]:
+    """Get Prime Video watchlist from Amazon Canada."""
+    return await _get_watchlist(AMAZON_CA)
+
+
+@amazon_ca_mcp.tool("get_prime_library")
+async def amazon_ca_get_prime_library() -> dict[str, Any]:
+    """Get Prime Video purchases and rentals library from Amazon Canada."""
+    return await _get_prime_library(AMAZON_CA)
