@@ -1,3 +1,4 @@
+import json
 from typing import Any, cast
 
 import zendriver as zd
@@ -13,17 +14,34 @@ async def _get_order_history_action(tab: zd.Tab, _: zd.Browser, page_cursor: str
         f"""
         (async () => {{
             const httpRequest = await new Promise((resolve, reject) => {{
-                const timer = setTimeout(() => reject(new Error('Timed out waiting for PurchaseHistoryV3')), 10000);
                 const originalFetch = window.fetch;
+                const restore = () => {{ window.fetch = originalFetch; }};
+                const timer = setTimeout(() => {{
+                    restore();
+                    reject(new Error('Timed out waiting for PurchaseHistoryV3'));
+                }}, 10000);
+
                 window.fetch = async function (...args) {{
                     if (typeof args[0] === 'string' && args[0].includes('/PurchaseHistoryV3')) {{
-                        window.fetch = originalFetch;
+                        restore();
                         clearTimeout(timer);
-                        resolve({{ url: args[0], headers: (args[1] || {{}}).headers || {{}} }});
+                        const rawHeaders = (args[1] || {{}}).headers || {{}};
+                        const headers = rawHeaders instanceof Headers
+                            ? Object.fromEntries(rawHeaders.entries())
+                            : rawHeaders;
+                        resolve({{ url: args[0], headers }});
                     }}
                     return originalFetch.apply(this, args);
                 }};
-                document.querySelector('button[name="viewPurchaseHistory"]')?.click();
+
+                const btn = document.querySelector('button[name="viewPurchaseHistory"]');
+                if (!btn) {{
+                    restore();
+                    clearTimeout(timer);
+                    reject(new Error('viewPurchaseHistory button not found'));
+                    return;
+                }}
+                btn.click();
             }});
 
             const baseUrl = httpRequest.url.split('?')[0];
@@ -31,7 +49,7 @@ async def _get_order_history_action(tab: zd.Tab, _: zd.Browser, page_cursor: str
 
             const variables = encodeURIComponent(JSON.stringify({{
                 input: {{
-                    cursor: {repr(page_cursor)},
+                    cursor: {json.dumps(page_cursor)},
                     search: '',
                     filterIds: [],
                     limit: 20,
