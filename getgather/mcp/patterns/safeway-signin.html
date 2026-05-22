@@ -1,0 +1,23 @@
+<html gg-domain="safeway">
+  <head>
+    <title>Safeway Sign In</title>
+  </head>
+
+  <body>
+    <p id="error" style="color: red" gg-optional gg-match="div.input-field__help-text--error"></p>
+
+    <input
+      autofocus
+      name="email"
+      type="text"
+      placeholder="Email or mobile number"
+      gg-match="form input#enterUsername"
+    />
+    <button
+      type="submit"
+      gg-match="//form//button[@type='submit' and not(.//div[contains(@class, 'pp-loading-spinner')])]"
+    >
+      Sign in
+    </button>
+  </body>
+</html>

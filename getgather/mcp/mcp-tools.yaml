@@ -365,6 +365,14 @@
     - function_name: get_purchases
       description: Get purchases from a user Kroger account.
 
+- id: safeway
+  name: Safeway MCP
+  custom: true
+  module: safeway
+  tools:
+    - function_name: get_purchases
+      description: Get purchases from a user Safeway account.
+
 - id: lazada
   name: Lazada MCP
   tools:
