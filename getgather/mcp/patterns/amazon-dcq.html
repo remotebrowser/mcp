@@ -1,0 +1,19 @@
+<html gg-domain="amazon">
+  <head>
+    <title>Amazon Security Question</title>
+  </head>
+  <body>
+    <h1 gg-match="//h1[normalize-space(.)='Thank you']" style="display: none">Thank you</h1>
+    <label gg-optional gg-match="label.a-form-label"></label>
+    <input
+      autofocus
+      name="dcq_question_subjective_1"
+      type="text"
+      placeholder="Answer"
+      gg-match="input[name='dcq_question_subjective_1']"
+    />
+    <button type="submit" gg-match="span.cvf-widget-btn-verify-dcq input[type=submit]">
+      Continue
+    </button>
+  </body>
+</html>
