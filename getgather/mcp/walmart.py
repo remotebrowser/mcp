@@ -21,8 +21,9 @@ _BATCH_SIZE = 3
 
 
 async def _get_order_history(tab: zd.Tab, page_cursor: str) -> dict[str, Any]:
+    logger.info("Executing _get_order_history")
+
     async def fetch_orders() -> dict[str, Any]:
-        await zen_navigate_with_retry(tab, "https://www.walmart.com/account", wait_for_ready=False)
         result = await tab.evaluate(
             f"""
             (async () => {{
