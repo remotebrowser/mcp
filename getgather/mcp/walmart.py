@@ -22,6 +22,7 @@ _BATCH_SIZE = 3
 
 async def _get_order_history(tab: zd.Tab, page_cursor: str) -> dict[str, Any]:
     logger.info("Executing _get_order_history")
+
     async def fetch_orders() -> dict[str, Any]:
         result = await tab.evaluate(
             f"""
