@@ -452,7 +452,8 @@ async def distill(
                     if isinstance(raw_text, str) and raw_text:
                         target.string = raw_text.strip()
                     tag = str(source.get("tag", "")).lower()
-                    if tag in ["input", "textarea", "select"]:
+                    input_type = str(target.get("type", "")).lower()
+                    if tag in ["input", "textarea", "select"] and input_type != "radio":
                         value = source.get("value", "")
                         target["value"] = value if isinstance(value, str) else ""
                 match_count += 1

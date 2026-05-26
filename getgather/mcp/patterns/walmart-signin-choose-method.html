@@ -12,7 +12,6 @@
           name="signin-method"
           id="wm-method-sms"
           value="otp"
-          data-wm-value="otp"
           gg-match="input[name='otp'][type='radio']"
         />
         <div>
@@ -27,7 +26,6 @@
           name="signin-method"
           id="wm-method-email-otp"
           value="otpEmail"
-          data-wm-value="otpEmail"
           gg-match="input[name='otpEmail'][type='radio']"
         />
         <div>
@@ -42,7 +40,6 @@
           name="signin-method"
           id="wm-method-password"
           value="password"
-          data-wm-value="password"
           gg-match="input[name='password'][type='radio']"
         />
         <div>
@@ -51,7 +48,14 @@
       </div>
     </div>
     <div id="wm-password-section"></div>
-    <button id="wm-submit" type="submit" disabled>Choose a method above</button>
+    <button
+      id="wm-submit"
+      type="submit"
+      disabled
+      gg-match="//button[@data-dca-id='B:4F99F19264' or @data-dca-id='B:5E93688740']"
+    >
+      Choose a method above
+    </button>
     <script>
       function updateSignInMethod(value) {
         console.log(">> value", value);
@@ -73,21 +77,18 @@
             input.focus();
           }
           submit.textContent = "Sign in";
+          submit.setAttribute("gg-match", "button#withpassword-sign-in-button");
           submit.disabled = false;
         } else if (value) {
           const existing = passwordSection.querySelector("input[name='password']");
           if (existing) existing.remove();
           submit.textContent = "Request code";
+          submit.setAttribute("gg-match", "//button[contains(text(), 'Request code')]");
           submit.disabled = false;
         }
       }
 
       document.addEventListener("DOMContentLoaded", () => {
-        // Restore values from data-wm-value since distill engine overwrites the value attribute
-        document.querySelectorAll("input[data-wm-value]").forEach((radio) => {
-          radio.value = radio.dataset.wmValue;
-        });
-
         document.addEventListener("change", (e) => {
           console.log(">> e.target.name", e.target.name);
           if (e.target.name === "signin-method") {
