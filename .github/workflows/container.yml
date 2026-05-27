@@ -8,14 +8,26 @@ on:
 
 jobs:
   container:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Run Chrome Fleet
-        uses: ./.github/actions/run-chromefleet
-        timeout-minutes: 5
+      - name: Start Podman socket
+        run: |
+          sudo systemctl enable --now podman.socket
+          sudo chmod 755 /run/podman
+          sudo chmod 666 /run/podman/podman.sock
+
+      - name: Verify Podman socket
+        env:
+          CONTAINER_HOST: unix:///run/podman/podman.sock
+        run: podman --remote run --rm quay.io/podman/hello
+
+      - name: Pull Chromium container image
+        env:
+          CONTAINER_HOST: unix:///run/podman/podman.sock
+        run: podman --remote pull ghcr.io/remotebrowser/chromium-live
 
       - uses: remotebrowser/shared-github-actions/container-health-check@v1
         with:
@@ -24,10 +36,7 @@ jobs:
             {"url": "http://localhost:23456/health"}
             {"url": "http://localhost:23456/extended-health"}
           health-timeout-seconds: 180
-          extra-config: |
+          extra-config: |-
             --network host
-            -e CHROMEFLEET_URL=http://localhost:8300
-
-      - name: Show Chrome Fleet logs
-        if: always()
-        run: cat chromefleet.log
+            -e CONTAINER_HOST=unix:///run/podman/podman.sock
+            -v /run/podman/podman.sock:/run/podman/podman.sock
