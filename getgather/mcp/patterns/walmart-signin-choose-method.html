@@ -47,7 +47,14 @@
         </div>
       </div>
     </div>
-    <div id="wm-password-section"></div>
+    <input
+      gg-optional
+      id="wm-password-input"
+      type="password"
+      name="password"
+      placeholder="Password"
+      gg-match="form#sign-in-form input[name='password'][type='password']"
+    />
     <button
       id="wm-submit"
       type="submit"
@@ -57,44 +64,40 @@
       Choose a method above
     </button>
     <script>
-      function updateSignInMethod(value) {
-        console.log(">> value", value);
-        const submit = document.getElementById("wm-submit");
-        const passwordSection = document.getElementById("wm-password-section");
-
-        if (value === "password") {
-          if (!passwordSection.querySelector("input[name='password']")) {
-            const input = document.createElement("input");
-            input.autofocus = true;
-            input.type = "password";
-            input.name = "password";
-            input.placeholder = "Password";
-            input.setAttribute(
-              "gg-match",
-              "form#sign-in-form input[name='password'][type='password']",
-            );
-            passwordSection.appendChild(input);
-            input.focus();
-          }
-          submit.textContent = "Sign in";
-          submit.setAttribute("gg-match", "button#withpassword-sign-in-button");
-          submit.disabled = false;
-        } else if (value) {
-          const existing = passwordSection.querySelector("input[name='password']");
-          if (existing) existing.remove();
-          submit.textContent = "Request code";
-          submit.setAttribute("gg-match", "//button[contains(text(), 'Request code')]");
-          submit.disabled = false;
-        }
-      }
-
       document.addEventListener("DOMContentLoaded", () => {
-        // Hide radio-wrapper rows whose radio was removed by distill
         document.querySelectorAll(".radio-wrapper").forEach((wrapper) => {
           if (!wrapper.querySelector("input[type='radio']")) {
             wrapper.style.display = "none";
           }
         });
+
+        const submit = document.getElementById("wm-submit");
+        const passwordInput = document.getElementById("wm-password-input");
+        // Hide the password wrapper (including eye toggle) until password method is selected.
+        // We hide the wrapper (not the input) so the renderer's eye-toggle wrapping is preserved.
+        const passwordWrapper = passwordInput
+          ? passwordInput.closest(".password-wrapper") || passwordInput
+          : null;
+        if (passwordWrapper) passwordWrapper.style.display = "none";
+
+        function updateSignInMethod(value) {
+          console.log(">> value", value);
+          if (value === "password") {
+            if (passwordWrapper) {
+              passwordWrapper.style.display = "";
+              passwordInput.focus();
+            }
+            submit.textContent = "Sign in";
+            submit.disabled = false;
+          } else if (value) {
+            if (passwordWrapper) {
+              passwordWrapper.style.display = "none";
+              passwordInput.value = "";
+            }
+            submit.textContent = "Request code";
+            submit.disabled = false;
+          }
+        }
 
         document.addEventListener("change", (e) => {
           console.log(">> e.target.name", e.target.name);
