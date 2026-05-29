@@ -1,0 +1,117 @@
+<html gg-domain="walmart">
+  <head>
+    <title gg-match="h1.f3">Walmart - Choose verification method</title>
+  </head>
+  <body>
+    <div gg-match="[data-testid='auth-choice-title']"></div>
+    <div class="vertical-radios">
+      <div class="radio-wrapper">
+        <input
+          gg-optional
+          type="radio"
+          name="signin-method"
+          id="wm-method-sms"
+          value="otp"
+          gg-match="input[name='otp'][type='radio']"
+        />
+        <div>
+          <label for="wm-method-sms">Text me a verification code</label>
+          <span gg-optional gg-match="input[name='otp'] ~ span .f6.db"></span>
+        </div>
+      </div>
+      <div class="radio-wrapper">
+        <input
+          gg-optional
+          type="radio"
+          name="signin-method"
+          id="wm-method-email-otp"
+          value="otpEmail"
+          gg-match="input[name='otpEmail'][type='radio']"
+        />
+        <div>
+          <label for="wm-method-email-otp">Email me a verification code</label>
+          <span gg-optional gg-match="input[name='otpEmail'] ~ span .f6.db"></span>
+        </div>
+      </div>
+      <div class="radio-wrapper">
+        <input
+          gg-optional
+          gg-reflow
+          type="radio"
+          name="signin-method"
+          id="wm-method-password"
+          value="password"
+          gg-match="input[name='password'][type='radio']"
+        />
+        <div>
+          <label for="wm-method-password">Password</label>
+        </div>
+      </div>
+    </div>
+    <input
+      gg-optional
+      id="wm-password-input"
+      type="password"
+      name="password"
+      placeholder="Password"
+      gg-match="form#sign-in-form input[name='password'][type='password']"
+    />
+    <button
+      id="wm-submit"
+      type="submit"
+      disabled
+      gg-match="//button[contains(text(), 'Sign in') or contains(text(), 'Request code') or contains(text(), 'Send code') or contains(text(), 'Continue')]"
+    >
+      Choose a method above
+    </button>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll(".radio-wrapper").forEach((wrapper) => {
+          if (!wrapper.querySelector("input[type='radio']")) {
+            wrapper.style.display = "none";
+          }
+        });
+
+        const submit = document.getElementById("wm-submit");
+        const defaultSubmitText = submit ? submit.textContent.trim() : "";
+        const passwordInput = document.getElementById("wm-password-input");
+        // Hide the password wrapper (including eye toggle) until password method is selected.
+        // We hide the wrapper (not the input) so the renderer's eye-toggle wrapping is preserved.
+        const passwordWrapper = passwordInput
+          ? passwordInput.closest(".password-wrapper") || passwordInput
+          : null;
+        if (passwordWrapper) passwordWrapper.style.display = "none";
+
+        function updateSignInMethod(value) {
+          console.log(">> value", value);
+          if (value === "password") {
+            if (passwordWrapper) {
+              passwordWrapper.style.display = "";
+              passwordInput.focus();
+            }
+            submit.textContent = "Sign in";
+            submit.disabled = false;
+          } else if (value) {
+            if (passwordWrapper) {
+              passwordWrapper.style.display = "none";
+              passwordInput.value = "";
+            }
+            submit.textContent = defaultSubmitText || "Request code";
+            submit.disabled = false;
+          }
+        }
+
+        document.addEventListener("change", (e) => {
+          console.log(">> e.target.name", e.target.name);
+          if (e.target.name === "signin-method") {
+            console.log(">> e.target.value", e.target.value);
+            updateSignInMethod(e.target.value);
+          }
+        });
+
+        const checked = document.querySelector("input[name='signin-method']:checked");
+        if (checked) updateSignInMethod(checked.value);
+      });
+    </script>
+  </body>
+</html>
