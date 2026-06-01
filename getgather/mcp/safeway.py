@@ -145,14 +145,27 @@ async def get_in_store_purchases_from_api(tab: zd.Tab, page_number: int = 1) -> 
     async def fetch_orders() -> dict[str, Any]:
         orders = None
 
-        await zen_navigate_with_retry(
-            tab, "https://www.safeway.com/order-account/orders", wait_for_ready=False
-        )
         orders = await tab.evaluate(
             f"""
                 (async () => {{
+                    const ordersUrl = 'https://www.safeway.com/order-account/orders';
+                    window.location.href = ordersUrl;
+
+                    const clickInStoreTab = () => {{
+                        const items = document.querySelectorAll(
+                            'ul > li[class*="tabs_myNavItem"]'
+                        );
+                        for (const li of items) {{
+                            if (li.textContent.includes('In-store')) {{
+                                li.click();
+                                return;
+                            }}
+                        }}
+                    }};
+
                     const httpRequest = await new Promise(resolve => {{
                         const originalFetch = window.fetch;
+                        let clickInterval;
                         window.fetch = async function (...args) {{
                             const url = String(
                                 typeof args[0] === 'string' ? args[0] : args[0]?.url || ''
@@ -160,10 +173,13 @@ async def get_in_store_purchases_from_api(tab: zd.Tab, page_number: int = 1) -> 
                             const method = String((args[1] || {{}}).method || 'GET').toUpperCase();
                             if (url.includes('/order-account/api/instore') && method === 'POST') {{
                                 window.fetch = originalFetch;
+                                clearInterval(clickInterval);
                                 resolve(args);
                             }}
                             return originalFetch.apply(this, args);
                         }};
+                        clickInStoreTab();
+                        clickInterval = setInterval(clickInStoreTab, 500);
                     }})
 
                     const url = httpRequest[0]
@@ -180,6 +196,9 @@ async def get_in_store_purchases_from_api(tab: zd.Tab, page_number: int = 1) -> 
                         body: JSON.stringify(body)
                     }});
                     if (!res.ok) {{
+                        if (res.status === 404) {{
+                            return [];
+                        }}
                         const error_text = await res.text();
                         throw new Error(`HTTP error! status: ${{res.status}} - ${{error_text}}`);
                     }}
