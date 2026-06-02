@@ -624,6 +624,7 @@ class Element:
         await asyncio.sleep(0.25)
 
     async def type_text(self, text: str) -> None:
+        await asyncio.sleep(0.25)
         await self.element.clear_input_by_deleting()
         await asyncio.sleep(self.config.typing_clear_delay)
         await self.element.clear_input()
@@ -1037,6 +1038,7 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                     }};
 
                     element.focus();
+                    await sleep(250);
                     element.dispatchEvent(new KeyboardEvent("keydown", {{ key: "Tab", bubbles: true }}));
 
                     setNativeValue(element, "");
