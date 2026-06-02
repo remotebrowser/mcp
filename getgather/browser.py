@@ -27,6 +27,7 @@ from getgather.client_ip import client_ip_var
 from getgather.config import settings
 
 HTTP_METHOD = Literal["GET", "POST", "DELETE"]
+_INPUT_FOCUS_DELAY_MS = 250
 _ws_extra_headers_var: ContextVar[dict[str, str] | None] = ContextVar(
     "_ws_extra_headers_var", default=None
 )
@@ -624,7 +625,7 @@ class Element:
         await asyncio.sleep(0.25)
 
     async def type_text(self, text: str) -> None:
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(_INPUT_FOCUS_DELAY_MS / 1000)
         await self.element.clear_input_by_deleting()
         await asyncio.sleep(self.config.typing_clear_delay)
         await self.element.clear_input()
@@ -1041,7 +1042,7 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                     }};
 
                     element.focus();
-                    await sleep(250);
+                    await sleep({_INPUT_FOCUS_DELAY_MS});
                     element.dispatchEvent(new KeyboardEvent("keydown", {{ key: "Tab", bubbles: true }}));
 
                     setNativeValue(element, "");
