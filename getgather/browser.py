@@ -623,9 +623,7 @@ class Element:
         logger.error("TODO: Element#check")
         await asyncio.sleep(0.25)
 
-    async def type_text(self, text: str, focus_delay_ms: int = 0) -> None:
-        if focus_delay_ms > 0:
-            await asyncio.sleep(focus_delay_ms / 1000)
+    async def type_text(self, text: str) -> None:
         await self.element.clear_input_by_deleting()
         await asyncio.sleep(self.config.typing_clear_delay)
         await self.element.clear_input()

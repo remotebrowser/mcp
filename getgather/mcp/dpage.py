@@ -581,9 +581,7 @@ async def zen_post_dpage(page: zd.Tab, id: str, request: Request) -> HTMLRespons
                     await element.click()
                 elif kind == "set_value":
                     value = action.get("value")
-                    await element.type_text(
-                        value if isinstance(value, str) else "", focus_delay_ms=delay_ms
-                    )
+                    await element.type_text(value if isinstance(value, str) else "")
 
             await asyncio.sleep(0.25)
 
