@@ -1068,7 +1068,6 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                     let currentValue = "";
                     for (const char of value) {{
                         element.dispatchEvent(new KeyboardEvent("keydown", {{ key: char, bubbles: true }}));
-                        element.dispatchEvent(new KeyboardEvent("keypress", {{ key: char, bubbles: true }}));
                         currentValue += char;
                         setNativeValue(element, currentValue);
                         element.dispatchEvent(
