@@ -27,6 +27,10 @@ dependencies = [
   "geoip2>=5.2.0",
 ]
 
+[project.optional-dependencies]
+# Daytona backend (BROWSER_BACKEND=daytona). Optional so podman-only installs stay unchanged.
+daytona = ["daytona>=0.183.0"]
+
 [dependency-groups]
 dev = [
   "assertpy>=1.1",
