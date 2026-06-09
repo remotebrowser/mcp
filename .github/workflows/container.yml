@@ -79,3 +79,42 @@ jobs:
             --network host
             -e CHROMEFLEET_URL=http://localhost:8300
             -e CHROMEFLEET_CDP_OPEN_TIMEOUT_SECONDS=120
+
+  daytona:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Connect to Tailscale
+        # Only GitHub-hosted runners need Tailscale to reach the Daytona server; act (where
+        # runner.environment is empty) and self-hosted runners self-skip.
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: latest
+
+      - name: Verify Daytona API reachable
+        run: while ! curl -sf "${DAYTONA_API_URL}/health" >/dev/null; do echo "waiting for Daytona..."; sleep 2; done
+        timeout-minutes: 2
+        env:
+          DAYTONA_API_URL: ${{ vars.DAYTONA_API_URL }}
+
+      - uses: remotebrowser/shared-github-actions/container-health-check@v1
+        with:
+          image-name: getgather
+          build-args: |
+            BROWSER_BACKEND=daytona
+          health-checks: |
+            {"url": "http://localhost:23456/health"}
+            {"url": "http://localhost:23456/extended-health"}
+          health-timeout-seconds: 180
+          extra-config: |-
+            --network host
+            -e BROWSER_BACKEND=daytona
+            -e DAYTONA_API_KEY=${{ secrets.DAYTONA_API_KEY }}
+            -e DAYTONA_API_URL=${{ vars.DAYTONA_API_URL }}
+            -e DAYTONA_SNAPSHOT=${{ vars.DAYTONA_SNAPSHOT }}
