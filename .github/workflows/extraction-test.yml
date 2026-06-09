@@ -1,20 +1,53 @@
 name: Extraction Tests
 
+# Runs the extraction (distillation REST API) suite against each browser backend. The daytona leg
+# talks to a self-hosted Daytona server on a Tailscale network and creates real sandboxes;
+# configure under Settings -> Secrets and variables -> Actions:
+#   Secrets:   DAYTONA_API_KEY, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET
+#   Variables: DAYTONA_API_URL (e.g. http://100.89.25.69:3000/api), DAYTONA_SNAPSHOT
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
 jobs:
   extraction-tests-uv:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser_backend: [podman, daytona]
+    env:
+      BROWSER_BACKEND: ${{ matrix.browser_backend }}
+      DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+      DAYTONA_API_URL: ${{ vars.DAYTONA_API_URL }}
+      DAYTONA_SNAPSHOT: ${{ vars.DAYTONA_SNAPSHOT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Connect to Tailscale
+        # Only GitHub-hosted runners need Tailscale to reach the Daytona server; act (where
+        # runner.environment is empty) and self-hosted runners are assumed to already have tailnet
+        # access, so the step self-skips there.
+        if: ${{ matrix.browser_backend == 'daytona' && runner.environment == 'github-hosted' }}
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: latest
+
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
+
+      - name: Verify Daytona API reachable
+        if: ${{ matrix.browser_backend == 'daytona' }}
+        run: while ! curl -sf "${DAYTONA_API_URL}/health" >/dev/null; do echo "waiting for Daytona..."; sleep 2; done
+        timeout-minutes: 2
 
       - run: uv run -m uvicorn getgather.main:app --port 23456 &
 
@@ -28,12 +61,35 @@ jobs:
   extraction-tests-wheel:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser_backend: [podman, daytona]
+    env:
+      BROWSER_BACKEND: ${{ matrix.browser_backend }}
+      DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+      DAYTONA_API_URL: ${{ vars.DAYTONA_API_URL }}
+      DAYTONA_SNAPSHOT: ${{ vars.DAYTONA_SNAPSHOT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Connect to Tailscale
+        if: ${{ matrix.browser_backend == 'daytona' && runner.environment == 'github-hosted' }}
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: latest
+
       - name: Prepare back-end environment
         uses: ./.github/actions/prepare-backend
+
+      - name: Verify Daytona API reachable
+        if: ${{ matrix.browser_backend == 'daytona' }}
+        run: while ! curl -sf "${DAYTONA_API_URL}/health" >/dev/null; do echo "waiting for Daytona..."; sleep 2; done
+        timeout-minutes: 2
 
       - run: uvx hatch build
 
@@ -41,7 +97,13 @@ jobs:
         run: unzip -l dist/*.whl
 
       - name: Execute the wheel
-        run: uvx ./dist/*.whl &
+        # The daytona backend needs the optional SDK; pin anyio>=4.10 since httpx-ws under-declares it.
+        run: |
+          if [ "${{ matrix.browser_backend }}" = daytona ]; then
+            uvx --with daytona --with 'anyio>=4.10' ./dist/*.whl &
+          else
+            uvx ./dist/*.whl &
+          fi
 
       - name: Run the health check validation
         run: while ! curl -s 'http://localhost:23456/health' | grep 'OK'; do sleep 1; done
