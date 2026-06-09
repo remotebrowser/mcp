@@ -15,11 +15,12 @@ PATTERNS_DIR = Path(__file__).resolve().parent.parent / "getgather" / "mcp" / "p
 
 EXACT_TESTIDS = {
     "answer",  # security question answer
-    "email",  # email / username field, also email-or-phone combo fields
+    "email",  # field that accepts an email address only
     "otp",  # single verification-code field
     "password",
     "phone",
     "submit",  # the primary submit/continue button of the form
+    "username",  # combo identifier field (email or phone/username/member number)
     "zip-code",
 }
 TESTID_REGEXES = [
@@ -28,8 +29,9 @@ TESTID_REGEXES = [
     re.compile(r"^option-\d+$"),  # generic choice radio (e.g. account/channel pickers), 1-based
 ]
 INPUT_TYPE_TESTIDS = {
-    "email": "email",
-    "password": "password",
+    # some combo identifier fields use type="email" upstream, so both are allowed there
+    "email": frozenset({"email", "username"}),
+    "password": frozenset({"password"}),
 }
 OTP_BOX_RE = re.compile(r"^otp-(\d+)$")
 
@@ -76,10 +78,10 @@ def check_file(path: Path) -> list[str]:
             otp_boxes.append(int(box.group(1)))
         input_type = str(el.get("type") or "").lower()
         expected = INPUT_TYPE_TESTIDS.get(input_type) if el.name == "input" else None
-        if expected and testid != expected:
+        if expected and testid not in expected:
             errors.append(
                 f"{describe(el)} has data-testid {testid!r}, "
-                f"expected {expected!r} for type={input_type!r}"
+                f"expected one of {sorted(expected)} for type={input_type!r}"
             )
     if otp_boxes and sorted(otp_boxes) != list(range(len(otp_boxes))):
         errors.append(
