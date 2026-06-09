@@ -109,5 +109,7 @@ jobs:
         run: while ! curl -s 'http://localhost:23456/health' | grep 'OK'; do sleep 1; done
         timeout-minutes: 3
 
+      # test_daytona.py runs only in the -uv job: it creates fixed-named sandboxes, so running it
+      # here too would collide with that job on the shared Daytona server.
       - name: Run the browser API E2E tests
-        run: uv run pytest -v -s tests/test_browser_api_e2e.py tests/test_daytona.py
+        run: uv run pytest -v -s tests/test_browser_api_e2e.py
