@@ -916,6 +916,129 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
             return null;
         }}
 
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            "value"
+        )?.set;
+        const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLTextAreaElement.prototype,
+            "value"
+        )?.set;
+
+        const setNativeValue = (el, nextValue) => {{
+            if (el instanceof HTMLInputElement && nativeInputValueSetter) {{
+                nativeInputValueSetter.call(el, nextValue);
+            }} else if (el instanceof HTMLTextAreaElement && nativeTextAreaValueSetter) {{
+                nativeTextAreaValueSetter.call(el, nextValue);
+            }} else {{
+                el.value = nextValue;
+            }}
+        }};
+
+        async function fillInput(el, value, typingDelayMs) {{
+            el.focus();
+            setNativeValue(el, "");
+            el.dispatchEvent(new InputEvent("input", {{
+                bubbles: true,
+                inputType: "deleteContentBackward",
+                data: null,
+            }}));
+            let currentValue = "";
+            for (const char of value) {{
+                el.dispatchEvent(new KeyboardEvent("keydown", {{ key: char, bubbles: true }}));
+                currentValue += char;
+                setNativeValue(el, currentValue);
+                el.dispatchEvent(new InputEvent("input", {{
+                    bubbles: true,
+                    inputType: "insertText",
+                    data: char,
+                }}));
+                el.dispatchEvent(new KeyboardEvent("keyup", {{ key: char, bubbles: true }}));
+                if (typingDelayMs > 0) await sleep(typingDelayMs);
+            }}
+            el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+        }}
+
+        async function setAndSubmit(inputSelector, value, submitSelector, typingDelayMs, idleWindowMs, timeout) {{
+            const hook = window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+            const useHook = hook && typeof hook.onCommitFiberRoot === "function";
+
+            let lastCommitAt = Date.now();
+            let fillInProgress = false;
+            let originalOnCommit = null;
+
+            if (useHook) {{
+                originalOnCommit = hook.onCommitFiberRoot.bind(hook);
+                hook.onCommitFiberRoot = function(...args) {{
+                    lastCommitAt = Date.now();
+                    try {{ originalOnCommit(...args); }} catch (_) {{}}
+                    if (!fillInProgress) {{
+                        const el = findCss(inputSelector, document);
+                        if (el && el.value !== value) {{
+                            fillInProgress = true;
+                            fillInput(el, value, typingDelayMs).finally(() => {{ fillInProgress = false; }});
+                        }}
+                    }}
+                }};
+            }}
+
+            try {{
+                const el = findCss(inputSelector, document);
+                if (!el) return {{ success: false, reason: "element not found" }};
+                await fillInput(el, value, typingDelayMs);
+
+                let refillCount = 0;
+                const deadline = Date.now() + timeout;
+                while (Date.now() < deadline) {{
+                    await sleep(50);
+
+                    // With hook: wait for React to go idle before checking/submitting.
+                    // Without hook: poll and re-fill if value was wiped, then submit.
+                    if (useHook && (Date.now() - lastCommitAt) < idleWindowMs) continue;
+
+                    const inputEl = findCss(inputSelector, document);
+                    if (!inputEl) continue;
+
+                    // Re-fill if value was cleared (covers no-hook polling case).
+                    if (inputEl.value !== value && !fillInProgress) {{
+                        refillCount++;
+                        console.log(`set_and_submit: refill #${{refillCount}}, value was "${{inputEl.value}}", expected "${{value}}"`);
+                        fillInProgress = true;
+                        await fillInput(inputEl, value, typingDelayMs);
+                        fillInProgress = false;
+                        if (useHook) lastCommitAt = Date.now(); // reset idle window after re-fill
+                        continue;
+                    }}
+
+                    if (inputEl.value !== value) continue; // fill in progress, wait
+
+                    const submitEl = findCss(submitSelector, document);
+                    if (!submitEl) continue;
+
+                    submitEl.click();
+
+                    const fiberKey = Object.keys(inputEl).find(k => k.startsWith("__reactFiber"));
+                    const fiber = fiberKey ? inputEl[fiberKey] : null;
+                    const reactValue = fiber?.memoizedProps?.value ?? null;
+                    return {{
+                        success: true,
+                        actualValue: inputEl.value,
+                        reactValue: reactValue,
+                        usedHook: useHook,
+                        refillCount: refillCount,
+                    }};
+                }}
+
+                return {{ success: false, reason: "timeout" }};
+            }} finally {{
+                if (useHook && originalOnCommit !== null) {{
+                    hook.onCommitFiberRoot = originalOnCommit;
+                }}
+            }}
+        }}
+
         for (const [index, action] of actions.entries()) {{
             const actionDelayMs = Number(action?.action_delay_ms) || 0;
             if (index > 0 && actionDelayMs > 0) {{
@@ -958,65 +1081,25 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                 if (kind === "click") {{
                     element.click();
                     output[key] = true;
+                }} else if (kind === "set_and_submit") {{
+                    const value = typeof action?.value === "string" ? action.value : "";
+                    const submitSelector = typeof action?.submit_selector === "string" ? action.submit_selector : "";
+                    const requestedDelay = Number(action?.typing_delay_ms);
+                    const typingDelayMs = Number.isFinite(requestedDelay)
+                        ? Math.max(0, Math.min(250, requestedDelay))
+                        : 25;
+                    const idleWindowMs = Number(action?.idle_window_ms) || 300;
+                    const timeout = Number(action?.timeout_ms) || 10000;
+                    if (actionDelayMs > 0) await sleep(actionDelayMs);
+                    output[key] = await setAndSubmit(selector, value, submitSelector, typingDelayMs, idleWindowMs, timeout);
                 }} else if (kind === "set_value") {{
                     const value = typeof action?.value === "string" ? action.value : "";
                     const requestedDelay = Number(action?.typing_delay_ms);
                     const typingDelayMs = Number.isFinite(requestedDelay)
                         ? Math.max(0, Math.min(250, requestedDelay))
                         : 25;
-                    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                        window.HTMLInputElement.prototype,
-                        "value"
-                    )?.set;
-                    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
-                        window.HTMLTextAreaElement.prototype,
-                        "value"
-                    )?.set;
-
-                    const setNativeValue = (el, nextValue) => {{
-                        if (el instanceof HTMLInputElement && nativeInputValueSetter) {{
-                            nativeInputValueSetter.call(el, nextValue);
-                        }} else if (el instanceof HTMLTextAreaElement && nativeTextAreaValueSetter) {{
-                            nativeTextAreaValueSetter.call(el, nextValue);
-                        }} else {{
-                            el.value = nextValue;
-                        }}
-                    }};
-
-                    element.focus();
-                    if (actionDelayMs > 0) {{
-                        await sleep(actionDelayMs);
-                    }}
-                    element.dispatchEvent(new KeyboardEvent("keydown", {{ key: "Tab", bubbles: true }}));
-
-                    setNativeValue(element, "");
-                    element.dispatchEvent(
-                        new InputEvent("input", {{
-                            bubbles: true,
-                            inputType: "deleteContentBackward",
-                            data: null
-                        }})
-                    );
-
-                    let currentValue = "";
-                    for (const char of value) {{
-                        element.dispatchEvent(new KeyboardEvent("keydown", {{ key: char, bubbles: true }}));
-                        currentValue += char;
-                        setNativeValue(element, currentValue);
-                        element.dispatchEvent(
-                            new InputEvent("input", {{
-                                bubbles: true,
-                                inputType: "insertText",
-                                data: char
-                            }})
-                        );
-                        element.dispatchEvent(new KeyboardEvent("keyup", {{ key: char, bubbles: true }}));
-                        if (typingDelayMs > 0) {{
-                            await sleep(typingDelayMs);
-                        }}
-                    }}
-                    element.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                    if (actionDelayMs > 0) await sleep(actionDelayMs);
+                    await fillInput(element, value, typingDelayMs);
                     output[key] = true;
                 }} else {{
                     output[key] = false;
@@ -1033,7 +1116,21 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
     try:
         result = await page.evaluate(js_code, await_promise=True)
         if isinstance(result, dict):
-            return {str(k): bool(v) for k, v in result.items()}  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+            output: dict[str, bool] = {}
+            for k, v in result.items():  # pyright: ignore[reportUnknownVariableType]
+                if isinstance(v, dict):
+                    vd: dict[str, object] = v  # pyright: ignore[reportUnknownVariableType]
+                    logger.info(
+                        f"set_and_submit debug: key={k} "
+                        f"success={vd.get('success')} actualValue={vd.get('actualValue')!r} "
+                        f"reactValue={vd.get('reactValue')!r} usedHook={vd.get('usedHook')} "
+                        f"refillCount={vd.get('refillCount')} reason={vd.get('reason')!r}"
+                    )
+                    output[str(k)] = vd.get("success") is True  # pyright: ignore[reportUnknownArgumentType]
+                else:
+                    output[str(k)] = bool(v)  # pyright: ignore[reportUnknownArgumentType]
+            logger.info(f"Batch actions result: {output}")
+            return output
     except Exception as error:
         logger.error(f"Batch actions failed: {error}")
     return None
