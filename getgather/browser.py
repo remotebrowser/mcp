@@ -961,13 +961,6 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
             el.dispatchEvent(new Event("change", {{ bubbles: true }}));
         }}
 
-        // For debug logging only — not used in any fill or submit logic.
-        function getReactValue(el) {{
-            const fiberKey = Object.keys(el).find(k => k.startsWith("__reactFiber"));
-            const fiber = fiberKey ? el[fiberKey] : null;
-            return fiber?.memoizedProps?.value ?? null;
-        }}
-
         async function setValueWithPoll(selector, value, typingDelayMs, timeout) {{
             const el = document.querySelector(selector);
             if (!el) return {{ success: false, reason: "element not found" }};
@@ -988,7 +981,6 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                 return {{
                     success: true,
                     actualValue: inputEl.value,
-                    reactValue: getReactValue(inputEl),
                     refillCount: refillCount,
                 }};
             }}
@@ -1068,7 +1060,6 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
                     logger.info(
                         f"set_value debug: key={k} "
                         f"success={vd.get('success')} actualValue={vd.get('actualValue')!r} "
-                        f"reactValue={vd.get('reactValue')!r} "
                         f"refillCount={vd.get('refillCount')} reason={vd.get('reason')!r}"
                     )
                     output[str(k)] = vd.get("success") is True  # pyright: ignore[reportUnknownArgumentType]
