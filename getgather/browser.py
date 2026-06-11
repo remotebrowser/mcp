@@ -967,22 +967,27 @@ async def page_batch_actions(page: zd.Tab, actions: list[dict[str, str]]) -> dic
             await fillInput(el, value, typingDelayMs);
 
             let refillCount = 0;
+            let stableCount = 0;
             const deadline = Date.now() + timeout;
             while (Date.now() < deadline) {{
                 await sleep(50);
                 const inputEl = document.querySelector(selector);
-                if (!inputEl) continue;
+                if (!inputEl) {{ stableCount = 0; continue; }}
                 if (inputEl.value !== value) {{
+                    stableCount = 0;
                     refillCount++;
                     console.log(`set_value: refill #${{refillCount}}, value was "${{inputEl.value}}", expected "${{value}}"`);
                     await fillInput(inputEl, value, typingDelayMs);
                     continue;
                 }}
-                return {{
-                    success: true,
-                    actualValue: inputEl.value,
-                    refillCount: refillCount,
-                }};
+                stableCount++;
+                if (stableCount >= 5) {{
+                    return {{
+                        success: true,
+                        actualValue: inputEl.value,
+                        refillCount: refillCount,
+                    }};
+                }}
             }}
             return {{ success: false, reason: "timeout" }};
         }}
