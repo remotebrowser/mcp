@@ -34,6 +34,8 @@ class AmazonCountry:
     watchlist_url: str
     prime_library_url: str
     browsing_history_url: str
+    watchlist_pagination_api_url: str
+    watch_history_pagination_api_url: str
 
     @property
     def base_url(self) -> str:
@@ -54,6 +56,8 @@ AMAZON_US = AmazonCountry(
     watchlist_url="https://www.amazon.com/gp/video/mystuff/watchlist",
     prime_library_url="https://www.amazon.com/gp/video/mystuff/library",
     browsing_history_url="https://www.amazon.com/gp/history?ref_=nav_AccountFlyout_browsinghistory",
+    watchlist_pagination_api_url="https://www.amazon.com/gp/video/api/paginateCollection",
+    watch_history_pagination_api_url="https://www.amazon.com/gp/video/api/getWatchHistorySettingsPage",
 )
 
 AMAZON_CA = AmazonCountry(
@@ -66,6 +70,8 @@ AMAZON_CA = AmazonCountry(
     watchlist_url="https://www.primevideo.com/region/na/mystuff/watchlist",
     prime_library_url="https://www.primevideo.com/region/na/mystuff/library",
     browsing_history_url="https://www.amazon.ca/gp/history?ref_=nav_AccountFlyout_browsinghistory",
+    watchlist_pagination_api_url="https://www.primevideo.com/region/na/api/paginateCollection",
+    watch_history_pagination_api_url="https://www.primevideo.com/region/fe/api/getWatchHistorySettingsPage",
 )
 
 
@@ -676,6 +682,174 @@ async def _get_prime_library(country: AmazonCountry) -> dict[str, Any]:
     )
 
 
+async def _get_watchlist_with_pagination(
+    country: AmazonCountry, start_index: int = 0
+) -> dict[str, Any]:
+    async def get_watchlist_with_pagination_action(
+        page: zd.Tab, browser: zd.Browser
+    ) -> dict[str, Any]:
+        current_url = await get_url(page)
+        if current_url is None or "signin" in current_url:
+            logger.info(f"User is not signed in")
+            raise Exception("User is not signed in")
+
+        js_code = f"""
+            (async () => {{
+                const res = await fetch(location.href, {{
+                    method: 'GET',
+                    credentials: 'include',
+                }});
+                const text = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const hydrationData = doc.querySelector('#dv-web-page-hydration-data')?.textContent;
+                const hydrationDataJson = JSON.parse(hydrationData);
+                const paginationTargetId = hydrationDataJson.init.preparations.body.content.baseOutput.containers[0].paginationTargetId;
+                const paginationServiceToken = hydrationDataJson.init.preparations.body.content.baseOutput.containers[0].paginationServiceToken;
+                const startIndex = {start_index};
+                
+                const queryParam = {{
+                    pageType: "home",
+                    pageId: "Watchlist",
+                    collectionType: "Container",
+                    paginationTargetId: paginationTargetId,
+                    serviceToken: paginationServiceToken,
+                    startIndex: String(startIndex),
+                    actionScheme: "default",
+                    payloadScheme: "default",
+                    decorationScheme: "web-decoration-asin-v4",
+                    featureScheme: "web-features-v6",
+                    dynamicFeatures: [
+                        "integration",
+                        "CLIENT_DECORATION_ENABLE_DAAPI",
+                        "ENABLE_DRAPER_CONTENT",
+                        "HorizontalPagination",
+                        "CleanSlate",
+                        "EpgContainerPagination",
+                        "ENABLE_GPCI",
+                        "SupportsImageTextLinkTextInStandardHero",
+                        "Remaster",
+                        "SupportsChannelWidget",
+                        "PromotionalBannerSupported",
+                        "RemoveFromContinueWatching",
+                        "SearchChannelBundles",
+                        "LinearStationInAllCarousels",
+                        "SupportChannelItemDecoration",
+                        "TvodMovieBundles"
+                    ],
+                    widgetScheme: "web-explore-v38",
+                    variant: "desktopOSX",
+                    myStuffViewType: "watchlist",
+                    journeyIngressContext: ""
+                }};
+                
+                const params = new URLSearchParams();
+            
+                for (const [key, value] of Object.entries(queryParam)) {{
+                    if (Array.isArray(value)) {{
+                        value.forEach(v => params.append(key, v));
+                    }} else {{
+                        params.append(key, value);
+                    }}
+                }}
+            
+                const url = `{country.watchlist_pagination_api_url}?${{params.toString()}}`;
+            
+                const response = await fetch(url, {{
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {{
+                        accept: '*/*',
+                        'x-requested-with': 'XMLHttpRequest'
+                    }}
+                }});
+            
+                const data = await response.json();
+                const items = data.entities ?? data.container?.entities ?? [];
+            
+                return {{ items, hasMoreItems: data.hasMoreItems === true, startIndex }};
+            }})()
+        """
+
+        result = await page.evaluate(js_code, True)
+
+        return {country.watchlist_result_key: result}
+
+    return await remote_zen_dpage_with_action(
+        country.watchlist_url,
+        action=get_watchlist_with_pagination_action,
+    )
+
+
+async def _get_watch_history_with_pagination(
+    country: AmazonCountry, nextToken: str | None = None
+) -> dict[str, Any]:
+    async def get_watch_history_with_pagination_action(
+        page: zd.Tab, browser: zd.Browser
+    ) -> dict[str, Any]:
+        current_url = await get_url(page)
+        if current_url is None or "signin" in current_url:
+            logger.info(f"User is not signed in")
+            raise Exception("User is not signed in")
+
+        # await asyncio.sleep(10)
+        js_code = f"""
+            (async () => {{
+                const res = await fetch(location.href, {{
+                    method: "GET",
+                    credentials: "include",
+                }});
+                const text = await res.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, "text/html");
+                const hydrationData = [...doc.querySelectorAll("script[type='text/template']")]
+                    .map((el) => el.textContent)
+                    .find(
+                    (content) =>
+                        content?.includes("props") &&
+                        content.includes("metadata") &&
+                        content.includes("availability") &&
+                        content.includes("notifications"),
+                    );
+                const hydrationDataJson = JSON.parse(hydrationData);
+                const firstNextToken = hydrationDataJson.props.widgets[2].content.content.nextToken;
+                const requestId = hydrationDataJson.args.context.requestID;
+                const watchHistory = hydrationDataJson.props.widgets[2].content.content;
+
+                if ("{nextToken}" !== "None") {{
+                    const queryString = 'widgetArgs=' + encodeURIComponent(JSON.stringify({{nextToken: "{nextToken}"}}));
+                    const paginationApiResponse = await fetch(`{country.watch_history_pagination_api_url}?${{queryString}}`, {{
+                        "headers": {{
+                            "accept": "*/*",
+                            "x-amzn-requestid": requestId,
+                            "Referer": "https://www.amazon.com/gp/video/settings/watch-history",
+                            "x-requested-with": "XMLHttpRequest"
+                        }},
+                        "body": null,
+                        "method": "GET",
+                        "mode": "cors",
+                        "credentials": "include"
+                    }});
+                 
+                    const response = await paginationApiResponse.json();
+                    return {{ watchHistory: response.widgets[2].content.content.titles[0].titles, nextToken: response.widgets[2].content.content.nextToken }};
+                }}
+
+                return {{ watchHistory: watchHistory.titles[0].titles, nextToken: firstNextToken, requestId }};
+            }})()
+        """
+
+        result = await page.evaluate(js_code, True)
+        # await asyncio.sleep(30)
+
+        return {country.watch_history_result_key: result}
+
+    return await remote_zen_dpage_with_action(
+        country.watch_history_url,
+        action=get_watch_history_with_pagination_action,
+    )
+
+
 amazon_us_mcp = MCPTool(brand_id="amazon", name="Amazon MCP")
 amazon_ca_mcp = MCPTool(brand_id="amazonca", name="Amazon CA MCP")
 
@@ -738,6 +912,20 @@ async def amazon_us_get_prime_library() -> dict[str, Any]:
     return await _get_prime_library(AMAZON_US)
 
 
+@amazon_us_mcp.tool("get_watchlist_with_pagination")
+async def amazon_us_get_watchlist_with_pagination(start_index: int = 0) -> dict[str, Any]:
+    """Get Prime Video watchlist from Amazon US with pagination."""
+    return await _get_watchlist_with_pagination(AMAZON_US, start_index)
+
+
+@amazon_us_mcp.tool("get_watch_history_with_pagination")
+async def amazon_us_get_watch_history_with_pagination(
+    nextToken: str | None = None,
+) -> dict[str, Any]:
+    """Get Prime Video watchlist from Amazon US with pagination."""
+    return await _get_watch_history_with_pagination(AMAZON_US, nextToken)
+
+
 @amazon_ca_mcp.tool("search_purchase_history")
 async def amazon_ca_search_purchase_history(keyword: str, page_number: int = 1) -> dict[str, Any]:
     """Search purchase history from amazon."""
@@ -794,3 +982,17 @@ async def amazon_ca_get_watchlist() -> dict[str, Any]:
 async def amazon_ca_get_prime_library() -> dict[str, Any]:
     """Get Prime Video purchases and rentals library from Amazon Canada."""
     return await _get_prime_library(AMAZON_CA)
+
+
+@amazon_ca_mcp.tool("get_watchlist_with_pagination")
+async def amazon_ca_get_watchlist_with_pagination(start_index: int = 0) -> dict[str, Any]:
+    """Get Prime Video watchlist from Amazon Canada with pagination."""
+    return await _get_watchlist_with_pagination(AMAZON_CA, start_index)
+
+
+@amazon_ca_mcp.tool("get_watch_history_with_pagination")
+async def amazon_ca_get_watch_history_with_pagination(
+    nextToken: str | None = None,
+) -> dict[str, Any]:
+    """Get Prime Video watchlist from Amazon Canada with pagination."""
+    return await _get_watch_history_with_pagination(AMAZON_CA, nextToken)
